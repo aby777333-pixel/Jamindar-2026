@@ -23,6 +23,7 @@ import {
 } from "expo-audio";
 import * as FileSystem from "expo-file-system";
 import { colors } from "@/lib/theme";
+import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import {
   jamindarChat,
@@ -48,6 +49,7 @@ import {
   type SearchFilters,
 } from "@/lib/property-search";
 import { formatINR } from "@/lib/format";
+import { computeSuggestions } from "@/lib/suggestions";
 import type { Property } from "@/lib/types";
 import { Brandmark } from "./Brand";
 
@@ -188,6 +190,19 @@ export function JamindarSheet({
           content: `Namaste${name} 🙏 I'm Jamindar, your property advisor. Ask me about plots, budgets, legal terms, or say "open properties", "book a site visit" — by voice or text.`,
         },
       ]);
+
+      // proactive nudge for returning buyers (no audio surprise on open)
+      if (role === "buyer") {
+        try {
+          const sugg = await computeSuggestions(profile.id);
+          const match = sugg.find((s) => s.key === "matches");
+          if (!cancelled && match) {
+            setMsgs((m) => [...m, { role: "assistant", content: `By the way, ${match.title.toLowerCase()}. Say "show my matches" and I'll pull them up.` }]);
+          }
+        } catch {
+          /* optional */
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -366,6 +381,27 @@ export function JamindarSheet({
     // 0) guided profile intake takes priority while active
     if (intakeStep !== null) {
       await handleIntakeAnswer(clean);
+      return;
+    }
+
+    // 1a) "show my matches" — use the buyer's saved preferences
+    if (/\b(my matches|matches for me|what'?s new for me|show my preferences)\b/i.test(clean) && profile?.id) {
+      setBusy(true);
+      try {
+        const { data: prefs } = await supabase.from("buyer_preferences").select("*").eq("buyer_id", profile.id).maybeSingle();
+        if (prefs) {
+          await runSearch({
+            types: prefs.property_types ?? undefined,
+            city: prefs.city ?? undefined,
+            budgetMax: prefs.budget_max ?? undefined,
+            budgetMin: prefs.budget_min ?? undefined,
+          });
+        } else {
+          pushAssistant("I don't have your preferences yet. Tell me your budget, location and property type, or open Preferences to set them.");
+        }
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 

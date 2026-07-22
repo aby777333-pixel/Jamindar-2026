@@ -1,4 +1,4 @@
-import { Text, View, Pressable, ScrollView, Image } from "react-native";
+import { Text, View, Pressable, ScrollView, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,8 @@ import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, tileAccents, type TileAccent } from "@/lib/theme";
 import { formatINR, formatArea, initials } from "@/lib/format";
 import { ROLE_LABELS, PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
+import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
+import { encodeFilters } from "@/lib/property-search";
 
 type Tile = { label: string; icon: string; accent: TileAccent; href: Href };
 
@@ -58,6 +60,25 @@ export default function Home() {
   const role = useEffectiveRole();
   const tiles = TILES_BY_ROLE[role] ?? TILES_BY_ROLE.buyer;
   const { data: featured } = useFeatured();
+  const { data: suggestions } = useQuery({
+    queryKey: ["suggestions", profile?.id, role],
+    enabled: !!profile?.id && role === "buyer",
+    queryFn: () => computeSuggestions(profile!.id),
+  });
+
+  function runSuggestion(s: Suggestion) {
+    if (s.action.type === "checklist") {
+      Alert.alert("Pre-purchase checklist", checklistText());
+    } else if (s.action.type === "visits") {
+      router.push("/(tabs)/account");
+    } else {
+      router.push(
+        s.action.filters
+          ? { pathname: "/(tabs)/properties", params: { filters: encodeFilters(s.action.filters) } }
+          : "/(tabs)/properties"
+      );
+    }
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
@@ -138,6 +159,33 @@ export default function Home() {
             ))}
           </View>
         </View>
+
+        {/* for you — proactive suggestions (buyers) */}
+        {role === "buyer" && suggestions && suggestions.length > 0 ? (
+          <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+            <SectionTitle>For You</SectionTitle>
+            <View style={{ gap: 10 }}>
+              {suggestions.slice(0, 4).map((s) => {
+                const tone =
+                  s.tone === "gold" ? colors.gold : s.tone === "green" ? colors.success : s.tone === "blue" ? "#2B6FE1" : colors.brand;
+                return (
+                  <Pressable key={s.key} onPress={() => runSuggestion(s)}>
+                    <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
+                        <Ionicons name={s.icon as any} size={20} color={tone} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14 }} numberOfLines={1}>{s.title}</Text>
+                        <Text style={{ color: colors.inkFaint, fontSize: 12 }} numberOfLines={1}>{s.subtitle}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+                    </Card>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         {/* tools & guides */}
         <View style={{ paddingHorizontal: 20, marginTop: 22 }}>
