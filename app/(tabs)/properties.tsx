@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Text, View, Pressable, ScrollView, Image, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
+import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
 
 const FILTERS: { key: PropertyType | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -22,12 +23,16 @@ const FILTERS: { key: PropertyType | "all"; label: string }[] = [
 
 export default function Properties() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ filters?: string }>();
+  const jamindarFilters = useMemo<SearchFilters | null>(() => decodeFilters(params.filters), [params.filters]);
   const [filter, setFilter] = useState<PropertyType | "all">("all");
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["properties", filter],
+    queryKey: ["properties", filter, params.filters ?? ""],
     queryFn: async (): Promise<Property[]> => {
+      // If Jamindar passed structured filters, honour them exactly.
+      if (jamindarFilters) return searchProperties(jamindarFilters);
       let q = supabase
         .from("properties")
         .select("*")
@@ -50,6 +55,29 @@ export default function Properties() {
       <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
         <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink }}>Jamin Properties</Text>
         <Text style={{ color: colors.inkFaint, marginTop: 2 }}>Company-owned lands & plots</Text>
+
+        {jamindarFilters ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: colors.brandSoft,
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginTop: 12,
+            }}
+          >
+            <Ionicons name="sparkles" size={16} color={colors.brand} />
+            <Text style={{ flex: 1, color: colors.brand, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
+              Jamindar: {describeFilters(jamindarFilters)}
+            </Text>
+            <Pressable onPress={() => router.replace("/(tabs)/properties")}>
+              <Ionicons name="close-circle" size={18} color={colors.brand} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* search */}
         <View

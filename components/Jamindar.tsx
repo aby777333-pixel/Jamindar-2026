@@ -8,6 +8,7 @@ import {
   View,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -37,7 +38,19 @@ import {
   type ChatMsg,
 } from "@/lib/jamindar";
 import { parseIntent } from "@/lib/jamindar-intents";
+import {
+  parseSearchQuery,
+  hasSearchFilters,
+  searchProperties,
+  describeFilters,
+  encodeFilters,
+  type SearchFilters,
+} from "@/lib/property-search";
+import { formatINR } from "@/lib/format";
+import type { Property } from "@/lib/types";
 import { Brandmark } from "./Brand";
+
+type UIMsg = ChatMsg & { results?: Property[]; filters?: SearchFilters };
 
 /** Floating Jamindar assistant button + conversational sheet.
  *  Fully usable by touch; voice is additive. Drop it on any screen. */
@@ -84,7 +97,7 @@ export function JamindarSheet({
   const router = useRouter();
   const { profile, signOut } = useAuth();
   const role = useEffectiveRole();
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [msgs, setMsgs] = useState<UIMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [language, setLanguage] = useState("en-IN");
@@ -192,10 +205,32 @@ export function JamindarSheet({
     }
   }
 
-  function pushAssistant(content: string, speak = true) {
-    setMsgs((m) => [...m, { role: "assistant", content }]);
+  function pushAssistant(content: string, speak = true, extra?: Partial<UIMsg>) {
+    setMsgs((m) => [...m, { role: "assistant", content, ...extra }]);
     if (speak) playReply(content);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  // Natural-language property search: filters listings and shows results inline.
+  async function runSearch(filters: SearchFilters) {
+    setBusy(true);
+    try {
+      const results = await searchProperties(filters);
+      const desc = describeFilters(filters);
+      if (results.length === 0) {
+        pushAssistant(`I couldn't find ${desc} right now. Try widening the budget or location, and I'll look again.`);
+      } else {
+        pushAssistant(
+          `I found ${results.length} ${results.length === 1 ? "match" : "matches"} for ${desc}. Here are the top ones — tap any to see details.`,
+          true,
+          { results: results.slice(0, 4), filters }
+        );
+      }
+    } catch {
+      pushAssistant("Sorry, I couldn't run that search just now. Please try again.", false);
+    } finally {
+      setBusy(false);
+    }
   }
 
   // Try to handle an utterance as a navigation/action command first.
@@ -252,11 +287,18 @@ export function JamindarSheet({
     setMsgs((m) => [...m, { role: "user", content: clean }]);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
 
-    // 1) voice-navigation / command layer
+    // 1) property search — if the utterance carries real filters, run a live search
+    const filters = parseSearchQuery(clean);
+    if (hasSearchFilters(filters)) {
+      await runSearch(filters);
+      return;
+    }
+
+    // 2) voice-navigation / command layer
     const handled = await handleIntent(clean);
     if (handled) return;
 
-    // 2) consultant brain
+    // 3) consultant brain
     setBusy(true);
     try {
       const history: ChatMsg[] = [...msgs, { role: "user" as const, content: clean }].slice(-16);
@@ -370,22 +412,68 @@ export function JamindarSheet({
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {msgs.map((m, i) => (
-              <View
-                key={i}
-                style={{
-                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  backgroundColor: m.role === "user" ? colors.brand : colors.surface,
-                  borderRadius: 16,
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  maxWidth: "86%",
-                  borderWidth: m.role === "user" ? 0 : 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ color: m.role === "user" ? "#fff" : colors.ink, fontSize: 15, lineHeight: 21 }}>
-                  {m.content}
-                </Text>
+              <View key={i} style={{ gap: 8 }}>
+                <View
+                  style={{
+                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                    backgroundColor: m.role === "user" ? colors.brand : colors.surface,
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    maxWidth: "86%",
+                    borderWidth: m.role === "user" ? 0 : 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: m.role === "user" ? "#fff" : colors.ink, fontSize: 15, lineHeight: 21 }}>
+                    {m.content}
+                  </Text>
+                </View>
+
+                {m.results?.length ? (
+                  <View style={{ gap: 8 }}>
+                    {m.results.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => {
+                          onClose();
+                          router.push(`/property/${p.id}`);
+                        }}
+                        style={{ flexDirection: "row", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 8, alignItems: "center" }}
+                      >
+                        <View style={{ width: 52, height: 52, borderRadius: 10, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                          {p.images?.[0] ? (
+                            <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} />
+                          ) : (
+                            <Ionicons name="business" size={22} color={colors.inkFaint} />
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14 }} numberOfLines={1}>
+                            {p.title}
+                          </Text>
+                          <Text style={{ color: colors.inkFaint, fontSize: 12 }} numberOfLines={1}>
+                            {[p.locality, p.city].filter(Boolean).join(", ")}
+                          </Text>
+                          <Text style={{ color: colors.brand, fontWeight: "800", fontSize: 13, marginTop: 2 }}>{formatINR(p.price)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+                      </Pressable>
+                    ))}
+                    {m.filters ? (
+                      <Pressable
+                        onPress={() => {
+                          onClose();
+                          router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters(m.filters!) } });
+                        }}
+                        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.brandSoft }}
+                      >
+                        <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 13 }}>View all in Properties</Text>
+                        <Ionicons name="arrow-forward" size={15} color={colors.brand} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             ))}
             {busy ? (
