@@ -132,7 +132,10 @@ export function JamindarSheet({
     };
   }, [visible, profile?.id]);
 
+  const speakSeq = useRef(0);
+
   function stopSpeaking() {
+    speakSeq.current += 1; // invalidate any in-flight playback loop
     try {
       playerRef.current?.remove();
     } catch {
@@ -141,16 +144,48 @@ export function JamindarSheet({
     playerRef.current = null;
   }
 
+  // Play one WAV chunk fully, resolving only when it finishes (or a safety timeout).
+  function playChunkToEnd(uri: string): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const player = createAudioPlayer({ uri });
+      playerRef.current = player;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try {
+          sub?.remove();
+        } catch {
+          /* ignore */
+        }
+        resolve();
+      };
+      const sub = player.addListener("playbackStatusUpdate", (st: any) => {
+        if (st?.didJustFinish) finish();
+      });
+      try {
+        player.play();
+      } catch {
+        finish();
+        return;
+      }
+      // safety fallback: resolve a little after the reported duration
+      setTimeout(() => {
+        const secs = player.duration && isFinite(player.duration) ? player.duration : 12;
+        setTimeout(finish, secs * 1000 + 600);
+      }, 300);
+    });
+  }
+
   async function playReply(text: string) {
     if (!prefs.readAloud) return;
+    stopSpeaking();
+    const mySeq = speakSeq.current;
     try {
       const chunks = await synthesizeSpeech(text, language, { speaker: prefs.speaker, pace: prefs.pace });
-      for (const b64 of chunks) {
-        stopSpeaking();
-        const player = createAudioPlayer({ uri: `data:audio/wav;base64,${b64}` });
-        playerRef.current = player;
-        player.play();
-        await new Promise((r) => setTimeout(r, 400));
+      for (let i = 0; i < chunks.length; i++) {
+        if (speakSeq.current !== mySeq) return; // interrupted
+        await playChunkToEnd(`data:audio/wav;base64,${chunks[i]}`);
       }
     } catch {
       /* voice optional — silent fallback */

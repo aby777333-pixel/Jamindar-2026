@@ -76,15 +76,19 @@ Deno.serve(async (req) => {
     }
 
     if (action === "tts") {
+      // Natural-voice defaults: preprocessing normalizes numbers/English/punctuation,
+      // 22.05 kHz sample rate, slightly slower pace and a touch louder for warmth.
       const body: Record<string, unknown> = {
         text: String(payload.text ?? "").slice(0, 1500),
         target_language_code: payload.language ?? "en-IN",
         speaker: payload.speaker ?? "anushka",
         model: "bulbul:v2",
+        enable_preprocessing: true,
+        speech_sample_rate: 22050,
+        pace: payload.pace != null ? payload.pace : 0.95,
+        pitch: payload.pitch != null ? payload.pitch : 0,
+        loudness: payload.loudness != null ? payload.loudness : 1.2,
       };
-      if (payload.pace != null) body.pace = payload.pace;
-      if (payload.pitch != null) body.pitch = payload.pitch;
-      if (payload.loudness != null) body.loudness = payload.loudness;
       const r = await fetch(`${SARVAM}/text-to-speech`, { method: "POST", headers: sh, body: JSON.stringify(body) });
       return json(await r.json(), r.ok ? 200 : 502);
     }
