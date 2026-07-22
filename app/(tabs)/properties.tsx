@@ -10,6 +10,7 @@ import { colors } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
+import { useCompare } from "@/lib/compare";
 
 const FILTERS: { key: PropertyType | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -27,6 +28,7 @@ export default function Properties() {
   const jamindarFilters = useMemo<SearchFilters | null>(() => decodeFilters(params.filters), [params.filters]);
   const [filter, setFilter] = useState<PropertyType | "all">("all");
   const [search, setSearch] = useState("");
+  const compareCount = useCompare((s) => s.ids.length);
 
   const { data, isLoading } = useQuery({
     queryKey: ["properties", filter, params.filters ?? ""],
@@ -53,8 +55,21 @@ export default function Properties() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-        <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink }}>Jamin Properties</Text>
-        <Text style={{ color: colors.inkFaint, marginTop: 2 }}>Company-owned lands & plots</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink }}>Jamin Properties</Text>
+            <Text style={{ color: colors.inkFaint, marginTop: 2 }}>Company-owned lands & plots</Text>
+          </View>
+          {compareCount > 0 ? (
+            <Pressable
+              onPress={() => router.push("/tools/compare")}
+              style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.brand, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 }}
+            >
+              <Ionicons name="git-compare" size={15} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Compare {compareCount}</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         {jamindarFilters ? (
           <View

@@ -42,6 +42,10 @@ const RULES: Rule[] = [
     build: () => ({ kind: "navigate", href: "/tools/calculators", say: "Opening the calculators." }),
   },
   {
+    test: /\b(compare|comparison|compare shortlist|compare plots|compare properties)\b/i,
+    build: () => ({ kind: "navigate", href: "/tools/compare", say: "Opening your comparison." }),
+  },
+  {
     test: /\b(legal|documents guide|explain documents|law guide|patta guide|legal guide)\b/i,
     build: () => ({ kind: "navigate", href: "/tools/legal", say: "Opening the legal guide." }),
   },

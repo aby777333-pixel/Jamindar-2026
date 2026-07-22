@@ -19,6 +19,7 @@ export default function Account() {
     { icon: "sparkles", label: "Jamindar assistant", onPress: () => router.push("/(tabs)/assistant") },
     { icon: "mic", label: "Jamindar voice settings", onPress: () => router.push("/jamindar/settings") },
     { icon: "calculator", label: "Calculators", onPress: () => router.push("/tools/calculators") },
+    { icon: "git-compare", label: "Compare properties", onPress: () => router.push("/tools/compare") },
     { icon: "document-text", label: "Legal guide", onPress: () => router.push("/tools/legal") },
   ];
   if (role === "buyer") rows.splice(1, 0, { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") });

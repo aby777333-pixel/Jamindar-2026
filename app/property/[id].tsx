@@ -9,6 +9,8 @@ import { Card, Loading, Button } from "@/components/ui";
 import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
+import { useCompare } from "@/lib/compare";
+import { encodeFilters } from "@/lib/property-search";
 import { colors } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
@@ -20,12 +22,29 @@ export default function PropertyDetail() {
   const role = useEffectiveRole();
   const qc = useQueryClient();
   const [imgIndex, setImgIndex] = useState(0);
+  const compare = useCompare();
 
   const { data: property, isLoading } = useQuery({
     queryKey: ["property", id],
     queryFn: async (): Promise<Property | null> => {
       const { data } = await supabase.from("properties").select("*").eq("id", id).maybeSingle();
       return (data as Property) ?? null;
+    },
+  });
+
+  // Similar properties: same type, different property, published.
+  const { data: similar } = useQuery({
+    queryKey: ["similar", id, property?.property_type],
+    enabled: !!property,
+    queryFn: async (): Promise<Property[]> => {
+      const { data } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("property_type", property!.property_type)
+        .neq("id", id)
+        .in("status", ["available", "reserved", "sold"])
+        .limit(6);
+      return (data as Property[]) ?? [];
     },
   });
 
@@ -216,12 +235,101 @@ export default function PropertyDetail() {
           </View>
 
           <Button label="Request a Callback" onPress={onCallback} style={{ marginTop: 16 }} />
+
+          {/* compare + alternatives */}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+            <Pressable
+              onPress={() => {
+                if (!compare.has(id) && compare.atLimit()) {
+                  Alert.alert("Compare", "You can compare up to 3 properties. Remove one first.");
+                  return;
+                }
+                compare.toggle(id);
+              }}
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brand, backgroundColor: compare.has(id) ? colors.brandSoft : colors.surface }}
+            >
+              <Ionicons name={compare.has(id) ? "checkmark-circle" : "git-compare"} size={18} color={colors.brand} />
+              <Text style={{ color: colors.brand, fontWeight: "700" }}>{compare.has(id) ? "In Compare" : "Add to Compare"}</Text>
+            </Pressable>
+            {compare.ids.length > 0 ? (
+              <Pressable
+                onPress={() => router.push("/tools/compare")}
+                style={{ paddingHorizontal: 16, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.brand }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>View ({compare.ids.length})</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {/* cheaper / premium alternatives */}
+          {property.price ? (
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMax: property.price! }) } })
+                }
+                style={altChip}
+              >
+                <Ionicons name="trending-down" size={16} color={colors.success} />
+                <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Cheaper options</Text>
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMin: property.price! }) } })
+                }
+                style={altChip}
+              >
+                <Ionicons name="trending-up" size={16} color={colors.brand} />
+                <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Premium options</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* similar properties */}
+          {similar && similar.length > 0 ? (
+            <>
+              <Text style={{ fontWeight: "800", fontSize: 16, color: colors.ink, marginTop: 24, marginBottom: 10 }}>
+                Similar Properties
+              </Text>
+              {similar.map((p) => (
+                <Pressable key={p.id} onPress={() => router.push(`/property/${p.id}`)}>
+                  <Card style={{ marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {p.images?.[0] ? (
+                        <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <Ionicons name="business" size={20} color={colors.inkFaint} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: "700", color: colors.ink }} numberOfLines={1}>{p.title}</Text>
+                      <Text style={{ color: colors.inkFaint, fontSize: 12 }} numberOfLines={1}>{[p.locality, p.city].filter(Boolean).join(", ")}</Text>
+                    </View>
+                    <Text style={{ color: colors.brand, fontWeight: "800", fontSize: 13 }}>{formatINR(p.price)}</Text>
+                  </Card>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
         </View>
       </ScrollView>
       <JamindarFab />
     </SafeAreaView>
   );
 }
+
+const altChip = {
+  flex: 1,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  gap: 6,
+  paddingVertical: 12,
+  borderRadius: 12,
+  backgroundColor: colors.surface,
+  borderWidth: 1,
+  borderColor: colors.border,
+};
 
 function MetaChip({ icon, label }: { icon: string; label: string }) {
   return (

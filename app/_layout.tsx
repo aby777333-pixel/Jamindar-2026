@@ -64,6 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="buyer/onboarding" />
             <Stack.Screen name="tools/calculators" />
             <Stack.Screen name="tools/legal" />
+            <Stack.Screen name="tools/compare" />
             <Stack.Screen name="jamindar/settings" />
           </Stack>
         </QueryClientProvider>
