@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.jamindar.mobile"
@@ -24,7 +26,17 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#E11B22"
       },
-      "permissions": ["RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -36,13 +48,30 @@
       "expo-secure-store",
       "expo-font",
       "expo-web-browser",
-      ["expo-location", { "locationWhenInUsePermission": "Jamindar uses your location to show nearby properties." }],
-      ["expo-audio", { "microphonePermission": "Jamindar voice assistant needs the microphone to hear you." }]
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Jamindar uses your location to show nearby properties."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Jamindar voice assistant needs the microphone to hear you."
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": true },
+    "experiments": {
+      "typedRoutes": true
+    },
     "extra": {
       "supabaseUrl": "https://zmxqozvivdluuxvvcegs.supabase.co",
-      "supabaseAnonKey": "sb_publishable_7Oe-H5Ekn7FaS9c0pVbrVQ_ph9LHHsS"
-    }
+      "supabaseAnonKey": "sb_publishable_7Oe-H5Ekn7FaS9c0pVbrVQ_ph9LHHsS",
+      "router": {},
+      "eas": {
+        "projectId": "cdf51b8f-05c0-4627-a074-33d9a13b11eb"
+      }
+    },
+    "owner": "abetrex"
   }
 }
