@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking } from "react-native";
+import { useState, useEffect } from "react";
+import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
+import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
 import { JamindarFab } from "@/components/Jamindar";
+import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useCompare } from "@/lib/compare";
@@ -23,6 +25,48 @@ export default function PropertyDetail() {
   const qc = useQueryClient();
   const [imgIndex, setImgIndex] = useState(0);
   const compare = useCompare();
+  const [lang, setLang] = useState("en-IN");
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+
+  useEffect(() => {
+    if (profile?.id) loadMemory(profile.id).then((m) => m?.language && setLang(m.language));
+  }, [profile?.id]);
+
+  async function speakText(text: string) {
+    if (!text) return;
+    setVoiceBusy(true);
+    try {
+      const chunks = await synthesizeSpeech(text.slice(0, 1400), lang);
+      for (const b64 of chunks) {
+        const player = createAudioPlayer({ uri: `data:audio/wav;base64,${b64}` });
+        player.play();
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    } catch {
+      /* voice optional */
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  async function onTranslate(description: string) {
+    if (translated) {
+      setTranslated(null);
+      return;
+    }
+    setVoiceBusy(true);
+    try {
+      const out = await translate(description, lang);
+      setTranslated(out);
+      setShowOriginal(false);
+    } catch {
+      Alert.alert("Translate", "Couldn't translate right now. Please try again.");
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
 
   const { data: property, isLoading } = useQuery({
     queryKey: ["property", id],
@@ -204,10 +248,33 @@ export default function PropertyDetail() {
 
           {property.description ? (
             <>
-              <Text style={{ fontWeight: "800", fontSize: 16, color: colors.ink, marginTop: 22, marginBottom: 8 }}>
-                About this property
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 22, marginBottom: 8 }}>
+                <Text style={{ fontWeight: "800", fontSize: 16, color: colors.ink }}>About this property</Text>
+                <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
+                  {voiceBusy ? <ActivityIndicator color={colors.brand} /> : null}
+                  <Pressable
+                    onPress={() => speakText(translated && !showOriginal ? translated : property.description!)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  >
+                    <Ionicons name="volume-high" size={18} color={colors.brand} />
+                    <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 13 }}>Listen</Text>
+                  </Pressable>
+                  <Pressable onPress={() => onTranslate(property.description!)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="language" size={18} color={colors.brand} />
+                    <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 13 }}>{translated ? "Original" : "Translate"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={{ color: colors.inkSoft, lineHeight: 22 }}>
+                {translated && !showOriginal ? translated : property.description}
               </Text>
-              <Text style={{ color: colors.inkSoft, lineHeight: 22 }}>{property.description}</Text>
+              {translated ? (
+                <Pressable onPress={() => setShowOriginal((v) => !v)} style={{ marginTop: 6 }}>
+                  <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>
+                    {showOriginal ? "Show translation" : "Show original"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </>
           ) : null}
 

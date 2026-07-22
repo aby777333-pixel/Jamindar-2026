@@ -7,7 +7,7 @@ import type { UserRole } from "./types";
 
 export type Intent =
   | { kind: "navigate"; href: Href; say: string }
-  | { kind: "action"; action: "sign_out" | "change_language" | "read_aloud" | "stop"; say: string; arg?: string }
+  | { kind: "action"; action: "sign_out" | "change_language" | "read_aloud" | "stop" | "escalate"; say: string; arg?: string }
   | { kind: "none" };
 
 interface Rule {
@@ -64,6 +64,10 @@ const RULES: Rule[] = [
         : { kind: "none" },
   },
   // global actions
+  {
+    test: /\b(talk to (a )?(human|person|agent|someone|advisor)|connect me|call an? (agent|human|advisor)|speak to (a )?(person|human|agent|advisor)|human help|contact (a )?(promoter|agent|advisor)|need (a )?(human|person))\b/i,
+    build: () => ({ kind: "action", action: "escalate", say: "Sure — shall I connect you with a Jamin property advisor who will call you?" }),
+  },
   {
     test: /\b(sign out|log ?out|logout)\b/i,
     build: () => ({ kind: "action", action: "sign_out", say: "Do you want me to sign you out?" }),

@@ -353,6 +353,27 @@ export function JamindarSheet({
       pushAssistant(intent.say);
       return true;
     }
+    if (intent.action === "escalate") {
+      pushAssistant(intent.say, prefs.spokenConfirm);
+      Alert.alert("Connect to an advisor", "Shall I ask a Jamin property advisor to call you?", [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Yes, connect me",
+          onPress: async () => {
+            if (!profile?.id) return;
+            try {
+              await supabase
+                .from("leads")
+                .insert({ buyer_id: profile.id, promoter_id: profile.assigned_promoter ?? null, source: "jamindar_escalation", status: "new" });
+            } catch {
+              /* best-effort */
+            }
+            pushAssistant("Done 🙏 A Jamin advisor will reach out to you shortly. Is there anything else I can help with meanwhile?");
+          },
+        },
+      ]);
+      return true;
+    }
     if (intent.action === "sign_out") {
       pushAssistant(intent.say, prefs.spokenConfirm);
       Alert.alert("Sign out", "Sign out of Jamin?", [
