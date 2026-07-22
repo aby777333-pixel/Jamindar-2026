@@ -5,7 +5,7 @@ import { Screen, Button } from "@/components/ui";
 import { Brandmark } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { colors, space, type as T } from "@/lib/theme";
 
 export default function Login() {
   const router = useRouter();
@@ -37,12 +37,12 @@ export default function Login() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1, justifyContent: "center" }}
       >
-        <View style={{ alignItems: "center", marginBottom: 28 }}>
+        <View style={{ alignItems: "center", marginBottom: space.lg }}>
           <Brandmark size={64} />
-          <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink, marginTop: 18 }}>
+          <Text style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.md }}>
             Enter your mobile
           </Text>
-          <Text style={{ color: colors.inkFaint, marginTop: 6, textAlign: "center" }}>
+          <Text style={{ color: colors.inkFaint, fontSize: T.body.fontSize, lineHeight: T.body.lineHeight, marginTop: space.xs, textAlign: "center" }}>
             We'll send a one-time password to verify it's you. No passwords ever.
           </Text>
         </View>
@@ -58,7 +58,7 @@ export default function Login() {
         />
 
         <Button label="Send OTP" onPress={onSend} loading={loading} disabled={!valid} />
-        <Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 16 }}>
+        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.md }}>
           By continuing you agree to Jamin's Terms & Privacy Policy.
         </Text>
       </KeyboardAvoidingView>

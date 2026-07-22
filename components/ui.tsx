@@ -9,7 +9,26 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { colors } from "@/lib/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors, space, type as T } from "@/lib/theme";
+
+// Reusable soft, refined elevation (elegant layered shadow + Android elevation).
+export const elevation = {
+  low: {
+    shadowColor: "#1B1B4B",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  card: {
+    shadowColor: "#1B1B4B",
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+} as const;
 
 export function Screen({
   children,
@@ -56,16 +75,13 @@ export function Card({
       style={[
         {
           backgroundColor: colors.surface,
-          borderRadius: 20,
-          padding: 16,
-          shadowColor: "#000",
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 2,
+          borderRadius: space.md,
+          padding: space.sm + 3,
           borderWidth: 1,
           borderColor: colors.border,
+          borderTopColor: "#FFFFFF",
         },
+        elevation.card,
         style,
       ]}
     >
@@ -74,7 +90,10 @@ export function Card({
   );
   if (onPress)
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({ transform: [{ translateY: pressed ? 1 : 0 }], opacity: pressed ? 0.97 : 1 })}
+      >
         {body}
       </Pressable>
     );
@@ -96,13 +115,20 @@ export function Button({
   disabled?: boolean;
   style?: ViewStyle;
 }) {
-  const bg =
-    variant === "primary"
-      ? colors.brand
-      : variant === "gold"
-      ? colors.gold
-      : "transparent";
+  const bg = variant === "gold" ? colors.gold : colors.brand;
   const fg = variant === "ghost" || variant === "outline" ? colors.brand : "#fff";
+  const solid = variant === "primary" || variant === "gold";
+  // glossy 3-stop gradient (light sheen → base → deep) for a premium finish
+  const gloss: [string, string, string] =
+    variant === "gold" ? ["#E8C766", "#C9A227", "#9C7D1A"] : ["#F0474E", "#E11B22", "#B8151B"];
+  const radius = space.sm + 3;
+
+  const inner = loading ? (
+    <ActivityIndicator color={fg} />
+  ) : (
+    <Text style={{ color: fg, fontWeight: "700", fontSize: T.body.fontSize, letterSpacing: 0.3 }}>{label}</Text>
+  );
+
   return (
     <Pressable
       disabled={disabled || loading}
@@ -112,22 +138,47 @@ export function Button({
       }}
       style={({ pressed }) => [
         {
-          backgroundColor: bg,
-          borderRadius: 16,
-          paddingVertical: 16,
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
-          borderWidth: variant === "outline" ? 1.5 : 0,
-          borderColor: colors.brand,
+          borderRadius: radius,
+          opacity: disabled ? 0.5 : 1,
+          shadowColor: solid ? bg : "#000",
+          shadowOpacity: solid && !pressed ? 0.3 : 0,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: pressed ? 2 : 7 },
+          elevation: solid ? (pressed ? 2 : 7) : 0,
+          transform: [{ translateY: pressed ? 2 : 0 }],
         },
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={fg} />
+      {solid ? (
+        <LinearGradient
+          colors={gloss}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{
+            borderRadius: radius,
+            paddingVertical: space.sm + 2,
+            alignItems: "center",
+            justifyContent: "center",
+            borderTopWidth: 1,
+            borderTopColor: "rgba(255,255,255,0.35)",
+          }}
+        >
+          {inner}
+        </LinearGradient>
       ) : (
-        <Text style={{ color: fg, fontWeight: "700", fontSize: 16 }}>{label}</Text>
+        <View
+          style={{
+            borderRadius: radius,
+            paddingVertical: space.sm + 2,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: variant === "outline" ? 1.5 : 0,
+            borderColor: colors.brand,
+          }}
+        >
+          {inner}
+        </View>
       )}
     </Pressable>
   );
@@ -171,9 +222,9 @@ export function StatCard({
   accent?: string;
 }) {
   return (
-    <Card style={{ flex: 1, minWidth: 0, padding: 14 }}>
-      <Text style={{ color: accent, fontSize: 24, fontWeight: "800" }}>{value}</Text>
-      <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 2 }}>{label}</Text>
+    <Card style={{ flex: 1, minWidth: 0, padding: space.sm }}>
+      <Text style={{ color: accent, fontSize: T.subhead.fontSize, lineHeight: T.subhead.lineHeight, fontWeight: "800" }}>{value}</Text>
+      <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 2, marginTop: 2 }}>{label}</Text>
     </Card>
   );
 }
@@ -189,10 +240,12 @@ export function Loading({ label }: { label?: string }) {
 
 export function Empty({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <View style={{ alignItems: "center", paddingVertical: 48, paddingHorizontal: 24 }}>
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.ink }}>{title}</Text>
+    <View style={{ alignItems: "center", paddingVertical: space.xl, paddingHorizontal: space.lg }}>
+      <Text style={{ fontSize: T.body.fontSize, fontWeight: "700", color: colors.ink }}>{title}</Text>
       {subtitle ? (
-        <Text style={{ color: colors.inkFaint, textAlign: "center", marginTop: 6 }}>{subtitle}</Text>
+        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.xs }}>
+          {subtitle}
+        </Text>
       ) : null}
     </View>
   );
@@ -200,7 +253,7 @@ export function Empty({ title, subtitle }: { title: string; subtitle?: string })
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <Text style={{ fontSize: 18, fontWeight: "800", color: colors.ink, marginBottom: 12 }}>
+    <Text style={{ fontSize: T.subhead.fontSize, lineHeight: T.subhead.lineHeight, fontWeight: "800", color: colors.ink, marginBottom: space.sm }}>
       {children}
     </Text>
   );

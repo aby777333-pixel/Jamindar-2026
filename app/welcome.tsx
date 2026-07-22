@@ -2,7 +2,7 @@ import { Image, Text, View, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Button } from "@/components/ui";
-import { colors } from "@/lib/theme";
+import { colors, space, type as T } from "@/lib/theme";
 
 export default function Welcome() {
   const router = useRouter();
@@ -15,11 +15,11 @@ export default function Welcome() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* mascot on white */}
-        <SafeAreaView edges={["top"]} style={{ alignItems: "center", paddingTop: 16 }}>
+        {/* mascot on white — larger, occupies the golden top section */}
+        <SafeAreaView edges={["top"]} style={{ alignItems: "center", paddingTop: space.md }}>
           <Image
             source={require("../assets/namaste.jpg")}
-            style={{ width: 190, height: 190, resizeMode: "contain" }}
+            style={{ width: 236, height: 236, resizeMode: "contain" }}
           />
         </SafeAreaView>
 
@@ -28,28 +28,45 @@ export default function Welcome() {
           style={{
             flexGrow: 1,
             backgroundColor: colors.surfaceAlt,
-            borderTopLeftRadius: 34,
-            borderTopRightRadius: 34,
-            marginTop: 4,
-            paddingHorizontal: 28,
-            paddingTop: 40,
-            paddingBottom: Math.max(insets.bottom, 16) + 20,
+            borderTopLeftRadius: space.lg,
+            borderTopRightRadius: space.lg,
+            marginTop: space.xxs,
+            paddingHorizontal: space.lg,
+            paddingTop: space.lg,
+            paddingBottom: Math.max(insets.bottom, space.sm) + space.md,
             alignItems: "center",
           }}
         >
-          {/* original Jamin logo (unaltered) */}
-          <Image
-            source={require("../assets/logo-full.png")}
-            style={{ width: 258, height: 258 * (439 / 1095), resizeMode: "contain" }}
-          />
+          {/* original Jamin logo on a crisp white badge */}
+          <View
+            style={{
+              width: "82%",
+              backgroundColor: "#FFFFFF",
+              borderRadius: space.md,
+              paddingVertical: space.sm,
+              paddingHorizontal: space.md,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Image
+              source={require("../assets/logo-badge.png")}
+              style={{ width: "100%", height: undefined, aspectRatio: 1095 / 439, resizeMode: "contain" }}
+            />
+          </View>
 
-          <Text style={{ letterSpacing: 4, color: colors.inkSoft, marginTop: 26, fontSize: 13, fontWeight: "600" }}>
+          <Text style={{ letterSpacing: 4, color: colors.inkSoft, marginTop: space.lg, fontSize: T.small.fontSize, fontWeight: "600" }}>
             N A M A S T E  🙏
           </Text>
-          <Text style={{ fontSize: 28, fontWeight: "800", color: colors.ink, marginTop: 8 }}>
-            Welcome to Jamin
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.xs, alignSelf: "stretch", textAlign: "center" }}
+          >
+            Welcome to Jamin Properties
           </Text>
-          <Text style={{ color: colors.inkFaint, marginTop: 12, textAlign: "center", lineHeight: 21, paddingHorizontal: 8 }}>
+          <Text style={{ color: colors.inkFaint, marginTop: space.sm, textAlign: "center", fontSize: T.body.fontSize, lineHeight: T.body.lineHeight, paddingHorizontal: space.xs }}>
             I'm Jamindar, your AI property advisor. I'll help you find the right plot, villa, farm land or home —
             in your language, by voice or text.
           </Text>
@@ -57,9 +74,9 @@ export default function Welcome() {
           <Button
             label="Get Started"
             onPress={() => router.push("/login")}
-            style={{ marginTop: 34, alignSelf: "stretch" }}
+            style={{ marginTop: space.lg, alignSelf: "stretch" }}
           />
-          <Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 14 }}>
+          <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.sm }}>
             Sign in with your mobile number — no passwords, ever.
           </Text>
         </View>

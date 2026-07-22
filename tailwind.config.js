@@ -37,10 +37,10 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["Inter_400Regular"],
-        medium: ["Inter_500Medium"],
-        semibold: ["Inter_600SemiBold"],
-        bold: ["Inter_700Bold"],
+        sans: ["Mulish_400Regular"],
+        medium: ["Mulish_500Medium"],
+        semibold: ["Mulish_600SemiBold"],
+        bold: ["Mulish_700Bold"],
       },
       borderRadius: {
         xl: "18px",

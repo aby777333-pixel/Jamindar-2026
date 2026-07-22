@@ -3,9 +3,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
+import { Badge } from "@/components/premium";
 import { RolePreviewBar } from "@/components/RolePreview";
 import { useAuth, useEffectiveRole } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { colors, space } from "@/lib/theme";
 import { initials } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/types";
 
@@ -37,37 +38,33 @@ export default function Account() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
-        <View style={{ alignItems: "center", marginBottom: 24 }}>
+        <Card style={{ alignItems: "center", paddingVertical: space.lg, marginBottom: space.md }}>
           <View
             style={{
-              width: 84,
-              height: 84,
-              borderRadius: 42,
+              width: 88,
+              height: 88,
+              borderRadius: 44,
               backgroundColor: colors.brand,
               alignItems: "center",
               justifyContent: "center",
+              borderWidth: 3,
+              borderColor: colors.brandSoft,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 30, fontWeight: "800" }}>{initials(profile?.full_name)}</Text>
+            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800" }}>{initials(profile?.full_name)}</Text>
           </View>
-          <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink, marginTop: 12 }}>
-            {profile?.full_name ?? "Guest"}
-          </Text>
-          <Text style={{ color: colors.inkFaint, marginTop: 2 }}>+{profile?.mobile}</Text>
-          <View
-            style={{
-              backgroundColor: colors.brandSoft,
-              paddingHorizontal: 12,
-              paddingVertical: 5,
-              borderRadius: 999,
-              marginTop: 8,
-            }}
-          >
-            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
-              {ROLE_LABELS[role]}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: space.sm }}>
+            <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink }}>
+              {profile?.full_name ?? "Guest"}
             </Text>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
           </View>
-        </View>
+          <Text style={{ color: colors.inkFaint, marginTop: 2, fontSize: 13 }}>+{profile?.mobile}</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: space.sm }}>
+            <Badge label={ROLE_LABELS[role].toUpperCase()} tone="role" />
+            <Badge label="VERIFIED" tone="verified" icon="shield-checkmark" />
+          </View>
+        </Card>
 
         {profile?.role === "super_admin" ? (
           <View style={{ marginBottom: 16 }}>

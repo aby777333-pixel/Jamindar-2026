@@ -16,6 +16,9 @@ export default function Gate() {
     );
 
   if (!profile) return <Redirect href="/welcome" />;
-  if (!profile.is_profile_complete) return <Redirect href="/role" />;
+  if (!profile.is_profile_complete) {
+    // Super admins are auto-assigned (allowlist) — skip role selection.
+    return <Redirect href={profile.role === "super_admin" ? "/profile" : "/role"} />;
+  }
   return <Redirect href="/(tabs)/home" />;
 }

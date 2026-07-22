@@ -1,41 +1,38 @@
-import { Text, View, Pressable, ScrollView, Image, Alert } from "react-native";
+import { Text, View, Pressable, ScrollView, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Card, SectionTitle } from "@/components/ui";
-import { Brandmark } from "@/components/Brand";
+import { Card } from "@/components/ui";
+import { IconChip } from "@/components/premium";
+import {
+  GreetingHeader,
+  SearchRow,
+  LandHero,
+  QuickActionTile,
+  LandTypeTile,
+  VerifiedListingCard,
+  RowHeader,
+  LAND_TYPES,
+  PROJECT_PHASES,
+} from "@/components/land";
 import { RolePreviewBar } from "@/components/RolePreview";
 import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
-import { colors, tileAccents, type TileAccent } from "@/lib/theme";
-import { formatINR, formatArea, initials } from "@/lib/format";
-import { ROLE_LABELS, PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
+import { colors, space, type as T } from "@/lib/theme";
+import { initials } from "@/lib/format";
+import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
-import { encodeFilters } from "@/lib/property-search";
+import { encodeFilters, type SearchFilters } from "@/lib/property-search";
+import { useCompare } from "@/lib/compare";
 
-type Tile = { label: string; icon: string; accent: TileAccent; href: Href };
+type RoleAction = { label: string; sub: string; icon: string; accent: { bg: string; fg: string }; href: Href };
 
-const TILES_BY_ROLE: Record<string, Tile[]> = {
-  buyer: [
-    { label: "Properties", icon: "business", accent: "green", href: "/(tabs)/properties" },
-    { label: "Preferences", icon: "options", accent: "indigo", href: "/buyer/onboarding" },
-    { label: "Jamindar", icon: "sparkles", accent: "red", href: "/(tabs)/assistant" },
-    { label: "Account", icon: "person", accent: "violet", href: "/(tabs)/account" },
-  ],
-  promoter: [
-    { label: "My Dashboard", icon: "briefcase", accent: "blue", href: "/promoter" },
-    { label: "Properties", icon: "business", accent: "green", href: "/(tabs)/properties" },
-    { label: "Jamindar", icon: "sparkles", accent: "red", href: "/(tabs)/assistant" },
-    { label: "Account", icon: "person", accent: "violet", href: "/(tabs)/account" },
-  ],
-  super_admin: [
-    { label: "Admin Console", icon: "shield-checkmark", accent: "amber", href: "/admin" },
-    { label: "Properties", icon: "business", accent: "green", href: "/(tabs)/properties" },
-    { label: "Jamindar", icon: "sparkles", accent: "red", href: "/(tabs)/assistant" },
-    { label: "Account", icon: "person", accent: "violet", href: "/(tabs)/account" },
-  ],
+const ROLE_ACTION: Record<string, RoleAction> = {
+  buyer: { label: "My Preferences", sub: "Tune what you want", icon: "options", accent: { bg: "#ECEEFB", fg: "#4B57C9" }, href: "/buyer/onboarding" },
+  promoter: { label: "My Dashboard", sub: "vCard, leads & visits", icon: "briefcase", accent: { bg: "#E8F1FE", fg: "#2B6FE1" }, href: "/promoter" },
+  super_admin: { label: "Admin Console", sub: "Manage the ecosystem", icon: "shield-checkmark", accent: { bg: colors.goldSoft, fg: colors.goldDark }, href: "/admin" },
 };
 
 function useFeatured() {
@@ -58,129 +55,162 @@ export default function Home() {
   const router = useRouter();
   const { profile } = useAuth();
   const role = useEffectiveRole();
-  const tiles = TILES_BY_ROLE[role] ?? TILES_BY_ROLE.buyer;
   const { data: featured } = useFeatured();
+  const compare = useCompare();
   const { data: suggestions } = useQuery({
     queryKey: ["suggestions", profile?.id, role],
     enabled: !!profile?.id && role === "buyer",
     queryFn: () => computeSuggestions(profile!.id),
   });
 
+  const firstName = profile?.full_name?.split(" ")[0] ?? "Guest";
+  const roleAction = ROLE_ACTION[role] ?? ROLE_ACTION.buyer;
+
+  function browse(filters?: SearchFilters) {
+    router.push(
+      filters
+        ? { pathname: "/(tabs)/properties", params: { filters: encodeFilters(filters) } }
+        : "/(tabs)/properties"
+    );
+  }
+
+  function openPhase(phase: ProjectPhase) {
+    browse({ phase });
+  }
+  function openType(type: PropertyType) {
+    browse({ types: [type] });
+  }
+  function openMap(p: Property) {
+    if (p.gmaps_url) Linking.openURL(p.gmaps_url).catch(() => router.push(`/property/${p.id}`));
+    else router.push(`/property/${p.id}`);
+  }
+
   function runSuggestion(s: Suggestion) {
-    if (s.action.type === "checklist") {
-      Alert.alert("Pre-purchase checklist", checklistText());
-    } else if (s.action.type === "visits") {
-      router.push("/(tabs)/account");
-    } else {
-      router.push(
-        s.action.filters
-          ? { pathname: "/(tabs)/properties", params: { filters: encodeFilters(s.action.filters) } }
-          : "/(tabs)/properties"
-      );
-    }
+    if (s.action.type === "checklist") Alert.alert("Pre-purchase checklist", checklistText());
+    else if (s.action.type === "visits") router.push("/(tabs)/account");
+    else browse(s.action.filters);
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Brandmark size={42} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ letterSpacing: 2, color: colors.inkFaint, fontSize: 11, fontWeight: "700" }}>
-              NAMASTE 🙏
-            </Text>
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink }}>
-              Welcome Back, {profile?.full_name?.split(" ")[0] ?? "Guest"}
-            </Text>
-          </View>
-          <View
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: colors.brand,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "800" }}>{initials(profile?.full_name)}</Text>
-          </View>
+        <View style={{ paddingHorizontal: 20, paddingTop: space.xs }}>
+          <GreetingHeader
+            name={firstName}
+            initials={initials(profile?.full_name)}
+            onBell={() => router.push("/(tabs)/assistant")}
+            hasAlert={!!(suggestions && suggestions.length > 0)}
+          />
         </View>
 
-        {/* role badge */}
-        <View style={{ paddingHorizontal: 20, marginTop: 10 }}>
-          <View
-            style={{
-              alignSelf: "flex-start",
-              backgroundColor: colors.brandSoft,
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 999,
-            }}
-          >
-            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
-              {ROLE_LABELS[role]}
-            </Text>
-          </View>
+        {/* search */}
+        <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
+          <SearchRow onPress={() => browse()} onFilter={() => browse()} />
+        </View>
+
+        {/* hero */}
+        <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
+          <LandHero image={featured?.[0]?.images?.[0]} onPress={() => browse()} />
         </View>
 
         {/* super-admin role preview switcher */}
-        <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
-          <RolePreviewBar />
+        {profile?.role === "super_admin" ? (
+          <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
+            <RolePreviewBar />
+          </View>
+        ) : null}
+
+        {/* role access + Jamindar */}
+        <View style={{ paddingHorizontal: 20, marginTop: space.md, flexDirection: "row", gap: 12 }}>
+          <AccessCard
+            label={roleAction.label}
+            sub={roleAction.sub}
+            icon={roleAction.icon}
+            bg={roleAction.accent.bg}
+            fg={roleAction.accent.fg}
+            onPress={() => router.push(roleAction.href)}
+          />
+          <AccessCard
+            label="Ask Jamindar"
+            sub="Your AI advisor"
+            icon="sparkles"
+            bg={colors.brandSoft}
+            fg={colors.brand}
+            onPress={() => router.push("/(tabs)/assistant")}
+          />
         </View>
 
-        {/* module tiles */}
-        <View style={{ paddingHorizontal: 20, marginTop: 18 }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 14 }}>
-            {tiles.map((t) => (
-              <Pressable
-                key={t.label}
-                onPress={() => router.push(t.href)}
-                style={{ width: "48%" }}
-              >
-                <Card style={{ alignItems: "flex-start", paddingVertical: 18 }}>
-                  <View
-                    style={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 14,
-                      backgroundColor: tileAccents[t.accent].bg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <Ionicons name={t.icon as any} size={24} color={tileAccents[t.accent].fg} />
-                  </View>
-                  <Text style={{ fontWeight: "700", fontSize: 15, color: colors.ink }}>{t.label}</Text>
-                </Card>
-              </Pressable>
+        {/* projects by phase */}
+        <View style={{ paddingHorizontal: 20, marginTop: space.md }}>
+          <RowHeader title="Projects" onAction={() => browse()} actionLabel="View all" />
+          <View style={{ flexDirection: "row", gap: 11, marginTop: space.sm }}>
+            {PROJECT_PHASES.map((p) => (
+              <QuickActionTile key={p.phase} emoji={p.emoji} label={p.label} tint={p.tint} onPress={() => openPhase(p.phase)} />
             ))}
           </View>
         </View>
 
-        {/* for you — proactive suggestions (buyers) */}
+        {/* types of lands */}
+        <View style={{ marginTop: space.md }}>
+          <View style={{ paddingHorizontal: 20 }}>
+            <RowHeader title="Types of Lands" onAction={() => browse()} actionLabel="See all" />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, marginTop: space.sm }}>
+            {LAND_TYPES.map((lt) => (
+              <LandTypeTile key={lt.label} emoji={lt.emoji} label={lt.label} onPress={() => openType(lt.type)} />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* verified listings */}
+        <View style={{ marginTop: space.md }}>
+          <View style={{ paddingHorizontal: 20 }}>
+            <RowHeader title="Verified Listings" onAction={() => browse()} />
+          </View>
+          {featured && featured.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 14, marginTop: space.sm }}>
+              {featured.map((p) => (
+                <VerifiedListingCard
+                  key={p.id}
+                  property={p}
+                  saved={compare.has(p.id)}
+                  onSave={() => compare.toggle(p.id)}
+                  onMap={() => openMap(p)}
+                  onPress={() => router.push(`/property/${p.id}`)}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
+              <Card>
+                <Text style={{ color: colors.inkFaint, textAlign: "center" }}>
+                  No properties published yet.
+                  {role === "super_admin" ? " Add your first from the Admin Console." : ""}
+                </Text>
+              </Card>
+            </View>
+          )}
+        </View>
+
+        {/* for you — buyers */}
         {role === "buyer" && suggestions && suggestions.length > 0 ? (
-          <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
-            <SectionTitle>For You</SectionTitle>
-            <View style={{ gap: 10 }}>
+          <View style={{ paddingHorizontal: 20, marginTop: space.lg }}>
+            <RowHeader title="For You" />
+            <View style={{ gap: 10, marginTop: space.sm }}>
               {suggestions.slice(0, 4).map((s) => {
-                const tone =
-                  s.tone === "gold" ? colors.gold : s.tone === "green" ? colors.success : s.tone === "blue" ? "#2B6FE1" : colors.brand;
+                const tone = s.tone === "gold" ? colors.gold : s.tone === "green" ? colors.success : s.tone === "blue" ? "#2B6FE1" : colors.brand;
                 return (
-                  <Pressable key={s.key} onPress={() => runSuggestion(s)}>
-                    <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
-                        <Ionicons name={s.icon as any} size={20} color={tone} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14 }} numberOfLines={1}>{s.title}</Text>
-                        <Text style={{ color: colors.inkFaint, fontSize: 12 }} numberOfLines={1}>{s.subtitle}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-                    </Card>
-                  </Pressable>
+                  <Card key={s.key} onPress={() => runSuggestion(s)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name={s.icon as any} size={20} color={tone} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14 }} numberOfLines={1}>{s.title}</Text>
+                      <Text style={{ color: colors.inkFaint, fontSize: 12 }} numberOfLines={1}>{s.subtitle}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+                  </Card>
                 );
               })}
             </View>
@@ -188,68 +218,27 @@ export default function Home() {
         ) : null}
 
         {/* tools & guides */}
-        <View style={{ paddingHorizontal: 20, marginTop: 22 }}>
-          <SectionTitle>Tools & Guides</SectionTitle>
-          <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ paddingHorizontal: 20, marginTop: space.lg }}>
+          <RowHeader title="Tools & Guides" />
+          <View style={{ flexDirection: "row", gap: 12, marginTop: space.sm }}>
             <QuickTool icon="calculator" label="Calculators" onPress={() => router.push("/tools/calculators")} />
             <QuickTool icon="document-text" label="Legal Guide" onPress={() => router.push("/tools/legal")} />
             <QuickTool icon="mic" label="Voice Setup" onPress={() => router.push("/jamindar/settings")} />
           </View>
         </View>
-
-        {/* featured */}
-        <View style={{ paddingHorizontal: 20, marginTop: 26 }}>
-          <SectionTitle>Featured Properties</SectionTitle>
-        </View>
-        {featured && featured.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
-          >
-            {featured.map((p) => (
-              <Pressable key={p.id} onPress={() => router.push(`/property/${p.id}`)} style={{ width: 250 }}>
-                <Card style={{ padding: 0, overflow: "hidden" }}>
-                  <View style={{ height: 130, backgroundColor: colors.surfaceSunken }}>
-                    {p.images?.[0] ? (
-                      <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} />
-                    ) : (
-                      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                        <Ionicons name="image" size={32} color={colors.inkFaint} />
-                      </View>
-                    )}
-                  </View>
-                  <View style={{ padding: 12 }}>
-                    <Text style={{ fontWeight: "700", color: colors.ink }} numberOfLines={1}>
-                      {p.title}
-                    </Text>
-                    <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
-                      {[p.locality, p.city].filter(Boolean).join(", ") || PROPERTY_TYPE_LABELS[p.property_type]}
-                    </Text>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
-                      <Text style={{ color: colors.brand, fontWeight: "800" }}>{formatINR(p.price)}</Text>
-                      <Text style={{ color: colors.inkFaint, fontSize: 12 }}>
-                        {formatArea(p.area_value, p.area_unit)}
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={{ paddingHorizontal: 20 }}>
-            <Card>
-              <Text style={{ color: colors.inkFaint, textAlign: "center" }}>
-                No properties published yet.
-                {role === "super_admin" ? " Add your first from the Admin Console." : ""}
-              </Text>
-            </Card>
-          </View>
-        )}
       </ScrollView>
       <LanguageGate />
     </SafeAreaView>
+  );
+}
+
+function AccessCard({ label, sub, icon, bg, fg, onPress }: { label: string; sub: string; icon: string; bg: string; fg: string; onPress: () => void }) {
+  return (
+    <Card onPress={onPress} style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 14 }}>
+      <IconChip icon={icon} bg={bg} fg={fg} size={40} />
+      <Text style={{ fontWeight: "800", fontSize: T.small.fontSize + 1, color: colors.ink, marginTop: 10 }}>{label}</Text>
+      <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 1 }} numberOfLines={1}>{sub}</Text>
+    </Card>
   );
 }
 
@@ -257,22 +246,10 @@ function QuickTool({ icon, label, onPress }: { icon: string; label: string; onPr
   return (
     <Pressable onPress={onPress} style={{ flex: 1 }}>
       <Card style={{ alignItems: "center", paddingVertical: 16 }}>
-        <View
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 12,
-            backgroundColor: colors.brandSoft,
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 8,
-          }}
-        >
+        <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
           <Ionicons name={icon as any} size={20} color={colors.brand} />
         </View>
-        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.ink }} numberOfLines={1}>
-          {label}
-        </Text>
+        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.ink }} numberOfLines={1}>{label}</Text>
       </Card>
     </Pressable>
   );

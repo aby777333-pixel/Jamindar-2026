@@ -28,10 +28,13 @@ export default function Verify() {
     try {
       const res = await verifyOtp(mobile, code);
       const profile = await refreshProfile();
-      if (res.isNew || !profile?.is_profile_complete) {
-        router.replace("/role");
-      } else {
+      if (profile?.is_profile_complete) {
         router.replace("/(tabs)/home");
+      } else if (profile?.role === "super_admin") {
+        // allowlisted super admins skip role selection
+        router.replace("/profile");
+      } else {
+        router.replace("/role");
       }
     } catch (e: any) {
       Alert.alert("Verification failed", e?.message ?? "Check the code and try again.");

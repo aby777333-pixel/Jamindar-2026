@@ -5,8 +5,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
+import { LinearGradient } from "expo-linear-gradient";
 import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
+import { topApproval } from "@/components/land";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
@@ -173,6 +175,13 @@ export default function PropertyDetail() {
     );
 
   const images = property.images ?? [];
+  const approvalTag = topApproval(property.approvals);
+  const PHASE_META: Record<string, { label: string; color: string }> = {
+    ongoing: { label: "Ongoing", color: colors.goldDark },
+    current: { label: "Ready now", color: colors.brand },
+    future: { label: "Upcoming", color: colors.success },
+  };
+  const phase = PHASE_META[property.project_phase] ?? PHASE_META.current;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
@@ -186,6 +195,17 @@ export default function PropertyDetail() {
               <Ionicons name="image" size={48} color={colors.inkFaint} />
             </View>
           )}
+          {/* glossy legibility gradients (top + bottom) */}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 90 }}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 70 }}
+            pointerEvents="none"
+          />
           <Pressable
             onPress={() => router.back()}
             style={{ position: "absolute", top: 12, left: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}
@@ -200,8 +220,29 @@ export default function PropertyDetail() {
               <Ionicons name={isFav ? "heart" : "heart-outline"} size={22} color={isFav ? colors.brand : "#fff"} />
             </Pressable>
           ) : null}
+          {/* verified + phase badges */}
+          <View style={{ position: "absolute", bottom: 12, left: 12, flexDirection: "row", gap: 6 }}>
+            {approvalTag ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
+                <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                <Text style={{ color: colors.success, fontSize: 11, fontWeight: "800" }}>{approvalTag}</Text>
+              </View>
+            ) : null}
+            <View style={{ backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
+              <Text style={{ color: phase.color, fontSize: 11, fontWeight: "800" }}>{phase.label}</Text>
+            </View>
+          </View>
+          {property.virtual_tour_url ? (
+            <Pressable
+              onPress={() => WebBrowser.openBrowserAsync(property.virtual_tour_url!)}
+              style={{ position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}
+            >
+              <Ionicons name="cube" size={12} color={colors.ink} />
+              <Text style={{ color: colors.ink, fontSize: 11, fontWeight: "800" }}>360° Tour</Text>
+            </Pressable>
+          ) : null}
           {images.length > 1 ? (
-            <View style={{ position: "absolute", bottom: 12, alignSelf: "center", flexDirection: "row", gap: 6 }}>
+            <View style={{ position: "absolute", bottom: 44, alignSelf: "center", flexDirection: "row", gap: 6 }}>
               {images.map((_, i) => (
                 <Pressable
                   key={i}
@@ -219,15 +260,23 @@ export default function PropertyDetail() {
             {[property.locality, property.city, property.district, property.state].filter(Boolean).join(", ")}
           </Text>
 
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-            <Card style={{ flex: 1, paddingVertical: 12 }}>
-              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Price</Text>
-              <Text style={{ color: colors.brand, fontWeight: "800", fontSize: 18 }}>{formatINR(property.price)}</Text>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+            <Card style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 12 }}>
+              <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Price</Text>
+              <Text style={{ color: colors.brand, fontWeight: "800", fontSize: 16 }}>{formatINR(property.price)}</Text>
             </Card>
-            <Card style={{ flex: 1, paddingVertical: 12 }}>
-              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Area</Text>
-              <Text style={{ color: colors.ink, fontWeight: "800", fontSize: 18 }}>
+            <Card style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 12 }}>
+              <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Area</Text>
+              <Text style={{ color: colors.ink, fontWeight: "800", fontSize: 16 }}>
                 {formatArea(property.area_value, property.area_unit)}
+              </Text>
+            </Card>
+            <Card style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 12, backgroundColor: colors.goldSoft, borderColor: colors.goldSoft }}>
+              <Text style={{ color: colors.goldDark, fontSize: 11 }}>
+                {property.plots_available != null ? "Plots left" : "Status"}
+              </Text>
+              <Text style={{ color: colors.ink, fontWeight: "800", fontSize: 16 }}>
+                {property.plots_available != null ? `${property.plots_available}/${property.plots_total}` : phase.label}
               </Text>
             </Card>
           </View>
@@ -298,10 +347,10 @@ export default function PropertyDetail() {
             <ActionButton icon="document-text" label="Brochure" onPress={onBrochure} />
             <ActionButton icon="location" label="Map" onPress={onMap} />
             <ActionButton icon="share-social" label="Share" onPress={onShare} />
-            <ActionButton icon="calendar" label="Site Visit" onPress={onSiteVisit} />
+            <ActionButton icon="call" label="Callback" onPress={onCallback} />
           </View>
 
-          <Button label="Request a Callback" onPress={onCallback} style={{ marginTop: 16 }} />
+          <Button label="Schedule Site Visit" onPress={onSiteVisit} style={{ marginTop: 16 }} />
 
           {/* compare + alternatives */}
           <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>

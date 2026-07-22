@@ -16,6 +16,8 @@ export type PropertyStatus =
   | "sold"
   | "archived";
 
+export type ProjectPhase = "ongoing" | "current" | "future";
+
 export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost";
 export type VisitStatus = "requested" | "confirmed" | "completed" | "cancelled";
 
@@ -45,6 +47,7 @@ export interface Property {
   description: string | null;
   property_type: PropertyType;
   status: PropertyStatus;
+  project_phase: ProjectPhase;
   price: number | null;
   price_unit: string | null;
   area_value: number | null;

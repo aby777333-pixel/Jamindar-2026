@@ -178,9 +178,11 @@ export default function Properties() {
                     <Tag>{PROPERTY_TYPE_LABELS[p.property_type]}</Tag>
                     {p.status === "sold" ? <Tag tone="muted">Sold</Tag> : null}
                   </View>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
-                    <Text style={{ color: colors.brand, fontWeight: "800" }}>{formatINR(p.price)}</Text>
-                    <Text style={{ color: colors.inkFaint, fontSize: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8, gap: 8 }}>
+                    <Text numberOfLines={1} style={{ color: colors.brand, fontWeight: "800", fontSize: 15, flexShrink: 0 }}>
+                      {formatINR(p.price)}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: 12, flexShrink: 1, textAlign: "right" }}>
                       {formatArea(p.area_value, p.area_unit)}
                     </Text>
                   </View>

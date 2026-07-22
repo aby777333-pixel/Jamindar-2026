@@ -8,27 +8,29 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
 import {
   useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-} from "@expo-google-fonts/inter";
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from "@expo-google-fonts/manrope";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
+import { applyAppFontGlobally } from "@/lib/fonts";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+applyAppFontGlobally();
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
   const bootstrap = useAuth((s) => s.bootstrap);
   const refreshProfile = useAuth((s) => s.refreshProfile);
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
   });
 
   useEffect(() => {

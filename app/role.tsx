@@ -2,16 +2,17 @@ import { useState } from "react";
 import { Text, View, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Screen, Button } from "@/components/ui";
+import { Screen, Button, elevation } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { colors, space, type as T } from "@/lib/theme";
 import type { UserRole } from "@/lib/types";
 
+// Super Admin is intentionally NOT selectable here — it is locked to a fixed
+// mobile allowlist and enforced by a database trigger (see migration 0004).
 const ROLES: { key: UserRole; title: string; desc: string; icon: string }[] = [
   { key: "buyer", title: "Buyer", desc: "Find plots & properties matched to you", icon: "home" },
   { key: "promoter", title: "Promoter", desc: "Share listings, manage leads & visits", icon: "briefcase" },
-  { key: "super_admin", title: "Super Admin", desc: "Manage the entire Jamin ecosystem", icon: "shield-checkmark" },
 ];
 
 export default function Role() {
@@ -40,9 +41,11 @@ export default function Role() {
 
   return (
     <Screen>
-      <View style={{ paddingTop: 24 }}>
-        <Text style={{ fontSize: 26, fontWeight: "800", color: colors.ink }}>Choose your role</Text>
-        <Text style={{ color: colors.inkFaint, marginTop: 6, marginBottom: 20 }}>
+      <View style={{ paddingTop: space.md }}>
+        <Text style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink }}>
+          Choose your role
+        </Text>
+        <Text style={{ color: colors.inkFaint, fontSize: T.body.fontSize, lineHeight: T.body.lineHeight, marginTop: space.xs, marginBottom: space.md }}>
           You can be upgraded later by an administrator.
         </Text>
 
@@ -55,20 +58,22 @@ export default function Role() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 14,
+                gap: space.sm,
                 backgroundColor: active ? colors.brandSoft : colors.surface,
                 borderWidth: 1.5,
                 borderColor: active ? colors.brand : colors.border,
-                borderRadius: 18,
-                padding: 16,
-                marginBottom: 12,
+                borderTopColor: active ? colors.brand : "#FFFFFF",
+                borderRadius: space.md,
+                padding: space.sm + 3,
+                marginBottom: space.sm,
+                ...elevation.low,
               }}
             >
               <View
                 style={{
                   width: 48,
                   height: 48,
-                  borderRadius: 14,
+                  borderRadius: space.sm,
                   backgroundColor: active ? colors.brand : colors.surfaceSunken,
                   alignItems: "center",
                   justifyContent: "center",
@@ -77,15 +82,15 @@ export default function Role() {
                 <Ionicons name={r.icon as any} size={24} color={active ? "#fff" : colors.inkSoft} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: "700", fontSize: 16, color: colors.ink }}>{r.title}</Text>
-                <Text style={{ color: colors.inkFaint, fontSize: 13, marginTop: 2 }}>{r.desc}</Text>
+                <Text style={{ fontWeight: "700", fontSize: T.body.fontSize, color: colors.ink }}>{r.title}</Text>
+                <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, marginTop: 2 }}>{r.desc}</Text>
               </View>
               {active ? <Ionicons name="checkmark-circle" size={24} color={colors.brand} /> : null}
             </Pressable>
           );
         })}
 
-        <Button label="Continue" onPress={onContinue} loading={loading} style={{ marginTop: 12 }} />
+        <Button label="Continue" onPress={onContinue} loading={loading} style={{ marginTop: space.sm }} />
       </View>
     </Screen>
   );
