@@ -1,28 +1,18 @@
-import { View, Text } from "react-native";
-import Svg, { Rect, Path, Circle } from "react-native-svg";
+import { View, Text, Image } from "react-native";
 import { colors } from "@/lib/theme";
 
-/** The JAMIN mark — red rounded square with the white infinity/DNA loop. */
+/** The real JAMIN mark (red square + white bow-tie + gold DNA + folded corner). */
 export function Brandmark({ size = 44 }: { size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Rect x="4" y="4" width="92" height="92" rx="16" fill={colors.brand} />
-      {/* gold folded corner */}
-      <Path d="M70 4 H96 V30 Z" fill={colors.goldLight} />
-      {/* infinity loop */}
-      <Path
-        d="M28 38 C22 38 18 44 18 50 C18 56 22 62 28 62 C36 62 42 50 50 50 C58 50 64 62 72 62 C78 62 82 56 82 50 C82 44 78 38 72 38 C64 38 58 50 50 50 C42 50 36 38 28 38 Z"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth={6}
-        strokeLinecap="round"
-      />
-      <Circle cx="50" cy="50" r="4" fill={colors.goldLight} />
-    </Svg>
+    <Image
+      source={require("../assets/logo-mark.png")}
+      style={{ width: size, height: size, borderRadius: Math.round(size * 0.08) }}
+      resizeMode="contain"
+    />
   );
 }
 
-/** Full wordmark: red JAMIN, black JAMINDAR/PROPERTIES, gold tagline. */
+/** Full wordmark: red JAMIN, black PROPERTIES, gold tagline. */
 export function Wordmark({
   size = "md",
   tagline = true,
