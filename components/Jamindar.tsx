@@ -29,6 +29,7 @@ import {
   synthesizeSpeech,
   transcribeSpeech,
   loadMemory,
+  saveMemory,
   getOrCreateConversation,
   loadConversationMessages,
   JAMINDAR_LANGUAGES,
@@ -50,7 +51,40 @@ import { formatINR } from "@/lib/format";
 import type { Property } from "@/lib/types";
 import { Brandmark } from "./Brand";
 
-type UIMsg = ChatMsg & { results?: Property[]; filters?: SearchFilters };
+type UIMsg = ChatMsg & { results?: Property[]; filters?: SearchFilters; options?: { label: string; value: string }[] };
+
+// Guided profile intake — Jamindar asks these once and remembers the answers.
+type IntakeStep = {
+  field: string;
+  q: string;
+  options?: { label: string; value: string }[];
+  parse: (raw: string) => unknown;
+};
+const YES = /\b(yes|yeah|yep|first|new|haan|ஆம்|हाँ)\b/i;
+const PROFILE_STEPS: IntakeStep[] = [
+  { field: "call_name", q: "First, what should I call you?", parse: (r) => r.trim().slice(0, 40) },
+  {
+    field: "is_first_time_buyer",
+    q: "Is this your first time buying a property?",
+    options: [{ label: "Yes, first time", value: "yes" }, { label: "No, bought before", value: "no" }],
+    parse: (r) => YES.test(r),
+  },
+  {
+    field: "residency",
+    q: "Are you an Indian resident or an NRI?",
+    options: [{ label: "Resident", value: "resident" }, { label: "NRI", value: "nri" }],
+    parse: (r) => (/nri/i.test(r) ? "nri" : "resident"),
+  },
+  { field: "occupation", q: "What do you do for work?", parse: (r) => r.trim().slice(0, 60) },
+  {
+    field: "buying_with",
+    q: "Are you buying on your own, or with family?",
+    options: [{ label: "On my own", value: "alone" }, { label: "With family", value: "family" }],
+    parse: (r) => (/family|wife|husband|parent|together/i.test(r) ? "family" : "alone"),
+  },
+  { field: "decision_maker", q: "And who will make the final decision?", parse: (r) => r.trim().slice(0, 60) },
+  { field: "heard_from", q: "Lastly, how did you hear about Jamin?", parse: (r) => r.trim().slice(0, 80) },
+];
 
 /** Floating Jamindar assistant button + conversational sheet.
  *  Fully usable by touch; voice is additive. Drop it on any screen. */
@@ -100,6 +134,7 @@ export function JamindarSheet({
   const [msgs, setMsgs] = useState<UIMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [intakeStep, setIntakeStep] = useState<number | null>(null);
   const [language, setLanguage] = useState("en-IN");
   const [prefs, setPrefs] = useState<VoicePrefs>(DEFAULT_VOICE_PREFS);
   const [memory, setMemory] = useState<JamindarMemory | null>(null);
@@ -133,6 +168,20 @@ export function JamindarSheet({
         }
       }
       const name = mem?.call_name ? `, ${mem.call_name}` : "";
+      // New buyer with no profile yet → warmly offer a short intake.
+      const newBuyer = role === "buyer" && !mem?.call_name;
+      if (newBuyer) {
+        setMsgs([
+          {
+            role: "assistant",
+            content:
+              "Namaste 🙏 I'm Jamindar, your property advisor. To help you better, may I ask a few quick questions? You can say 'skip' anytime.",
+          },
+          { role: "assistant", content: PROFILE_STEPS[0].q, options: PROFILE_STEPS[0].options },
+        ]);
+        setIntakeStep(0);
+        return;
+      }
       setMsgs([
         {
           role: "assistant",
@@ -233,6 +282,33 @@ export function JamindarSheet({
     }
   }
 
+  // Guided profile intake: capture one answer and advance, saving incrementally.
+  async function handleIntakeAnswer(raw: string) {
+    if (intakeStep === null) return;
+    if (/^\s*(skip|later|not now|no thanks|maybe later)\s*$/i.test(raw)) {
+      setIntakeStep(null);
+      pushAssistant("No problem — we can do that anytime. How can I help you today?");
+      return;
+    }
+    const s = PROFILE_STEPS[intakeStep];
+    const value = s.parse(raw);
+    const patch = { [s.field]: value } as Record<string, unknown>;
+    setMemory((prev) => ({ ...(prev ?? {}), ...patch }));
+    if (profile?.id) saveMemory(profile.id, patch).catch(() => {});
+
+    const next = intakeStep + 1;
+    if (next < PROFILE_STEPS.length) {
+      setIntakeStep(next);
+      const ns = PROFILE_STEPS[next];
+      pushAssistant(ns.q, true, { options: ns.options });
+    } else {
+      setIntakeStep(null);
+      pushAssistant(
+        "Perfect, thank you 🙏 That helps me a lot. Now tell me what kind of property you're looking for, or ask me anything — budget, legal terms, or a site visit.",
+      );
+    }
+  }
+
   // Try to handle an utterance as a navigation/action command first.
   // Returns true if handled (so we skip the chat model).
   async function handleIntent(text: string): Promise<boolean> {
@@ -286,6 +362,12 @@ export function JamindarSheet({
     setInput("");
     setMsgs((m) => [...m, { role: "user", content: clean }]);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+
+    // 0) guided profile intake takes priority while active
+    if (intakeStep !== null) {
+      await handleIntakeAnswer(clean);
+      return;
+    }
 
     // 1) property search — if the utterance carries real filters, run a live search
     const filters = parseSearchQuery(clean);
@@ -472,6 +554,21 @@ export function JamindarSheet({
                         <Ionicons name="arrow-forward" size={15} color={colors.brand} />
                       </Pressable>
                     ) : null}
+                  </View>
+                ) : null}
+
+                {/* quick-reply chips (e.g. profile intake) — only on the latest message */}
+                {m.options?.length && i === msgs.length - 1 && !busy ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {m.options.map((o) => (
+                      <Pressable
+                        key={o.value}
+                        onPress={() => send(o.label)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.brand }}
+                      >
+                        <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 13 }}>{o.label}</Text>
+                      </Pressable>
+                    ))}
                   </View>
                 ) : null}
               </View>
