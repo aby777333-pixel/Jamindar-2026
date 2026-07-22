@@ -1,9 +1,9 @@
-import { Image, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image, Text, View, ScrollView } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/ui";
-import { Wordmark } from "@/components/Brand";
+import { Wordmark, Brandmark } from "@/components/Brand";
 import { colors, tileAccents } from "@/lib/theme";
 
 const previewTiles = [
@@ -19,39 +19,45 @@ const previewTiles = [
 
 export default function Welcome() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      {/* mascot */}
-      <View style={{ alignItems: "center", paddingTop: 60 }}>
+      {/* mascot on white */}
+      <SafeAreaView edges={["top"]} style={{ alignItems: "center", paddingTop: 12 }}>
         <Image
           source={require("../assets/namaste.jpg")}
-          style={{ width: 200, height: 200, resizeMode: "contain" }}
+          style={{ width: 150, height: 150, resizeMode: "contain" }}
         />
-      </View>
+      </SafeAreaView>
 
       {/* card */}
-      <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: colors.surfaceAlt,
-            borderTopLeftRadius: 34,
-            borderTopRightRadius: 34,
-            marginTop: 8,
-            paddingHorizontal: 24,
-            paddingTop: 24,
-          }}
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.surfaceAlt,
+          borderTopLeftRadius: 34,
+          borderTopRightRadius: 34,
+          marginTop: 4,
+          overflow: "hidden",
+        }}
+      >
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 12, alignItems: "center" }}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={{ alignItems: "center" }}>
-            <Wordmark size="md" />
-            <Text style={{ letterSpacing: 4, color: colors.inkSoft, marginTop: 16, fontSize: 13, fontWeight: "600" }}>
-              N A M A S T E  🙏
-            </Text>
-            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.ink, marginTop: 6 }}>
-              Welcome to Jamin
-            </Text>
-            <Text style={{ color: colors.inkFaint, marginTop: 4 }}>Signature for Fortune</Text>
-          </View>
+          {/* full Jamin logo: brandmark + wordmark */}
+          <Brandmark size={62} />
+          <View style={{ height: 12 }} />
+          <Wordmark size="md" />
+
+          <Text style={{ letterSpacing: 4, color: colors.inkSoft, marginTop: 18, fontSize: 13, fontWeight: "600" }}>
+            N A M A S T E  🙏
+          </Text>
+          <Text style={{ fontSize: 26, fontWeight: "800", color: colors.ink, marginTop: 6 }}>
+            Welcome to Jamin
+          </Text>
+          <Text style={{ color: colors.inkFaint, marginTop: 4 }}>Signature for Fortune</Text>
 
           {/* module preview grid */}
           <View
@@ -59,8 +65,9 @@ export default function Welcome() {
               flexDirection: "row",
               flexWrap: "wrap",
               justifyContent: "space-between",
-              marginTop: 22,
-              rowGap: 12,
+              marginTop: 24,
+              rowGap: 14,
+              width: "100%",
             }}
           >
             {previewTiles.map((t) => (
@@ -83,11 +90,22 @@ export default function Welcome() {
               </View>
             ))}
           </View>
+        </ScrollView>
 
-          <View style={{ flex: 1 }} />
-          <Button label="Continue" onPress={() => router.push("/login")} style={{ marginBottom: 8 }} />
+        {/* fixed footer — always visible above the nav bar */}
+        <View
+          style={{
+            paddingHorizontal: 24,
+            paddingTop: 10,
+            paddingBottom: Math.max(insets.bottom, 12) + 8,
+            backgroundColor: colors.surfaceAlt,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Button label="Continue" onPress={() => router.push("/login")} />
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
