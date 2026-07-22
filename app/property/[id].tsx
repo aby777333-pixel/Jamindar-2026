@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { Card, Loading, Button } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/store";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
@@ -16,6 +16,7 @@ export default function PropertyDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { profile } = useAuth();
+  const role = useEffectiveRole();
   const qc = useQueryClient();
   const [imgIndex, setImgIndex] = useState(0);
 
@@ -127,7 +128,7 @@ export default function PropertyDetail() {
           >
             <Ionicons name="arrow-back" size={22} color="#fff" />
           </Pressable>
-          {profile?.role === "buyer" ? (
+          {role === "buyer" ? (
             <Pressable
               onPress={toggleFav}
               style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}

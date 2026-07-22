@@ -5,8 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, SectionTitle } from "@/components/ui";
 import { Brandmark } from "@/components/Brand";
+import { RolePreviewBar } from "@/components/RolePreview";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/store";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, tileAccents, type TileAccent } from "@/lib/theme";
 import { formatINR, formatArea, initials } from "@/lib/format";
 import { ROLE_LABELS, PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
@@ -53,7 +54,8 @@ function useFeatured() {
 export default function Home() {
   const router = useRouter();
   const { profile } = useAuth();
-  const tiles = TILES_BY_ROLE[profile?.role ?? "buyer"] ?? TILES_BY_ROLE.buyer;
+  const role = useEffectiveRole();
+  const tiles = TILES_BY_ROLE[role] ?? TILES_BY_ROLE.buyer;
   const { data: featured } = useFeatured();
 
   return (
@@ -96,9 +98,14 @@ export default function Home() {
             }}
           >
             <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
-              {ROLE_LABELS[profile?.role ?? "buyer"]}
+              {ROLE_LABELS[role]}
             </Text>
           </View>
+        </View>
+
+        {/* super-admin role preview switcher */}
+        <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
+          <RolePreviewBar />
         </View>
 
         {/* module tiles */}
@@ -176,7 +183,7 @@ export default function Home() {
             <Card>
               <Text style={{ color: colors.inkFaint, textAlign: "center" }}>
                 No properties published yet.
-                {profile?.role === "super_admin" ? " Add your first from the Admin Console." : ""}
+                {role === "super_admin" ? " Add your first from the Admin Console." : ""}
               </Text>
             </Card>
           </View>

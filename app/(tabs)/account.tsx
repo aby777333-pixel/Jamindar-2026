@@ -3,7 +3,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
-import { useAuth } from "@/lib/store";
+import { RolePreviewBar } from "@/components/RolePreview";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { initials } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/types";
@@ -11,13 +12,15 @@ import { ROLE_LABELS } from "@/lib/types";
 export default function Account() {
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  const role = useEffectiveRole();
 
   const rows: { icon: string; label: string; onPress: () => void }[] = [
     { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
-    { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") },
     { icon: "sparkles", label: "Jamindar assistant", onPress: () => router.push("/(tabs)/assistant") },
   ];
-  if (profile?.role === "promoter") rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
+  if (role === "buyer") rows.splice(1, 0, { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") });
+  if (role === "promoter") rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
+  // Admin console is always reachable for real super admins, even while previewing another role.
   if (profile?.role === "super_admin") rows.push({ icon: "shield-checkmark", label: "Admin console", onPress: () => router.push("/admin") });
 
   function confirmSignOut() {
@@ -57,10 +60,16 @@ export default function Account() {
             }}
           >
             <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
-              {ROLE_LABELS[profile?.role ?? "buyer"]}
+              {ROLE_LABELS[role]}
             </Text>
           </View>
         </View>
+
+        {profile?.role === "super_admin" ? (
+          <View style={{ marginBottom: 16 }}>
+            <RolePreviewBar />
+          </View>
+        ) : null}
 
         <Card style={{ padding: 0 }}>
           {rows.map((r, i) => (
