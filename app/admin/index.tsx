@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, StatCard, Loading, SectionTitle } from "@/components/ui";
+import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
@@ -126,6 +127,7 @@ export default function AdminConsole() {
           )}
         </ScrollView>
       )}
+      <JamindarFab />
     </SafeAreaView>
   );
 }

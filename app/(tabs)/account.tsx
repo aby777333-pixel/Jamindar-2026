@@ -17,6 +17,9 @@ export default function Account() {
   const rows: { icon: string; label: string; onPress: () => void }[] = [
     { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
     { icon: "sparkles", label: "Jamindar assistant", onPress: () => router.push("/(tabs)/assistant") },
+    { icon: "mic", label: "Jamindar voice settings", onPress: () => router.push("/jamindar/settings") },
+    { icon: "calculator", label: "Calculators", onPress: () => router.push("/tools/calculators") },
+    { icon: "document-text", label: "Legal guide", onPress: () => router.push("/tools/legal") },
   ];
   if (role === "buyer") rows.splice(1, 0, { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") });
   if (role === "promoter") rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });

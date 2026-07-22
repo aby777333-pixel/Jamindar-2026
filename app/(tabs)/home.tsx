@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, SectionTitle } from "@/components/ui";
 import { Brandmark } from "@/components/Brand";
 import { RolePreviewBar } from "@/components/RolePreview";
+import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, tileAccents, type TileAccent } from "@/lib/theme";
@@ -138,6 +139,16 @@ export default function Home() {
           </View>
         </View>
 
+        {/* tools & guides */}
+        <View style={{ paddingHorizontal: 20, marginTop: 22 }}>
+          <SectionTitle>Tools & Guides</SectionTitle>
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <QuickTool icon="calculator" label="Calculators" onPress={() => router.push("/tools/calculators")} />
+            <QuickTool icon="document-text" label="Legal Guide" onPress={() => router.push("/tools/legal")} />
+            <QuickTool icon="mic" label="Voice Setup" onPress={() => router.push("/jamindar/settings")} />
+          </View>
+        </View>
+
         {/* featured */}
         <View style={{ paddingHorizontal: 20, marginTop: 26 }}>
           <SectionTitle>Featured Properties</SectionTitle>
@@ -189,6 +200,32 @@ export default function Home() {
           </View>
         )}
       </ScrollView>
+      <LanguageGate />
     </SafeAreaView>
+  );
+}
+
+function QuickTool({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1 }}>
+      <Card style={{ alignItems: "center", paddingVertical: 16 }}>
+        <View
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            backgroundColor: colors.brandSoft,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 8,
+          }}
+        >
+          <Ionicons name={icon as any} size={20} color={colors.brand} />
+        </View>
+        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.ink }} numberOfLines={1}>
+          {label}
+        </Text>
+      </Card>
+    </Pressable>
   );
 }

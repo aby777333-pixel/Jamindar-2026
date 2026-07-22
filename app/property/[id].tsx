@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { Card, Loading, Button } from "@/components/ui";
+import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors } from "@/lib/theme";
@@ -217,6 +218,7 @@ export default function PropertyDetail() {
           <Button label="Request a Callback" onPress={onCallback} style={{ marginTop: 16 }} />
         </View>
       </ScrollView>
+      <JamindarFab />
     </SafeAreaView>
   );
 }

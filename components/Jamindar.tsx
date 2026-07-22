@@ -7,29 +7,40 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import {
   useAudioRecorder,
   createAudioPlayer,
+  type AudioPlayer,
   RecordingPresets,
   AudioModule,
   setAudioModeAsync,
 } from "expo-audio";
 import * as FileSystem from "expo-file-system";
 import { colors } from "@/lib/theme";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import {
   jamindarChat,
   synthesizeSpeech,
   transcribeSpeech,
+  loadMemory,
+  getOrCreateConversation,
+  loadConversationMessages,
   JAMINDAR_LANGUAGES,
+  DEFAULT_VOICE_PREFS,
+  type VoicePrefs,
+  type JamindarMemory,
   type ChatMsg,
 } from "@/lib/jamindar";
+import { parseIntent } from "@/lib/jamindar-intents";
 import { Brandmark } from "./Brand";
 
 /** Floating Jamindar assistant button + conversational sheet.
- *  Fully usable by touch; voice is additive. */
+ *  Fully usable by touch; voice is additive. Drop it on any screen. */
 export function JamindarFab() {
   const [open, setOpen] = useState(false);
   return (
@@ -70,33 +81,74 @@ export function JamindarSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const { profile, signOut } = useAuth();
+  const role = useEffectiveRole();
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [language, setLanguage] = useState("en-IN");
-  const [speak, setSpeak] = useState(true);
+  const [prefs, setPrefs] = useState<VoicePrefs>(DEFAULT_VOICE_PREFS);
+  const [memory, setMemory] = useState<JamindarMemory | null>(null);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const [recording, setRecording] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
+  // Load memory, voice prefs and resume the last conversation on open.
   useEffect(() => {
-    if (visible && msgs.length === 0) {
+    if (!visible || !profile?.id) return;
+    let cancelled = false;
+    (async () => {
+      const mem = await loadMemory(profile.id).catch(() => null);
+      if (cancelled) return;
+      if (mem) {
+        setMemory(mem);
+        if (mem.language) setLanguage(mem.language);
+        if (mem.voice_prefs) setPrefs({ ...DEFAULT_VOICE_PREFS, ...mem.voice_prefs });
+      }
+      const convId = await getOrCreateConversation(profile.id, mem?.language ?? "en-IN").catch(() => undefined);
+      if (cancelled) return;
+      setConversationId(convId);
+      if (convId) {
+        const prior = await loadConversationMessages(convId).catch(() => []);
+        if (cancelled) return;
+        if (prior.length > 0) {
+          setMsgs(prior);
+          return;
+        }
+      }
+      const name = mem?.call_name ? `, ${mem.call_name}` : "";
       setMsgs([
         {
           role: "assistant",
-          content:
-            "Namaste 🙏 I'm Jamindar. Ask me about plots, budgets, locations or legal terms — by text or voice.",
+          content: `Namaste${name} 🙏 I'm Jamindar, your property advisor. Ask me about plots, budgets, legal terms, or say "open properties", "book a site visit" — by voice or text.`,
         },
       ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, profile?.id]);
+
+  function stopSpeaking() {
+    try {
+      playerRef.current?.remove();
+    } catch {
+      /* ignore */
     }
-  }, [visible]);
+    playerRef.current = null;
+  }
 
   async function playReply(text: string) {
-    if (!speak) return;
+    if (!prefs.readAloud) return;
     try {
-      const chunks = await synthesizeSpeech(text, language);
+      const chunks = await synthesizeSpeech(text, language, { speaker: prefs.speaker, pace: prefs.pace });
       for (const b64 of chunks) {
+        stopSpeaking();
         const player = createAudioPlayer({ uri: `data:audio/wav;base64,${b64}` });
+        playerRef.current = player;
         player.play();
         await new Promise((r) => setTimeout(r, 400));
       }
@@ -105,25 +157,80 @@ export function JamindarSheet({
     }
   }
 
+  function pushAssistant(content: string, speak = true) {
+    setMsgs((m) => [...m, { role: "assistant", content }]);
+    if (speak) playReply(content);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  // Try to handle an utterance as a navigation/action command first.
+  // Returns true if handled (so we skip the chat model).
+  async function handleIntent(text: string): Promise<boolean> {
+    const intent = parseIntent(text, role);
+    if (intent.kind === "none") return false;
+
+    if (intent.kind === "navigate") {
+      pushAssistant(intent.say);
+      setTimeout(() => {
+        onClose();
+        router.push(intent.href);
+      }, 500);
+      return true;
+    }
+
+    // actions
+    if (intent.action === "stop") {
+      stopSpeaking();
+      return true;
+    }
+    if (intent.action === "change_language" && intent.arg) {
+      setLanguage(intent.arg);
+      if (profile?.id) {
+        const { saveMemory } = await import("@/lib/jamindar");
+        saveMemory(profile.id, { language: intent.arg }).catch(() => {});
+      }
+      pushAssistant(intent.say);
+      return true;
+    }
+    if (intent.action === "sign_out") {
+      pushAssistant(intent.say, prefs.spokenConfirm);
+      Alert.alert("Sign out", "Sign out of Jamin?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign out",
+          style: "destructive",
+          onPress: () => {
+            onClose();
+            signOut().then(() => router.replace("/welcome"));
+          },
+        },
+      ]);
+      return true;
+    }
+    return false;
+  }
+
   async function send(text: string) {
     const clean = text.trim();
     if (!clean || busy) return;
     setInput("");
-    const next: ChatMsg[] = [...msgs, { role: "user", content: clean }];
-    setMsgs(next);
+    setMsgs((m) => [...m, { role: "user", content: clean }]);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+
+    // 1) voice-navigation / command layer
+    const handled = await handleIntent(clean);
+    if (handled) return;
+
+    // 2) consultant brain
     setBusy(true);
     try {
-      const reply = await jamindarChat(next, { language });
-      setMsgs((m) => [...m, { role: "assistant", content: reply }]);
-      playReply(reply);
-    } catch (e) {
-      setMsgs((m) => [
-        ...m,
-        { role: "assistant", content: "Sorry, I couldn't reach the assistant. Please try again." },
-      ]);
+      const history: ChatMsg[] = [...msgs, { role: "user" as const, content: clean }].slice(-16);
+      const reply = await jamindarChat(history, { language, conversationId, memory });
+      pushAssistant(reply);
+    } catch {
+      pushAssistant("Sorry, I couldn't reach the assistant just now. Please try again.", false);
     } finally {
       setBusy(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }
 
@@ -135,6 +242,7 @@ export function JamindarSheet({
       await recorder.prepareToRecordAsync();
       recorder.record();
       setRecording(true);
+      stopSpeaking();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     } catch {
       setRecording(false);
@@ -148,9 +256,7 @@ export function JamindarSheet({
       const uri = recorder.uri;
       if (!uri) return;
       setBusy(true);
-      const b64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       const { transcript, language: detected } = await transcribeSpeech(b64);
       if (detected) setLanguage(detected);
       if (transcript) await send(transcript);
@@ -169,7 +275,7 @@ export function JamindarSheet({
             backgroundColor: colors.surfaceAlt,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
-            height: "82%",
+            height: "85%",
             paddingTop: 14,
           }}
         >
@@ -180,8 +286,11 @@ export function JamindarSheet({
               <Text style={{ fontWeight: "800", fontSize: 17, color: colors.ink }}>Jamindar</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Your voice property guide</Text>
             </View>
-            <Pressable onPress={() => setSpeak((s) => !s)} style={{ padding: 6 }}>
-              <Ionicons name={speak ? "volume-high" : "volume-mute"} size={22} color={colors.inkSoft} />
+            <Pressable onPress={() => router.push("/jamindar/settings")} style={{ padding: 6 }}>
+              <Ionicons name="options" size={20} color={colors.inkSoft} />
+            </Pressable>
+            <Pressable onPress={() => setPrefs((p) => ({ ...p, readAloud: !p.readAloud }))} style={{ padding: 6 }}>
+              <Ionicons name={prefs.readAloud ? "volume-high" : "volume-mute"} size={22} color={colors.inkSoft} />
             </Pressable>
             <Pressable onPress={onClose} style={{ padding: 6 }}>
               <Ionicons name="close" size={24} color={colors.inkSoft} />
@@ -198,7 +307,10 @@ export function JamindarSheet({
             {JAMINDAR_LANGUAGES.map((l) => (
               <Pressable
                 key={l.code}
-                onPress={() => setLanguage(l.code)}
+                onPress={() => {
+                  setLanguage(l.code);
+                  if (profile?.id) import("@/lib/jamindar").then((m) => m.saveMemory(profile.id, { language: l.code }).catch(() => {}));
+                }}
                 style={{
                   paddingHorizontal: 12,
                   paddingVertical: 7,
@@ -231,7 +343,7 @@ export function JamindarSheet({
                   borderRadius: 16,
                   paddingHorizontal: 14,
                   paddingVertical: 10,
-                  maxWidth: "84%",
+                  maxWidth: "86%",
                   borderWidth: m.role === "user" ? 0 : 1,
                   borderColor: colors.border,
                 }}
@@ -265,7 +377,7 @@ export function JamindarSheet({
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="Ask Jamindar…"
+              placeholder="Ask or command Jamindar…"
               placeholderTextColor={colors.inkFaint}
               style={{
                 flex: 1,

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import { Card, StatCard, Loading, SectionTitle } from "@/components/ui";
+import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors } from "@/lib/theme";
@@ -129,6 +130,7 @@ export default function PromoterDashboard() {
           </Card>
         )}
       </ScrollView>
+      <JamindarFab />
     </SafeAreaView>
   );
 }
