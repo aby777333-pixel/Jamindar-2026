@@ -36,3 +36,6 @@ Thumbs.db
 
 # supabase local
 supabase/.temp/
+
+# build artifacts
+*.apk
