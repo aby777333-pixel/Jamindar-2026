@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View, ScrollView, Pressable, Alert } from "react-native";
+import { Text, View, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType, type PropertyStatus, type ProjectPhase } from "@/lib/types";
+import { generateDescription } from "@/lib/property-media";
 
 const TYPES = Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[];
 const STATUSES: PropertyStatus[] = ["draft", "available", "reserved", "sold", "archived"];
@@ -40,7 +41,13 @@ export default function PropertyEdit() {
     legal_ownership: "", legal_encumbrance: "", legal_notes: "",
     inv_roi: "", inv_rental_yield: "", inv_appreciation: "",
     documents: "", nearby_places: "",
+    // India-specific
+    listing_type: "sale", taluk: "", village: "", survey_number: "", patta_khata: "",
+    road_frontage: "", plot_length: "", plot_breadth: "", plot_dimensions: "",
+    title_status: "", property_age: "", price_negotiable: false, taxes: "", maintenance_charges: "", utilities: "",
+    seo_title: "", seo_description: "", seo_keywords: "", seo_slug: "",
   });
+  const [aiBusy, setAiBusy] = useState(false);
   const set = (k: keyof typeof f) => (v: any) => setF((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
@@ -63,6 +70,12 @@ export default function PropertyEdit() {
           inv_roi: p.investment?.roi?.toString() ?? "", inv_rental_yield: p.investment?.rental_yield?.toString() ?? "", inv_appreciation: p.investment?.appreciation?.toString() ?? "",
           documents: (p.documents ?? []).map((d) => `${d.label}|${d.url}${d.size ? "|" + d.size : ""}`).join("\n"),
           nearby_places: (p.nearby_places ?? []).map((n) => `${n.name}|${n.distance ?? ""}${n.duration ? "|" + n.duration : ""}`).join("\n"),
+          listing_type: (p as any).listing_type ?? "sale", taluk: (p as any).taluk ?? "", village: (p as any).village ?? "",
+          survey_number: (p as any).survey_number ?? "", patta_khata: (p as any).patta_khata ?? "", road_frontage: (p as any).road_frontage ?? "",
+          plot_length: (p as any).plot_length?.toString() ?? "", plot_breadth: (p as any).plot_breadth?.toString() ?? "", plot_dimensions: (p as any).plot_dimensions ?? "",
+          title_status: (p as any).title_status ?? "", property_age: (p as any).property_age ?? "", price_negotiable: !!(p as any).price_negotiable,
+          taxes: (p as any).taxes ?? "", maintenance_charges: (p as any).maintenance_charges ?? "", utilities: ((p as any).utilities ?? []).join(", "),
+          seo_title: (p as any).seo?.title ?? "", seo_description: (p as any).seo?.description ?? "", seo_keywords: (p as any).seo?.keywords ?? "", seo_slug: (p as any).seo?.slug ?? "",
         });
       }
       setLoading(false);
@@ -96,6 +109,13 @@ export default function PropertyEdit() {
         amenities: f.amenities.split(",").map((a) => a.trim()).filter(Boolean), approvals: f.approvals,
         rera_number: f.rera_number.trim() || null, street_view_url: f.street_view_url.trim() || null, google_earth_url: f.google_earth_url.trim() || null,
         legal, investment, documents, nearby_places,
+        listing_type: f.listing_type, taluk: f.taluk.trim() || null, village: f.village.trim() || null,
+        survey_number: f.survey_number.trim() || null, patta_khata: f.patta_khata.trim() || null, road_frontage: f.road_frontage.trim() || null,
+        plot_length: numOrNull(f.plot_length), plot_breadth: numOrNull(f.plot_breadth), plot_dimensions: f.plot_dimensions.trim() || null,
+        title_status: f.title_status.trim() || null, property_age: f.property_age.trim() || null, price_negotiable: f.price_negotiable,
+        taxes: f.taxes.trim() || null, maintenance_charges: f.maintenance_charges.trim() || null,
+        utilities: f.utilities.split(",").map((s) => s.trim()).filter(Boolean),
+        seo: { title: f.seo_title.trim() || null, description: f.seo_description.trim() || null, keywords: f.seo_keywords.trim() || null, slug: f.seo_slug.trim() || null },
       };
 
       if (editing) {
@@ -115,6 +135,18 @@ export default function PropertyEdit() {
     }
   }
 
+  async function aiDescribe() {
+    setAiBusy(true);
+    try {
+      const text = await generateDescription({ title: f.title, property_type: f.property_type, city: f.city, locality: f.locality, state: f.state, price: f.price, area_value: f.area_value, area_unit: f.area_unit, vastu_facing: f.vastu_facing, amenities: f.amenities });
+      if (text) setF((s) => ({ ...s, description: text }));
+    } catch (e: any) {
+      Alert.alert("Couldn't generate", e?.message ?? "Please try again.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   if (loading) return <Loading />;
 
   return (
@@ -125,8 +157,17 @@ export default function PropertyEdit() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {editing ? (
+          <Pressable onPress={() => router.push({ pathname: "/admin/property-media", params: { id } } as any)} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.ink, borderRadius: 14, padding: 13, marginBottom: space.md }}>
+            <Ionicons name="images" size={20} color="#fff" />
+            <Text style={{ flex: 1, color: "#fff", fontWeight: "600", fontSize: 13 }}>Manage photos & documents</Text>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+          </Pressable>
+        ) : null}
+
         <Sec title="Basics">
           <Field label="Title" value={f.title} onChangeText={set("title")} placeholder="Prestige Meadows — Plot 24" />
+          <Choice label="Listing" options={[{ k: "sale", l: "Sale" }, { k: "rent", l: "Rent" }]} value={f.listing_type} onChange={set("listing_type")} />
           <Choice label="Type" options={TYPES.map((t) => ({ k: t, l: PROPERTY_TYPE_LABELS[t] }))} value={f.property_type} onChange={set("property_type")} />
           <Choice label="Status" options={STATUSES.map((s) => ({ k: s, l: s }))} value={f.status} onChange={set("status")} />
           <Choice label="Project phase" options={PHASES.map((s) => ({ k: s, l: s }))} value={f.project_phase} onChange={set("project_phase")} />
@@ -139,6 +180,23 @@ export default function PropertyEdit() {
           <Choice label="Area unit" options={["sqft", "grounds", "acres", "cents", "hectares"].map((u) => ({ k: u, l: u }))} value={f.area_unit} onChange={set("area_unit")} />
           <Field label="Plots total" value={f.plots_total} onChangeText={set("plots_total")} keyboardType="numeric" placeholder="120" />
           <Field label="Plots available" value={f.plots_available} onChangeText={set("plots_available")} keyboardType="numeric" placeholder="45" />
+          <Toggle label="Price negotiable" value={f.price_negotiable} onChange={set("price_negotiable")} />
+          <Field label="Taxes" value={f.taxes} onChangeText={set("taxes")} placeholder="Registration + stamp duty extra" />
+          <Field label="Maintenance charges" value={f.maintenance_charges} onChangeText={set("maintenance_charges")} placeholder="₹2/sqft/month" />
+          <Field label="Plot length (ft)" value={f.plot_length} onChangeText={set("plot_length")} keyboardType="numeric" />
+          <Field label="Plot breadth (ft)" value={f.plot_breadth} onChangeText={set("plot_breadth")} keyboardType="numeric" />
+          <Field label="Dimensions note" value={f.plot_dimensions} onChangeText={set("plot_dimensions")} placeholder="30 × 40, corner" />
+        </Sec>
+
+        <Sec title="India details">
+          <Field label="Taluk" value={f.taluk} onChangeText={set("taluk")} />
+          <Field label="Village" value={f.village} onChangeText={set("village")} />
+          <Field label="Survey number" value={f.survey_number} onChangeText={set("survey_number")} placeholder="123/4B" />
+          <Field label="Patta / Khata" value={f.patta_khata} onChangeText={set("patta_khata")} />
+          <Field label="Road frontage" value={f.road_frontage} onChangeText={set("road_frontage")} placeholder="40 ft road" />
+          <Field label="Title status" value={f.title_status} onChangeText={set("title_status")} placeholder="Clear marketable title" />
+          <Field label="Property age" value={f.property_age} onChangeText={set("property_age")} placeholder="New / 5 years" />
+          <Field label="Utilities (comma separated)" value={f.utilities} onChangeText={set("utilities")} placeholder="Water, Electricity, Drainage" multiline />
         </Sec>
 
         <Sec title="Location">
@@ -154,7 +212,18 @@ export default function PropertyEdit() {
 
         <Sec title="Content">
           <Field label="Description" value={f.description} onChangeText={set("description")} multiline />
+          <Pressable onPress={aiDescribe} disabled={aiBusy} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 10, borderRadius: 11, borderWidth: 1.5, borderColor: colors.brand, backgroundColor: colors.brandSoft, marginBottom: 6 }}>
+            {aiBusy ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="sparkles" size={16} color={colors.brand} />}
+            <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 12.5 }}>{aiBusy ? "Writing…" : "Generate with Jamindar AI"}</Text>
+          </Pressable>
           <Field label="Vastu facing" value={f.vastu_facing} onChangeText={set("vastu_facing")} placeholder="East" />
+        </Sec>
+
+        <Sec title="SEO & sharing">
+          <Field label="SEO title" value={f.seo_title} onChangeText={set("seo_title")} placeholder="2400 sqft DTCP plot in Sarjapur" />
+          <Field label="SEO description" value={f.seo_description} onChangeText={set("seo_description")} multiline />
+          <Field label="Keywords" value={f.seo_keywords} onChangeText={set("seo_keywords")} placeholder="sarjapur plots, dtcp, bengaluru land" autoCapitalize="none" />
+          <Field label="URL slug" value={f.seo_slug} onChangeText={set("seo_slug")} placeholder="prestige-meadows-plot-24" autoCapitalize="none" />
         </Sec>
 
         <Sec title="Media (one URL per line)">
