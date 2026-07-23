@@ -94,6 +94,53 @@ export async function pickAndAddImages(propertyId: string, kind = "image"): Prom
   return added;
 }
 
+/** Pick one or more videos and add them as video rows (uploaded as blobs, not base64). */
+export async function pickAndAddVideos(propertyId: string): Promise<number> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!perm.granted) throw new Error("Please allow media access.");
+  const res = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+    allowsMultipleSelection: true,
+    selectionLimit: 6,
+    quality: 0.7,
+  });
+  if (res.canceled) return 0;
+  const existing = await listMedia(propertyId);
+  let order = existing.reduce((mx, m) => Math.max(mx, m.sort_order), 0);
+  let added = 0;
+  for (const asset of res.assets) {
+    const resp = await fetch(asset.uri);
+    const blob = await resp.blob();
+    const mime = asset.mimeType || blob.type || "video/mp4";
+    const ext = (mime.split("/")[1] || "mp4").split("+")[0];
+    const path = `${propertyId}/video_${Date.now()}_${added}.${ext}`;
+    const { error } = await supabase.storage.from("property-media").upload(path, blob, { contentType: mime, upsert: true });
+    if (error) throw error;
+    const url = supabase.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+    order += 1;
+    await supabase.from("property_media").insert({ property_id: propertyId, kind: "video", url, sort_order: order });
+    added += 1;
+  }
+  return added;
+}
+
+/** Pick + upload a profile photo to the public 'avatars' bucket; returns its URL. */
+export async function pickAndUploadAvatar(userId: string): Promise<string | null> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!perm.granted) throw new Error("Please allow photo access.");
+  const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true });
+  if (res.canceled || !res.assets?.[0]?.base64) return null;
+  const asset = res.assets[0];
+  if (!asset.base64) return null;
+  const bytes = base64ToBytes(asset.base64);
+  const mime = asset.mimeType || "image/jpeg";
+  const ext = (mime.split("/")[1] || "jpg").split("+")[0];
+  const path = `${userId}/avatar_${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("avatars").upload(path, bytes, { contentType: mime, upsert: true });
+  if (error) throw error;
+  return supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+}
+
 /** Add an external link (e.g. a 360° tour) or a hosted document URL. */
 export async function addLink(propertyId: string, kind: string, url: string, caption?: string): Promise<void> {
   const existing = await listMedia(propertyId);

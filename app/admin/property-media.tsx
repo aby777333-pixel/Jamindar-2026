@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading } from "@/components/ui";
 import { colors, space, type as T } from "@/lib/theme";
 import {
-  listMedia, pickAndAddImages, addLink, setPrimary, moveMedia, removeMedia, updateMedia,
+  listMedia, pickAndAddImages, pickAndAddVideos, addLink, setPrimary, moveMedia, removeMedia, updateMedia,
   MEDIA_KINDS, AUDIENCES, type PropertyMedia,
 } from "@/lib/property-media";
 
@@ -52,8 +52,11 @@ export default function PropertyMediaScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* Photos */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: space.sm }}>
-          <Text style={{ fontSize: 16, fontWeight: "600", color: colors.ink }}>Photos <Text style={{ color: colors.inkFaint, fontSize: 12 }}>· {photos.length}</Text></Text>
-          <Pressable onPress={() => run(() => pickAndAddImages(id!, "image"))} style={addBtn}><Ionicons name="add" size={15} color="#fff" /><Text style={addBtnT}>Add</Text></Pressable>
+          <Text style={{ fontSize: 16, fontWeight: "600", color: colors.ink }}>Photos & videos</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable onPress={() => run(() => pickAndAddImages(id!, "image"))} style={addBtn}><Ionicons name="image" size={14} color="#fff" /><Text style={addBtnT}>Photos</Text></Pressable>
+            <Pressable onPress={() => run(() => pickAndAddVideos(id!))} style={[addBtn, { backgroundColor: colors.ink }]}><Ionicons name="videocam" size={14} color="#fff" /><Text style={addBtnT}>Videos</Text></Pressable>
+          </View>
         </View>
         <Text style={{ color: colors.inkFaint, fontSize: 12, marginBottom: 10 }}>The ★ photo is the primary thumbnail. Reorder with the arrows.</Text>
         {photos.length === 0 ? (

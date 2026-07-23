@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator } from "react-native";
+import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator, Modal, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,6 +48,9 @@ export default function PropertyDetail() {
   const qc = useQueryClient();
   const [imgIndex, setImgIndex] = useState(0);
   const [tab, setTab] = useState<TabKey>("overview");
+  const [mediaMode, setMediaMode] = useState<"photos" | "videos">("photos");
+  const [fullscreen, setFullscreen] = useState<number | null>(null);
+  const SCREEN_W = Dimensions.get("window").width;
   const compare = useCompare();
   const [lang, setLang] = useState("en-IN");
   const [translated, setTranslated] = useState<string | null>(null);
@@ -204,6 +207,7 @@ export default function PropertyDetail() {
     );
 
   const images = property.images ?? [];
+  const allVideos = [...(property.videos ?? []), ...(property.drone_videos ?? [])];
   const approvalTag = topApproval(property.approvals);
   const PHASE_META: Record<string, { label: string; color: string }> = {
     ongoing: { label: "Ongoing", color: colors.goldDark },
@@ -237,14 +241,38 @@ export default function PropertyDetail() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
-        {/* gallery */}
+        {/* gallery — swipeable photos / videos + tap to fullscreen */}
         <View style={{ height: 250, backgroundColor: colors.surfaceSunken }}>
-          {images[imgIndex] ? (
-            <Image source={{ uri: images[imgIndex] }} style={{ width: "100%", height: "100%" }} />
+          {mediaMode === "photos" ? (
+            images.length > 0 ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+              >
+                {images.map((uri, i) => (
+                  <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: 250 }}>
+                    <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="image" size={48} color={colors.inkFaint} />
+              </View>
+            )
           ) : (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="image" size={48} color={colors.inkFaint} />
-            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 14, gap: 12, alignItems: "center" }}>
+              {allVideos.map((u, i) => (
+                <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(u)} style={{ width: 190, height: 222, borderRadius: 16, overflow: "hidden", backgroundColor: "#0b0d12", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <Ionicons name="play-circle" size={52} color="#fff" />
+                  <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" }}>
+                    {i < (property.videos?.length ?? 0) ? `Walkthrough ${i + 1}` : "Drone flyover"}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           )}
           <LinearGradient colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 90 }} pointerEvents="none" />
           <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 70 }} pointerEvents="none" />
@@ -255,6 +283,15 @@ export default function PropertyDetail() {
             <Pressable onPress={toggleFav} style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
               <Ionicons name={isFav ? "heart" : "heart-outline"} size={22} color={isFav ? colors.brand : "#fff"} />
             </Pressable>
+          ) : null}
+          {allVideos.length > 0 ? (
+            <View style={{ position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, padding: 3 }}>
+              {(["photos", "videos"] as const).map((m) => (
+                <Pressable key={m} onPress={() => setMediaMode(m)} style={{ paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, backgroundColor: mediaMode === m ? "#fff" : "transparent" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: mediaMode === m ? colors.ink : "#fff" }}>{m === "photos" ? "Photos" : "Videos"}</Text>
+                </Pressable>
+              ))}
+            </View>
           ) : null}
           <View style={{ position: "absolute", bottom: 12, left: 12, flexDirection: "row", gap: 6 }}>
             {approvalTag ? (
@@ -273,10 +310,10 @@ export default function PropertyDetail() {
               <Text style={{ color: colors.ink, fontSize: 11, fontWeight: "700" }}>360° Tour</Text>
             </Pressable>
           ) : null}
-          {images.length > 1 ? (
+          {mediaMode === "photos" && images.length > 1 ? (
             <View style={{ position: "absolute", bottom: 44, alignSelf: "center", flexDirection: "row", gap: 6 }}>
               {images.map((_, i) => (
-                <Pressable key={i} onPress={() => setImgIndex(i)} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === imgIndex ? "#fff" : "rgba(255,255,255,0.5)" }} />
+                <View key={i} style={{ width: i === imgIndex ? 18 : 8, height: 8, borderRadius: 4, backgroundColor: i === imgIndex ? "#fff" : "rgba(255,255,255,0.5)" }} />
               ))}
             </View>
           ) : null}
@@ -368,6 +405,21 @@ export default function PropertyDetail() {
           <Button label="Schedule Site Visit" onPress={onSiteVisit} />
         </View>
       </View>
+      {/* fullscreen photo viewer */}
+      <Modal visible={fullscreen !== null} transparent animationType="fade" onRequestClose={() => setFullscreen(null)}>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={{ x: (fullscreen ?? 0) * SCREEN_W, y: 0 }}>
+            {images.map((uri, i) => (
+              <View key={i} style={{ width: SCREEN_W, height: "100%", alignItems: "center", justifyContent: "center" }}>
+                <Image source={{ uri }} style={{ width: SCREEN_W, height: "100%" }} resizeMode="contain" />
+              </View>
+            ))}
+          </ScrollView>
+          <Pressable onPress={() => setFullscreen(null)} style={{ position: "absolute", top: 48, right: 20, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: 22, padding: 9 }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
       <JamindarFab />
     </SafeAreaView>
   );

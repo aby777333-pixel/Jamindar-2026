@@ -11,12 +11,14 @@ import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
 export function GreetingHeader({
   name,
   initials,
+  avatarUrl,
   greeting = "Good Morning",
   onBell,
   hasAlert,
 }: {
   name: string;
   initials: string;
+  avatarUrl?: string | null;
   greeting?: string;
   onBell?: () => void;
   hasAlert?: boolean;
@@ -31,10 +33,15 @@ export function GreetingHeader({
           backgroundColor: colors.brand,
           alignItems: "center",
           justifyContent: "center",
+          overflow: "hidden",
           ...elevation.low,
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "600", fontSize: T.small.fontSize + 1 }}>{initials}</Text>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} />
+        ) : (
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: T.small.fontSize + 1 }}>{initials}</Text>
+        )}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, fontWeight: "400" }}>

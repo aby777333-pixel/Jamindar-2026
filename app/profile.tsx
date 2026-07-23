@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Text, View, Alert, Pressable } from "react-native";
+import { Text, View, Alert, Pressable, Image, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
 import { Field } from "@/components/Field";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
+import { pickAndUploadAvatar } from "@/lib/property-media";
+import { initials } from "@/lib/format";
 import { colors } from "@/lib/theme";
 
 const GENDERS = ["Male", "Female", "Other"];
@@ -26,7 +29,26 @@ export default function ProfileSetup() {
   const [dob, setDob] = useState(profile?.dob ?? "");
   const [city, setCity] = useState(profile?.city ?? "");
   const [state, setState] = useState(profile?.state ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  async function onPickAvatar() {
+    if (!profile) return;
+    setAvatarBusy(true);
+    try {
+      const url = await pickAndUploadAvatar(profile.id);
+      if (url) {
+        await supabase.from("profiles").update({ avatar_url: url }).eq("id", profile.id);
+        setAvatarUrl(url);
+        await refreshProfile();
+      }
+    } catch (e: any) {
+      Alert.alert("Couldn't upload photo", e?.message ?? "Please try again.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   async function onFinish() {
     if (!profile) return;
@@ -53,6 +75,7 @@ export default function ProfileSetup() {
           dob: dob.trim() || null,
           city: city.trim() || null,
           state: state.trim() || null,
+          avatar_url: avatarUrl || null,
           is_profile_complete: true,
         })
         .eq("id", profile.id);
@@ -72,6 +95,28 @@ export default function ProfileSetup() {
   return (
     <Screen>
       <View style={{ paddingTop: 24 }}>
+        {/* profile photo */}
+        <View style={{ alignItems: "center", marginBottom: 18 }}>
+          <Pressable onPress={onPickAvatar} disabled={avatarBusy}>
+            <View style={{ width: 96, height: 96, borderRadius: 30, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", overflow: "hidden", borderWidth: 3, borderColor: colors.brandSoft }}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} />
+              ) : (
+                <Text style={{ color: "#fff", fontSize: 34, fontWeight: "800" }}>{initials(name || profile?.full_name)}</Text>
+              )}
+              {avatarBusy ? (
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" }}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              ) : null}
+            </View>
+            <View style={{ position: "absolute", right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface }}>
+              <Ionicons name="camera" size={16} color="#fff" />
+            </View>
+          </Pressable>
+          <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 8 }}>Tap to add your photo</Text>
+        </View>
+
         <Text style={{ fontSize: 26, fontWeight: "800", color: colors.ink }}>Complete your profile</Text>
         <Text style={{ color: colors.inkFaint, marginTop: 6, marginBottom: 20 }}>
           A few details so Jamindar can personalise your experience.

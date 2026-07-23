@@ -394,8 +394,10 @@ async function loadMedia(){
   const p=$("#media-panel"); if(!p) return;
   p.innerHTML = `
     <input type="file" accept="image/*" multiple style="display:none" id="ph-input"/>
+    <input type="file" accept="video/*" multiple style="display:none" id="vid-input"/>
     <button class="btn sm" onclick="document.getElementById('ph-input').click()">＋ Add photos</button>
-    <div class="muted" style="font-size:12px;margin:8px 0">★ = primary thumbnail · use ↑↓ to reorder</div>
+    <button class="btn sm ink" style="margin-left:8px" onclick="document.getElementById('vid-input').click()">＋ Add videos</button>
+    <div class="muted" style="font-size:12px;margin:8px 0">Large images are auto-compressed · ★ = primary thumbnail · ↑↓ to reorder · videos appear below</div>
     <div class="media-grid">${photos.map((m,i)=>`<div class="mtile"><img src="${esc(m.url)}"/><div class="mt-b">
       <span class="star">${m.is_primary?"★":""}</span>
       <span style="display:flex;gap:5px">
@@ -416,16 +418,32 @@ async function loadMedia(){
       <span style="display:flex;gap:5px">${["buyer","promoter","agent","internal"].map(a=>`<span class="chip sm ${(m.visibility||[]).includes(a)?'on':''}" style="padding:3px 8px;font-size:10px;cursor:pointer" onclick="mVis('${m.id}','${a}')">${a}</span>`).join("")}</span>
       <span class="iconbtn" onclick="mDel('${m.id}')">🗑</span></div>`).join("")||"<div class='muted'>No documents yet.</div>"}</div>`;
   $("#ph-input").onchange = (e)=>uploadFiles(e.target.files,"image");
+  $("#vid-input").onchange = (e)=>uploadFiles(e.target.files,"video");
   $("#doc-input").onchange = (e)=>uploadFiles(e.target.files,$("#doc-kind").value);
   window._media = media;
+}
+// Downscale + re-encode large images before upload (max 1920px, JPEG q0.82).
+async function compressImage(file){
+  if(!file.type || !file.type.startsWith("image/")) return file;
+  try{
+    const img=await createImageBitmap(file);
+    const max=1920; let w=img.width, h=img.height;
+    if(w>max||h>max){ const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+    const c=document.createElement("canvas"); c.width=w; c.height=h;
+    c.getContext("2d").drawImage(img,0,0,w,h);
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
+    if(blob && blob.size < file.size) return new File([blob], file.name.replace(/\.\w+$/,"")+".jpg", {type:"image/jpeg"});
+    return file;
+  }catch(e){ return file; }
 }
 async function uploadFiles(files,kind){
   if(!files.length) return; toast("Uploading…");
   const existing=window._media||[]; const hasPrimary=existing.some(m=>m.kind==="image"&&m.is_primary);
   let order=existing.reduce((mx,m)=>Math.max(mx,m.sort_order),0), first=true;
-  for(const f of files){
+  for(const raw of files){
+    const f = kind==="image" ? await compressImage(raw) : raw;
     const path=`${CUR.id}/${Date.now()}_${Math.round(Math.random()*1e5)}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
-    const {error}=await sb.storage.from("property-media").upload(path,f,{contentType:f.type,upsert:true});
+    const {error}=await sb.storage.from("property-media").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:true});
     if(error){ toast(error.message); continue; }
     const url=sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
     order++; await sb.from("property_media").insert({property_id:CUR.id,kind,url,sort_order:order,is_primary:kind==="image"&&!hasPrimary&&first});

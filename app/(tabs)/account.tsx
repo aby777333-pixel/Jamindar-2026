@@ -1,4 +1,4 @@
-import { Text, View, Pressable, Alert, ScrollView } from "react-native";
+import { Text, View, Pressable, Alert, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,7 +59,8 @@ export default function Account() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         <Card style={{ alignItems: "center", paddingVertical: space.lg, marginBottom: space.md }}>
-          <View
+          <Pressable
+            onPress={() => router.push("/profile")}
             style={{
               width: 88,
               height: 88,
@@ -67,12 +68,17 @@ export default function Account() {
               backgroundColor: colors.brand,
               alignItems: "center",
               justifyContent: "center",
+              overflow: "hidden",
               borderWidth: 3,
               borderColor: colors.brandSoft,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800" }}>{initials(profile?.full_name)}</Text>
-          </View>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={{ width: "100%", height: "100%" }} />
+            ) : (
+              <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800" }}>{initials(profile?.full_name)}</Text>
+            )}
+          </Pressable>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: space.sm }}>
             <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink }}>
               {profile?.full_name ?? "Guest"}
