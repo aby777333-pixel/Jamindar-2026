@@ -33,7 +33,8 @@ export default function AdminConsole() {
         count("voice_logs"),
         count("kyc_submissions", (q) => q.eq("status", "pending")),
       ]);
-      return { users, buyers, promoters, properties, visits, leads, brochures, voice, kycPending };
+      const partnersPending = await count("profiles", (q) => q.eq("partner_status", "pending"));
+      return { users, buyers, promoters, properties, visits, leads, brochures, voice, kycPending, partnersPending };
     },
   });
 
@@ -100,26 +101,43 @@ export default function AdminConsole() {
             )}
           </Card>
 
+          <Card onPress={() => router.push("/admin/partners" as Href)} style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.goldSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="ribbon" size={22} color={colors.goldDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>Partner Requests</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Verify or reject Jamin Partners</Text>
+            </View>
+            {stats!.partnersPending > 0 ? (
+              <View style={{ minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, backgroundColor: colors.goldDark, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{stats!.partnersPending}</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+            )}
+          </Card>
+
           {/* management shortcuts */}
           <SectionTitle>Management</SectionTitle>
           <Card style={{ padding: 0, marginBottom: 24 }}>
             {[
-              { icon: "people", label: "User Management", note: "Approve, suspend, assign" },
-              { icon: "business", label: "Property Management", note: "Create, edit, media, availability" },
-              { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts" },
-              { icon: "bar-chart", label: "Analytics & Reports", note: "Trends, funnels, exports" },
-            ].map((r, i) => (
-              <View
-                key={r.label}
-                style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 16, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}
-              >
-                <Ionicons name={r.icon as any} size={22} color={colors.brand} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "700", color: colors.ink }}>{r.label}</Text>
-                  <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{r.note}</Text>
+              { icon: "business", label: "Property Management", note: "Create, edit, media, availability", href: "/admin/properties" as Href },
+              { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts", href: null },
+              { icon: "bar-chart", label: "Analytics & Reports", note: "Trends, funnels, exports", href: null },
+            ].map((r, i) => {
+              const body = (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 16, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
+                  <Ionicons name={r.icon as any} size={22} color={colors.brand} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: "700", color: colors.ink }}>{r.label}</Text>
+                    <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{r.note}</Text>
+                  </View>
+                  {r.href ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Soon</Text>}
                 </View>
-              </View>
-            ))}
+              );
+              return r.href ? <Pressable key={r.label} onPress={() => router.push(r.href!)}>{body}</Pressable> : <View key={r.label}>{body}</View>;
+            })}
           </Card>
 
           <SectionTitle>Recent Jamindar Conversations</SectionTitle>
