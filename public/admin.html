@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jamin Properties — Admin Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --brand:#E11B22; --brand-dark:#B8151B; --brand-soft:#FCECEC;
+    --gold:#E0A423; --gold-soft:#FBF3DE; --gold-dark:#9C7D1A;
+    --navy:#141A2E; --navy2:#1E2740; --success:#14A05A; --success-soft:#E7F5EE;
+    --ink:#14151A; --ink-soft:#565863; --ink-faint:#8E9099;
+    --surface:#fff; --canvas:#F4F5F8; --sunken:#ECEDF1; --hair:#E7E8EE;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Inter",system-ui,sans-serif;background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;letter-spacing:-.01em;}
+  a{color:var(--brand);text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;outline:none;}
+  input:focus,select,textarea:focus{border-color:var(--brand);}
+  textarea{min-height:80px;resize:vertical;}
+  label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:12px 0 6px;}
+  .btn{background:var(--brand);color:#fff;font-weight:600;font-size:14px;padding:11px 18px;border-radius:11px;box-shadow:0 8px 18px -8px rgba(225,27,34,.5);}
+  .btn:hover{background:var(--brand-dark);}
+  .btn.gold{background:var(--gold);color:var(--navy);box-shadow:none;} .btn.gold:hover{background:var(--gold-dark);color:#fff;}
+  .btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand);box-shadow:none;}
+  .btn.ink{background:var(--navy);box-shadow:none;} .btn.sm{padding:7px 12px;font-size:12.5px;border-radius:9px;}
+  .btn.grey{background:var(--sunken);color:var(--ink-soft);box-shadow:none;}
+  .muted{color:var(--ink-faint);} .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;}
+  .pill.ok{background:var(--success-soft);color:var(--success);} .pill.warn{background:var(--gold-soft);color:var(--gold-dark);}
+  .pill.red{background:var(--brand-soft);color:var(--brand);} .pill.grey{background:var(--sunken);color:var(--ink-faint);}
+  .card{background:#fff;border:1px solid var(--hair);border-radius:16px;box-shadow:0 1px 2px rgba(20,26,46,.04),0 12px 26px -18px rgba(20,26,46,.14);}
+
+  /* login */
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(900px 500px at 80% -10%,rgba(225,27,34,.06),transparent 60%),var(--canvas);}
+  #login .box{width:380px;max-width:100%;padding:34px 30px;text-align:center;}
+  #login .logo{width:56px;height:56px;border-radius:17px;margin:0 auto 14px;background:linear-gradient(135deg,#F0474E,#B8151B);display:grid;place-items:center;color:#fff;font-weight:800;font-size:24px;}
+  #login h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.02em;} #login p{margin:0 0 20px;font-size:13px;}
+
+  /* shell */
+  #app{display:none;grid-template-columns:236px 1fr;min-height:100vh;}
+  aside{background:var(--navy);color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh;overflow:auto;}
+  aside .brand{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+  aside .brand .l{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#F0474E,#B8151B);display:grid;place-items:center;font-weight:800;}
+  aside .brand b{font-size:15px;font-weight:700;} aside .brand span{display:block;font-size:10px;color:rgba(255,255,255,.55);}
+  nav a{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:11px;color:rgba(255,255,255,.72);font-size:14px;font-weight:500;margin-bottom:3px;}
+  nav a:hover{background:rgba(255,255,255,.06);color:#fff;} nav a.on{background:var(--brand);color:#fff;}
+  nav a .badge{margin-left:auto;background:var(--gold);color:var(--navy);font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px;}
+  main{padding:26px 34px;max-width:1200px;}
+  header.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  header.top h2{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0;}
+  .who{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ink-soft);}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  .stat{padding:16px 18px;} .stat .n{font-size:26px;font-weight:700;letter-spacing:-.02em;} .stat .l{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  .toolbar input,.toolbar select{width:auto;} .toolbar .grow{flex:1;min-width:180px;}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--hair);}
+  th{background:var(--sunken);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);padding:11px 14px;}
+  td{padding:12px 14px;border-top:1px solid var(--hair);font-size:13.5px;vertical-align:middle;}
+  tr.click:hover{background:#faf9fb;cursor:pointer;}
+  .thumb{width:48px;height:40px;border-radius:8px;object-fit:cover;background:var(--sunken);}
+
+  /* drawer */
+  .drawer-bg{position:fixed;inset:0;background:rgba(20,26,46,.4);display:none;z-index:40;}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:640px;max-width:96vw;background:var(--canvas);box-shadow:-20px 0 50px -20px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.7,.2,1);overflow:auto;z-index:41;}
+  .drawer.open{transform:translateX(0);} .drawer-bg.open{display:block;}
+  .drawer .dh{position:sticky;top:0;background:var(--canvas);display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--hair);z-index:2;}
+  .drawer .dh h3{margin:0;font-size:18px;font-weight:700;flex:1;} .drawer .body{padding:20px 22px 40px;}
+  .sec{background:#fff;border:1px solid var(--hair);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .sec h4{margin:0 0 10px;font-size:14px;font-weight:700;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;} .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;} .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--hair);background:#fff;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .chip.on{background:var(--brand);border-color:var(--brand);color:#fff;} .chip.g.on{background:var(--success);border-color:var(--success);}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:14px;font-weight:500;}
+  .tgl{width:44px;height:26px;border-radius:13px;background:var(--sunken);position:relative;transition:.2s;flex:none;}
+  .tgl.on{background:var(--brand);} .tgl b{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;} .tgl.on b{left:21px;}
+  .media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .mtile{border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fff;}
+  .mtile img{width:100%;height:96px;object-fit:cover;display:block;background:var(--sunken);}
+  .mtile .mt-b{padding:8px;display:flex;gap:6px;align-items:center;justify-content:space-between;}
+  .mtile .star{color:var(--gold);font-weight:800;font-size:12px;}
+  .iconbtn{width:28px;height:28px;border-radius:8px;background:var(--sunken);display:grid;place-items:center;font-size:13px;color:var(--ink-soft);}
+  .docrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--hair);}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;font-weight:500;z-index:80;box-shadow:0 12px 30px -10px rgba(0,0,0,.5);opacity:0;transition:.25s;}
+  .toast.show{opacity:1;}
+  .empty{padding:40px;text-align:center;color:var(--ink-faint);font-size:13px;}
+  @media (max-width:820px){ #app{grid-template-columns:1fr;} aside{position:static;height:auto;} }
+</style>
+</head>
+<body>
+
+<!-- ───────── LOGIN ───────── -->
+<div id="login">
+  <div class="box card">
+    <div class="logo">J</div>
+    <h1>Jamin Admin Console</h1>
+    <p class="muted">Sign in with your registered mobile number.</p>
+    <div id="step-mobile">
+      <input id="mobile" type="tel" placeholder="Mobile number" autocomplete="tel" style="text-align:center;font-size:16px;" />
+      <button class="btn" style="width:100%;margin-top:12px;" onclick="sendOtp()">Send OTP</button>
+    </div>
+    <div id="step-otp" style="display:none;">
+      <input id="otp" inputmode="numeric" placeholder="6-digit code" style="text-align:center;font-size:20px;letter-spacing:6px;" />
+      <button class="btn" style="width:100%;margin-top:12px;" onclick="verifyOtp()">Verify & sign in</button>
+      <button class="btn grey" style="width:100%;margin-top:8px;" onclick="resetLogin()">Change number</button>
+    </div>
+    <div id="login-msg" class="muted" style="margin-top:14px;font-size:12.5px;min-height:18px;"></div>
+  </div>
+</div>
+
+<!-- ───────── APP ───────── -->
+<div id="app">
+  <aside>
+    <div class="brand"><div class="l">J</div><div><b>Jamin Admin</b><span>Property console</span></div></div>
+    <nav id="nav">
+      <a data-view="dashboard" class="on">◱ Dashboard</a>
+      <a data-view="properties">▤ Properties</a>
+      <a data-view="kyc">🛡 KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
+      <a data-view="partners">🎗 Partners <span class="badge" id="b-partner" style="display:none"></span></a>
+      <a data-view="users">👥 Users</a>
+    </nav>
+  </aside>
+  <main>
+    <header class="top">
+      <h2 id="view-title">Dashboard</h2>
+      <div class="who"><span id="who-name" class="muted"></span><button class="btn grey sm" onclick="signOut()">Sign out</button></div>
+    </header>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="drawer-bg" id="drawer-bg" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer"></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://zmxqozvivdluuxvvcegs.supabase.co";
+const ANON = "sb_publishable_7Oe-H5Ekn7FaS9c0pVbrVQ_ph9LHHsS";
+const sb = createClient(SUPABASE_URL, ANON);
+window.sb = sb;
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => (s==null?"":String(s)).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const inr = (n) => n==null?"—":"₹"+Number(n).toLocaleString("en-IN");
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
+window.toast = toast;
+
+// ───────── auth (mobile OTP, same as the app) ─────────
+let loginMobile = "";
+window.sendOtp = async () => {
+  const m = $("#mobile").value.replace(/[^0-9]/g,"");
+  if(m.length<10){ $("#login-msg").textContent="Enter a valid mobile number."; return; }
+  loginMobile = m; $("#login-msg").textContent="Sending OTP…";
+  try{
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`,{method:"POST",headers:{"Content-Type":"application/json",apikey:ANON,Authorization:`Bearer ${ANON}`},body:JSON.stringify({mobile:m})});
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||"Failed");
+    $("#step-mobile").style.display="none"; $("#step-otp").style.display="block";
+    $("#login-msg").textContent = j.delivered ? "OTP sent on WhatsApp." : (j.devCode? "Dev code: "+j.devCode : "OTP sent.");
+    if(j.devCode) $("#otp").value=j.devCode;
+  }catch(e){ $("#login-msg").textContent=e.message; }
+};
+window.verifyOtp = async () => {
+  const code = $("#otp").value.replace(/[^0-9]/g,"");
+  $("#login-msg").textContent="Verifying…";
+  try{
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`,{method:"POST",headers:{"Content-Type":"application/json",apikey:ANON,Authorization:`Bearer ${ANON}`},body:JSON.stringify({mobile:loginMobile,code})});
+    const j = await r.json(); if(!r.ok) throw new Error(j.error||"Invalid code");
+    const { error } = await sb.auth.signInWithPassword({ email:j.email, password:j.password });
+    if(error) throw error;
+    await boot();
+  }catch(e){ $("#login-msg").textContent=e.message; }
+};
+window.resetLogin = () => { $("#step-otp").style.display="none"; $("#step-mobile").style.display="block"; $("#login-msg").textContent=""; };
+window.signOut = async () => { await sb.auth.signOut(); location.reload(); };
+
+let ME = null;
+async function boot(){
+  const { data:{ user } } = await sb.auth.getUser();
+  if(!user){ return; }
+  const { data:prof } = await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
+  if(!prof || prof.role!=="super_admin"){ $("#login-msg").textContent="This console is for administrators only."; await sb.auth.signOut(); return; }
+  ME = prof;
+  $("#login").style.display="none"; $("#app").style.display="grid";
+  $("#who-name").textContent = (prof.full_name||"Admin")+" · "+(prof.member_code||"");
+  document.querySelectorAll("#nav a").forEach(a=>a.onclick=()=>go(a.dataset.view));
+  refreshBadges(); go("dashboard");
+}
+sb.auth.getSession().then(({data})=>{ if(data.session) boot(); });
+
+async function refreshBadges(){
+  const [{count:k},{count:p}] = await Promise.all([
+    sb.from("kyc_submissions").select("id",{count:"exact",head:true}).eq("status","pending"),
+    sb.from("profiles").select("id",{count:"exact",head:true}).eq("partner_status","pending"),
+  ]);
+  const bk=$("#b-kyc"), bp=$("#b-partner");
+  if(k){bk.style.display="inline-block";bk.textContent=k;} else bk.style.display="none";
+  if(p){bp.style.display="inline-block";bp.textContent=p;} else bp.style.display="none";
+}
+
+// ───────── router ─────────
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",users:"Users"};
+function go(v){
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
+  $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,users:renderUsers}[v])();
+}
+window.go = go;
+
+// ───────── dashboard ─────────
+async function renderDashboard(){
+  const c = (t,f)=>{let q=sb.from(t).select("id",{count:"exact",head:true}); if(f)q=f(q); return q.then(r=>r.count||0);};
+  const [users,buyers,promoters,props,visits,leads,kyc,partners] = await Promise.all([
+    c("profiles"),c("profiles",q=>q.eq("role","buyer")),c("profiles",q=>q.eq("role","promoter")),
+    c("properties"),c("site_visits"),c("leads"),c("kyc_submissions",q=>q.eq("status","pending")),c("profiles",q=>q.eq("partner_status","pending")),
+  ]);
+  const stat=(n,l,col)=>`<div class="stat card"><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`;
+  $("#view").innerHTML = `<div class="stats">
+    ${stat(users,"Total users")}${stat(buyers,"Buyers","var(--gold-dark)")}${stat(promoters,"Promoters","#4B57C9")}${stat(props,"Properties","var(--success)")}
+    ${stat(visits,"Site visits","#2B6FE1")}${stat(leads,"Leads","var(--brand)")}${stat(kyc,"KYC pending","var(--gold-dark)")}${stat(partners,"Partner pending","var(--gold-dark)")}
+  </div>
+  <div class="card" style="padding:20px;"><b>Welcome back, ${esc(ME.full_name||"Admin")}.</b>
+  <p class="muted" style="font-size:13px;margin:8px 0 0;">Manage listings from <a onclick="go('properties')">Properties</a>, review <a onclick="go('kyc')">KYC</a> and <a onclick="go('partners')">Partner</a> requests. Everything here shares the live backend with the mobile app — changes sync instantly.</p></div>`;
+}
+
+// ───────── properties ─────────
+async function renderProperties(){
+  $("#view").innerHTML = `<div class="toolbar">
+    <input class="grow" id="p-search" placeholder="Search title, city, locality…" />
+    <select id="p-status"><option value="">All statuses</option><option>draft</option><option>available</option><option>reserved</option><option>sold</option><option>archived</option></select>
+    <button class="btn" onclick="openProperty()">+ New property</button>
+  </div><div id="p-list"><div class="empty">Loading…</div></div>`;
+  $("#p-search").oninput = debounce(loadProps,300); $("#p-status").onchange = loadProps;
+  loadProps();
+}
+function debounce(f,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms);};}
+async function loadProps(){
+  const term=$("#p-search").value.trim(), st=$("#p-status").value;
+  let q=sb.from("properties").select("*").order("created_at",{ascending:false}).limit(300);
+  if(st) q=q.eq("status",st);
+  const { data } = await q;
+  let rows = data||[];
+  if(term){const t=term.toLowerCase();rows=rows.filter(p=>[p.title,p.city,p.locality,p.district].some(x=>(x||"").toLowerCase().includes(t)));}
+  const tone={draft:"grey",available:"ok",reserved:"warn",sold:"red",archived:"grey"};
+  $("#p-list").innerHTML = rows.length? `<table><thead><tr><th></th><th>Title</th><th>Location</th><th>Type</th><th>Price</th><th>Status</th><th></th></tr></thead><tbody>
+    ${rows.map(p=>`<tr class="click" onclick="openProperty('${p.id}')">
+      <td><img class="thumb" src="${esc((p.images&&p.images[0])||"")}" onerror="this.style.visibility='hidden'"/></td>
+      <td><b>${esc(p.title)}</b></td><td class="muted">${esc([p.locality,p.city].filter(Boolean).join(", "))}</td>
+      <td class="muted">${esc(p.property_type)}</td><td>${inr(p.price)}</td>
+      <td><span class="pill ${tone[p.status]||'grey'}">${p.status}</span></td>
+      <td class="muted">›</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty card">No properties yet. Click “New property”.</div>`;
+}
+
+const TYPES=["residential_plot","villa_plot","apartment","house","farm_land","commercial_land","industrial_land"];
+const STATUSES=["draft","available","reserved","sold","archived"];
+const PHASES=["ongoing","current","future"];
+const APPROVALS=["dtcp","rera","cmda","panchayat","clear_title"];
+let CUR=null; // current property being edited
+
+window.openProperty = async (id)=>{
+  CUR = id ? (await sb.from("properties").select("*").eq("id",id).maybeSingle()).data : { status:"draft", property_type:"residential_plot", project_phase:"current", listing_type:"sale", approvals:{}, is_featured:false };
+  renderEditor();
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+window.closeDrawer = ()=>{ $("#drawer").classList.remove("open"); $("#drawer-bg").classList.remove("open"); };
+
+function fld(label,key,ph="",type="text"){return `<div><label>${label}</label><input data-k="${key}" type="${type}" value="${esc(CUR[key]??"")}" placeholder="${ph}"/></div>`;}
+function txt(label,key){return `<div><label>${label}</label><textarea data-k="${key}">${esc(CUR[key]??"")}</textarea></div>`;}
+function chips(label,key,opts){return `<label>${label}</label><div class="chips" data-chips="${key}">${opts.map(o=>`<div class="chip ${CUR[key]===o?'on':''}" data-v="${o}">${o.replace(/_/g," ")}</div>`).join("")}</div>`;}
+
+function renderEditor(){
+  const legal=CUR.legal||{}, inv=CUR.investment||{}, seo=CUR.seo||{};
+  $("#drawer").innerHTML = `
+   <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${CUR.id?"Edit property":"New property"}</h3>
+     ${CUR.id?`<button class="btn ink sm" onclick="scrollMedia()">Photos & docs</button>`:""}
+     <button class="btn" onclick="saveProperty()">${CUR.id?"Save":"Create"}</button></div>
+   <div class="body">
+    <div class="sec"><h4>Basics</h4>
+      ${fld("Title","title","Prestige Meadows — Plot 24")}
+      ${chips("Listing","listing_type",["sale","rent"])}
+      ${chips("Type","property_type",TYPES)}
+      ${chips("Status","status",STATUSES)}
+      ${chips("Project phase","project_phase",PHASES)}
+      <div class="switch">Featured listing <div class="tgl ${CUR.is_featured?'on':''}" data-tgl="is_featured"><b></b></div></div>
+    </div>
+    <div class="sec"><h4>Pricing & size</h4><div class="grid2">
+      ${fld("Price (₹)","price","4250000","number")}${fld("Area value","area_value","2400","number")}
+      ${fld("Area unit","area_unit","sqft")}${fld("Property age","property_age","New")}
+      ${fld("Plots total","plots_total","","number")}${fld("Plots available","plots_available","","number")}
+      ${fld("Taxes","taxes","")}${fld("Maintenance","maintenance_charges","")}
+      ${fld("Plot length (ft)","plot_length","","number")}${fld("Plot breadth (ft)","plot_breadth","","number")}
+    </div><div class="switch">Price negotiable <div class="tgl ${CUR.price_negotiable?'on':''}" data-tgl="price_negotiable"><b></b></div></div></div>
+    <div class="sec"><h4>Location (India)</h4><div class="grid2">
+      ${fld("Locality","locality")}${fld("City / Town","city")}${fld("Taluk","taluk")}${fld("District","district")}
+      ${fld("Village","village")}${fld("State","state")}${fld("PIN code","pincode")}${fld("Survey number","survey_number","123/4B")}
+      ${fld("Patta / Khata","patta_khata")}${fld("Road frontage","road_frontage","40 ft road")}
+      ${fld("Latitude","lat","","number")}${fld("Longitude","lng","","number")}
+    </div>${fld("Google Maps URL","gmaps_url")}${fld("Street View URL","street_view_url")}${fld("Google Earth URL","google_earth_url")}</div>
+    <div class="sec"><h4>Content</h4>${txt("Description","description")}
+      <button class="btn ghost sm" style="margin-top:8px" onclick="aiDescribe(this)">✦ Generate with Jamindar AI</button>
+      <div class="grid2">${fld("Vastu facing","vastu_facing","East")}${fld("Dimensions note","plot_dimensions","30 × 40")}</div>
+      ${fld("Amenities (comma separated)","_amenities","Gated Community, Park")}
+      ${fld("Utilities (comma separated)","_utilities","Water, Electricity, Drainage")}</div>
+    <div class="sec"><h4>Approvals & legal</h4>
+      <label>Approvals</label><div class="chips" data-appr>${APPROVALS.map(a=>`<div class="chip g ${CUR.approvals&&CUR.approvals[a]?'on':''}" data-a="${a}">${a.toUpperCase()}</div>`).join("")}</div>
+      <div class="grid2">${fld("RERA number","rera_number")}${fld("Title status","title_status","Clear")}
+      <div><label>Ownership</label><input data-legal="ownership" value="${esc(legal.ownership||"")}"/></div>
+      <div><label>Encumbrance</label><input data-legal="encumbrance" value="${esc(legal.encumbrance||"")}"/></div></div></div>
+    <div class="sec"><h4>Investment</h4><div class="grid3">
+      <div><label>Est. ROI</label><input data-inv="roi" value="${esc(inv.roi||"")}"/></div>
+      <div><label>Rental yield</label><input data-inv="rental_yield" value="${esc(inv.rental_yield||"")}"/></div>
+      <div><label>Appreciation</label><input data-inv="appreciation" value="${esc(inv.appreciation||"")}"/></div></div></div>
+    <div class="sec"><h4>SEO</h4>
+      <div><label>SEO title</label><input data-seo="title" value="${esc(seo.title||"")}"/></div>
+      <div><label>SEO description</label><textarea data-seo="description">${esc(seo.description||"")}</textarea></div>
+      <div class="grid2"><div><label>Keywords</label><input data-seo="keywords" value="${esc(seo.keywords||"")}"/></div>
+      <div><label>URL slug</label><input data-seo="slug" value="${esc(seo.slug||"")}"/></div></div></div>
+    ${CUR.id?`<div class="sec" id="media-sec"><h4>Photos & documents</h4><div id="media-panel">Loading…</div></div>`:`<div class="sec muted" style="text-align:center">Save the property first, then add photos & documents.</div>`}
+   </div>`;
+  // chip / toggle handlers
+  $("#drawer").querySelectorAll("[data-chips]").forEach(g=>g.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{g.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");}));
+  $("#drawer").querySelectorAll("[data-appr] .chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
+  $("#drawer").querySelectorAll("[data-tgl]").forEach(t=>t.onclick=()=>t.classList.toggle("on"));
+  if(CUR.id) loadMedia();
+}
+window.scrollMedia = ()=>$("#media-sec")?.scrollIntoView({behavior:"smooth"});
+
+window.aiDescribe = async (btn)=>{
+  btn.textContent="Writing…"; btn.disabled=true;
+  try{
+    const g=(k)=>$(`#drawer [data-k="${k}"]`)?.value||"";
+    const prompt=`Write a warm, credible 60-80 word marketing description for this Indian real-estate listing. Do not invent facts. Plain text.\nType: ${g("property_type")||CUR.property_type}\nName: ${g("title")}\nLocation: ${[g("locality"),g("city"),g("state")].filter(Boolean).join(", ")}\nPrice: ₹${g("price")}\nArea: ${g("area_value")} ${g("area_unit")}\nFacing: ${g("vastu_facing")}\nAmenities: ${g("_amenities")}`;
+    const { data, error } = await sb.functions.invoke("jamindar-voice",{body:{action:"chat",messages:[{role:"user",content:prompt}],userText:prompt,language:"en-IN"}});
+    if(error) throw error;
+    if(data?.reply) $(`#drawer [data-k="description"]`).value=data.reply;
+    toast("Description generated");
+  }catch(e){ toast("Couldn't generate"); } finally{ btn.textContent="✦ Generate with Jamindar AI"; btn.disabled=false; }
+};
+
+window.saveProperty = async ()=>{
+  const g=(k)=>{const e=$(`#drawer [data-k="${k}"]`);return e?e.value:"";};
+  const chip=(k)=>$(`#drawer [data-chips="${k}"] .chip.on`)?.dataset.v;
+  const num=(k)=>{const v=g(k).trim();return v===""?null:Number(v);};
+  const arr=(k)=>g(k).split(",").map(s=>s.trim()).filter(Boolean);
+  const approvals={}; $("#drawer").querySelectorAll("[data-appr] .chip.on").forEach(c=>approvals[c.dataset.a]=true);
+  const legal={}; $("#drawer").querySelectorAll("[data-legal]").forEach(e=>{if(e.value.trim())legal[e.dataset.legal]=e.value.trim();});
+  const investment={}; $("#drawer").querySelectorAll("[data-inv]").forEach(e=>{if(e.value.trim())investment[e.dataset.inv]=e.value.trim();});
+  const seo={}; $("#drawer").querySelectorAll("[data-seo]").forEach(e=>{if(e.value.trim())seo[e.dataset.seo]=e.value.trim();});
+  const payload={
+    title:g("title").trim(), listing_type:chip("listing_type"), property_type:chip("property_type"), status:chip("status"), project_phase:chip("project_phase"),
+    is_featured:$(`#drawer [data-tgl="is_featured"]`).classList.contains("on"), price_negotiable:$(`#drawer [data-tgl="price_negotiable"]`).classList.contains("on"),
+    price:num("price"), area_value:num("area_value"), area_unit:g("area_unit").trim()||"sqft", property_age:g("property_age").trim()||null,
+    plots_total:num("plots_total"), plots_available:num("plots_available"), taxes:g("taxes").trim()||null, maintenance_charges:g("maintenance_charges").trim()||null,
+    plot_length:num("plot_length"), plot_breadth:num("plot_breadth"), plot_dimensions:g("plot_dimensions").trim()||null,
+    locality:g("locality").trim()||null, city:g("city").trim()||null, taluk:g("taluk").trim()||null, district:g("district").trim()||null, village:g("village").trim()||null,
+    state:g("state").trim()||null, pincode:g("pincode").trim()||null, survey_number:g("survey_number").trim()||null, patta_khata:g("patta_khata").trim()||null,
+    road_frontage:g("road_frontage").trim()||null, lat:num("lat"), lng:num("lng"), gmaps_url:g("gmaps_url").trim()||null, street_view_url:g("street_view_url").trim()||null, google_earth_url:g("google_earth_url").trim()||null,
+    description:g("description").trim()||null, vastu_facing:g("vastu_facing").trim()||null, amenities:arr("_amenities"), utilities:arr("_utilities"),
+    approvals, rera_number:g("rera_number").trim()||null, title_status:g("title_status").trim()||null, legal, investment, seo,
+  };
+  if(!payload.title){ toast("Title is required"); return; }
+  try{
+    if(CUR.id){ const {error}=await sb.from("properties").update(payload).eq("id",CUR.id); if(error)throw error; }
+    else{ const {data,error}=await sb.from("properties").insert({...payload,created_by:ME.id}).select("id").single(); if(error)throw error; CUR.id=data.id; }
+    toast("Saved"); closeDrawer(); loadProps();
+  }catch(e){ toast(e.message||"Save failed"); }
+};
+
+// ───────── media ─────────
+async function loadMedia(){
+  const { data } = await sb.from("property_media").select("*").eq("property_id",CUR.id).order("sort_order").order("created_at");
+  const media=data||[]; const photos=media.filter(m=>m.kind==="image"), docs=media.filter(m=>m.kind!=="image");
+  const p=$("#media-panel"); if(!p) return;
+  p.innerHTML = `
+    <input type="file" accept="image/*" multiple style="display:none" id="ph-input"/>
+    <button class="btn sm" onclick="document.getElementById('ph-input').click()">＋ Add photos</button>
+    <div class="muted" style="font-size:12px;margin:8px 0">★ = primary thumbnail · use ↑↓ to reorder</div>
+    <div class="media-grid">${photos.map((m,i)=>`<div class="mtile"><img src="${esc(m.url)}"/><div class="mt-b">
+      <span class="star">${m.is_primary?"★":""}</span>
+      <span style="display:flex;gap:5px">
+      ${m.is_primary?"":`<span class="iconbtn" title="Set thumbnail" onclick="mSetPrimary('${m.id}')">★</span>`}
+      <span class="iconbtn" onclick="mMove(${i},-1)">↑</span><span class="iconbtn" onclick="mMove(${i},1)">↓</span>
+      <span class="iconbtn" onclick="mDel('${m.id}')">🗑</span></span></div></div>`).join("")||"<div class='muted' style='grid-column:1/-1'>No photos yet.</div>"}</div>
+    <hr style="border:none;border-top:1px solid var(--hair);margin:16px 0"/>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px"><label>Add document</label>
+      <select id="doc-kind">${["brochure","flyer","pamphlet","catalogue","presentation","price_list","master_plan","layout_plan","floor_plan","site_plan","location_map","google_earth","legal","approval","rera","noc","virtual_tour","video","drone","other"].map(k=>`<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}</select></div>
+      <input type="file" style="display:none" id="doc-input"/>
+      <button class="btn grey sm" onclick="document.getElementById('doc-input').click()">Upload file</button>
+      <input id="doc-url" placeholder="…or paste URL" style="flex:1;min-width:150px"/>
+      <button class="btn sm" onclick="mAddLink()">Add link</button>
+    </div>
+    <div style="margin-top:10px">${docs.map(m=>`<div class="docrow"><b style="flex:1">${esc(m.kind.replace(/_/g," "))}</b>
+      <span class="muted" style="font-size:11px;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.caption||m.url)}</span>
+      <span style="display:flex;gap:5px">${["buyer","promoter","agent","internal"].map(a=>`<span class="chip sm ${(m.visibility||[]).includes(a)?'on':''}" style="padding:3px 8px;font-size:10px;cursor:pointer" onclick="mVis('${m.id}','${a}')">${a}</span>`).join("")}</span>
+      <span class="iconbtn" onclick="mDel('${m.id}')">🗑</span></div>`).join("")||"<div class='muted'>No documents yet.</div>"}</div>`;
+  $("#ph-input").onchange = (e)=>uploadFiles(e.target.files,"image");
+  $("#doc-input").onchange = (e)=>uploadFiles(e.target.files,$("#doc-kind").value);
+  window._media = media;
+}
+async function uploadFiles(files,kind){
+  if(!files.length) return; toast("Uploading…");
+  const existing=window._media||[]; const hasPrimary=existing.some(m=>m.kind==="image"&&m.is_primary);
+  let order=existing.reduce((mx,m)=>Math.max(mx,m.sort_order),0), first=true;
+  for(const f of files){
+    const path=`${CUR.id}/${Date.now()}_${Math.round(Math.random()*1e5)}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
+    const {error}=await sb.storage.from("property-media").upload(path,f,{contentType:f.type,upsert:true});
+    if(error){ toast(error.message); continue; }
+    const url=sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+    order++; await sb.from("property_media").insert({property_id:CUR.id,kind,url,sort_order:order,is_primary:kind==="image"&&!hasPrimary&&first});
+    first=false;
+  }
+  toast("Uploaded"); loadMedia();
+}
+window.mSetPrimary=async(id)=>{ await sb.from("property_media").update({is_primary:false}).eq("property_id",CUR.id).eq("kind","image"); await sb.from("property_media").update({is_primary:true}).eq("id",id); loadMedia(); };
+window.mMove=async(i,dir)=>{ const ph=(window._media||[]).filter(m=>m.kind==="image"); const j=i+dir; if(j<0||j>=ph.length)return; const a=ph[i],b=ph[j]; await sb.from("property_media").update({sort_order:b.sort_order}).eq("id",a.id); await sb.from("property_media").update({sort_order:a.sort_order}).eq("id",b.id); loadMedia(); };
+window.mDel=async(id)=>{ if(!confirm("Remove this item?"))return; await sb.from("property_media").delete().eq("id",id); loadMedia(); };
+window.mAddLink=async()=>{ const url=$("#doc-url").value.trim(); if(!url)return; const kind=$("#doc-kind").value; const order=(window._media||[]).reduce((mx,m)=>Math.max(mx,m.sort_order),0)+1; await sb.from("property_media").insert({property_id:CUR.id,kind,url,sort_order:order}); loadMedia(); };
+window.mVis=async(id,a)=>{ const m=(window._media||[]).find(x=>x.id===id); const vis=m.visibility||[]; const nv=vis.includes(a)?vis.filter(x=>x!==a):[...vis,a]; await sb.from("property_media").update({visibility:nv}).eq("id",id); loadMedia(); };
+
+// ───────── KYC ─────────
+async function renderKyc(){
+  const { data } = await sb.from("kyc_submissions").select("*, applicant:profiles!kyc_submissions_user_id_fkey(full_name,member_code,mobile)").eq("status","pending").order("submitted_at",{ascending:false});
+  const rows=data||[];
+  $("#view").innerHTML = rows.length? `<table><thead><tr><th>Applicant</th><th>ID</th><th>PAN</th><th>Submitted</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><b>${esc(r.applicant?.full_name||"—")}</b><div class="muted" style="font-size:11px">+${esc(r.applicant?.mobile||"")}</div></td>
+    <td class="muted">${esc(r.applicant?.member_code||"")}</td><td>${esc(r.pan_number||"—")}</td><td class="muted">${new Date(r.submitted_at).toLocaleDateString()}</td>
+    <td style="text-align:right"><button class="btn ghost sm" onclick='reviewKyc("${r.id}","rejected")'>Reject</button> <button class="btn sm" onclick='reviewKyc("${r.id}","approved")'>Approve</button></td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty card">No pending KYC submissions.</div>`;
+}
+window.reviewKyc = async(id,decision)=>{
+  let reason=null; if(decision==="rejected"){ reason=prompt("Reason for rejection:"); if(reason===null)return; }
+  const { error } = await sb.rpc("admin_review_kyc",{p_submission:id,p_decision:decision,p_reason:reason,p_corrections:null});
+  if(error) return toast(error.message); toast("KYC "+decision); refreshBadges(); renderKyc();
+};
+
+// ───────── partners ─────────
+async function renderPartners(){
+  const { data } = await sb.from("profiles").select("id,full_name,member_code,mobile,partner_code").eq("partner_status","pending").order("member_code");
+  const rows=data||[];
+  $("#view").innerHTML = rows.length? `<table><thead><tr><th>Applicant</th><th>ID</th><th>Mobile</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><b>${esc(r.full_name||"—")}</b></td><td class="muted">${esc(r.member_code||"")}</td><td class="muted">+${esc(r.mobile||"")}</td>
+    <td style="text-align:right"><button class="btn ghost sm" onclick='reviewPartner("${r.id}","rejected")'>Reject</button> <button class="btn gold sm" onclick='reviewPartner("${r.id}","verified")'>Verify</button></td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty card">No pending partner requests.</div>`;
+}
+window.reviewPartner = async(id,decision)=>{
+  let reason=null; if(decision==="rejected"){ reason=prompt("Reason (optional):"); }
+  const { error } = await sb.rpc("admin_review_partner",{p_user:id,p_decision:decision,p_reason:reason});
+  if(error) return toast(error.message); toast("Partner "+decision); refreshBadges(); renderPartners();
+};
+
+// ───────── users ─────────
+async function renderUsers(){
+  $("#view").innerHTML = `<div class="toolbar"><input class="grow" id="u-search" placeholder="Search name, ID, mobile…"/>
+    <select id="u-role"><option value="">All roles</option><option>buyer</option><option>promoter</option><option>super_admin</option></select></div><div id="u-list"><div class="empty">Loading…</div></div>`;
+  $("#u-search").oninput=debounce(loadUsers,300); $("#u-role").onchange=loadUsers; loadUsers();
+}
+async function loadUsers(){
+  const term=$("#u-search").value.trim().toLowerCase(), role=$("#u-role").value;
+  let q=sb.from("profiles").select("id,full_name,member_code,mobile,role,kyc_status,partner_status,created_at").order("member_code").limit(500);
+  if(role) q=q.eq("role",role);
+  const { data } = await q; let rows=data||[];
+  if(term) rows=rows.filter(u=>[u.full_name,u.member_code,u.mobile].some(x=>(x||"").toLowerCase().includes(term)));
+  const kt={approved:"ok",pending:"warn",rejected:"red",not_started:"grey"};
+  $("#u-list").innerHTML = rows.length? `<table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Role</th><th>KYC</th><th>Partner</th></tr></thead><tbody>
+    ${rows.map(u=>`<tr><td class="muted">${esc(u.member_code||"")}</td><td><b>${esc(u.full_name||"—")}</b></td><td class="muted">+${esc(u.mobile||"")}</td>
+    <td><span class="pill grey">${u.role}</span></td><td><span class="pill ${kt[u.kyc_status]||'grey'}">${(u.kyc_status||"").replace("_"," ")}</span></td>
+    <td class="muted">${u.partner_status==="verified"?"<span class='pill ok'>partner</span>":esc(u.partner_status||"")}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty card">No users found.</div>`;
+}
+</script>
+</body>
+</html>
