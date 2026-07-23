@@ -99,7 +99,7 @@ export default function Home() {
           <GreetingHeader
             name={firstName}
             initials={initials(profile?.full_name)}
-            onBell={() => router.push("/(tabs)/assistant")}
+            onBell={() => router.push("/notifications" as Href)}
             hasAlert={!!(suggestions && suggestions.length > 0)}
           />
         </View>

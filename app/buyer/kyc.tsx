@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Text, View, ScrollView, Pressable, Alert } from "react-native";
+import { Text, View, ScrollView, Pressable, Alert, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { Card, Button, Loading } from "@/components/ui";
 import { Field } from "@/components/Field";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { fetchMyKyc, submitKyc, type KycPayload } from "@/lib/kyc";
+import { fetchMyKyc, submitKyc, uploadKycDoc, type KycPayload } from "@/lib/kyc";
 import { logActivity } from "@/lib/audit";
 import type { KycSubmission } from "@/lib/types";
 
@@ -31,6 +32,8 @@ export default function BuyerKyc() {
   const [existing, setExisting] = useState<KycSubmission | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const [declared, setDeclared] = useState(false);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -53,6 +56,36 @@ export default function BuyerKyc() {
   }, [profile?.id]);
 
   const set = (k: keyof Form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function pickDoc(kind: keyof Form) {
+    if (!profile?.id) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission needed", "Please allow photo access to attach your document.");
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, base64: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      if (!asset.base64) {
+        Alert.alert("Couldn't read image", "Please try a different photo.");
+        return;
+      }
+      setUploading(kind);
+      const path = await uploadKycDoc(profile.id, kind, asset.base64, asset.mimeType);
+      setForm((f) => ({ ...f, [kind]: path }));
+      setPreviews((p) => ({ ...p, [kind]: asset.uri }));
+    } catch (e: any) {
+      Alert.alert("Upload failed", e?.message ?? "Please try again.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  const doc = (kind: keyof Form, label: string) => (
+    <DocRow label={label} previewUri={previews[kind]} hasFile={!!form[kind]} busy={uploading === kind} onPick={() => pickDoc(kind)} />
+  );
 
   function validate(): string | null {
     if (!form.pan_number.trim()) return "PAN number is required.";
@@ -128,6 +161,10 @@ export default function BuyerKyc() {
             <Section title="Identity" subtitle="As per your official documents">
               <Field label="PAN Number" value={form.pan_number} onChangeText={set("pan_number")} placeholder="ABCDE1234F" autoCapitalize="characters" hint="Format: ABCDE1234F" />
               <Field label="Aadhaar Number" value={form.aadhaar_number} onChangeText={set("aadhaar_number")} placeholder="1234 5678 9012" keyboardType="number-pad" hint="12-digit UIDAI number" />
+              <Divider />
+              {doc("pan_doc", "PAN card photo")}
+              {doc("aadhaar_front", "Aadhaar — front")}
+              {doc("aadhaar_back", "Aadhaar — back")}
             </Section>
 
             {/* Courier address */}
@@ -150,6 +187,8 @@ export default function BuyerKyc() {
               <Field label="Bank Name" value={form.bank_name} onChangeText={set("bank_name")} placeholder="State Bank of India" />
               <Field label="Branch" value={form.bank_branch} onChangeText={set("bank_branch")} placeholder="Indiranagar" />
               <Field label="UPI ID (optional)" value={form.upi_id} onChangeText={set("upi_id")} placeholder="name@bank" autoCapitalize="none" />
+              <Divider />
+              {doc("bank_proof", "Cancelled cheque / passbook")}
             </Section>
 
             {/* Nominee */}
@@ -161,13 +200,17 @@ export default function BuyerKyc() {
               <Field label="Address" value={form.nominee_address} onChangeText={set("nominee_address")} placeholder="Complete residential address" multiline />
               <Field label="Nominee PAN (optional)" value={form.nominee_pan} onChangeText={set("nominee_pan")} placeholder="ABCDE1234F" autoCapitalize="characters" />
               <Field label="Nominee Aadhaar (optional)" value={form.nominee_aadhaar} onChangeText={set("nominee_aadhaar")} placeholder="1234 5678 9012" keyboardType="number-pad" />
+              <Divider />
+              {doc("nominee_pan_doc", "Nominee PAN (optional)")}
+              {doc("nominee_aadhaar_front", "Nominee Aadhaar — front (optional)")}
+              {doc("nominee_aadhaar_back", "Nominee Aadhaar — back (optional)")}
             </Section>
 
-            {/* document note */}
-            <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.goldSoft, borderRadius: 14, padding: 14, marginBottom: space.md }}>
-              <Ionicons name="cloud-upload-outline" size={20} color={colors.goldDark} />
-              <Text style={{ flex: 1, color: colors.goldDark, fontSize: T.small.fontSize, lineHeight: 19 }}>
-                Document photos (PAN, Aadhaar, cancelled cheque) can be attached from the app in the upcoming update. You can submit your details now and add documents later if requested.
+            {/* privacy note */}
+            <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, marginBottom: space.md }}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.inkFaint} />
+              <Text style={{ flex: 1, color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: 19 }}>
+                Your documents are stored privately and shared only with the Jamin verification team.
               </Text>
             </View>
 
@@ -190,6 +233,35 @@ export default function BuyerKyc() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function Divider() {
+  return <View style={{ height: 1, backgroundColor: colors.surfaceSunken, marginVertical: 8 }} />;
+}
+
+function DocRow({ label, previewUri, hasFile, busy, onPick }: { label: string; previewUri?: string; hasFile: boolean; busy: boolean; onPick: () => void }) {
+  return (
+    <Pressable onPress={onPick} disabled={busy} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 }}>
+      <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {previewUri ? (
+          <Image source={{ uri: previewUri }} style={{ width: "100%", height: "100%" }} />
+        ) : (
+          <Ionicons name={hasFile ? "document-attach" : "cloud-upload-outline"} size={20} color={hasFile ? colors.success : colors.inkFaint} />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontWeight: "600", color: colors.ink, fontSize: T.small.fontSize + 1 }}>{label}</Text>
+        <Text style={{ color: hasFile ? colors.success : colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
+          {busy ? "Uploading…" : hasFile ? "Attached · tap to replace" : "Tap to upload photo"}
+        </Text>
+      </View>
+      {busy ? (
+        <ActivityIndicator color={colors.brand} />
+      ) : (
+        <Ionicons name={hasFile ? "checkmark-circle" : "chevron-forward"} size={hasFile ? 20 : 18} color={hasFile ? colors.success : colors.inkFaint} />
+      )}
+    </Pressable>
   );
 }
 

@@ -1,6 +1,6 @@
 import { Text, View, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, StatCard, Loading, SectionTitle } from "@/components/ui";
@@ -22,7 +22,7 @@ export default function AdminConsole() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
-      const [users, buyers, promoters, properties, visits, leads, brochures, voice] = await Promise.all([
+      const [users, buyers, promoters, properties, visits, leads, brochures, voice, kycPending] = await Promise.all([
         count("profiles"),
         count("profiles", (q) => q.eq("role", "buyer")),
         count("profiles", (q) => q.eq("role", "promoter")),
@@ -31,8 +31,9 @@ export default function AdminConsole() {
         count("leads"),
         count("brochure_downloads"),
         count("voice_logs"),
+        count("kyc_submissions", (q) => q.eq("status", "pending")),
       ]);
-      return { users, buyers, promoters, properties, visits, leads, brochures, voice };
+      return { users, buyers, promoters, properties, visits, leads, brochures, voice, kycPending };
     },
   });
 
@@ -79,6 +80,25 @@ export default function AdminConsole() {
             <StatCard label="Voice Chats" value={stats!.voice} accent="#7C4BC9" />
             <View style={{ flex: 1 }} />
           </View>
+
+          {/* KYC verifications — live entry */}
+          <SectionTitle>Verifications</SectionTitle>
+          <Card onPress={() => router.push("/admin/kyc" as Href)} style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="shield-checkmark" size={22} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>KYC Verifications</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Review, approve or reject submissions</Text>
+            </View>
+            {stats!.kycPending > 0 ? (
+              <View style={{ minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{stats!.kycPending}</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+            )}
+          </Card>
 
           {/* management shortcuts */}
           <SectionTitle>Management</SectionTitle>
