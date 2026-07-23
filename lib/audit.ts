@@ -57,12 +57,19 @@ export async function captureAcquisition(
   }
 }
 
-/** After a successful login, flush any stored pre-registration acquisition, then clear it. */
+/**
+ * After a successful login, flush any stored pre-registration acquisition:
+ * credit the referrer (one-time), log the acquisition event, then clear it.
+ */
 export async function flushPendingAcquisition(mobile?: string | null): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(PENDING_KEY);
     if (!raw) return;
     const p = JSON.parse(raw) as PendingAcquisition;
+    // one-time attribution: sets referred_by + acquisition_source, credits the referrer
+    await supabase
+      .rpc("attach_referral", { p_code: p.referral_code ?? null, p_source: p.source ?? "organic", p_meta: p.meta ?? {} })
+      .then(() => {}, () => {});
     await captureAcquisition({ ...p, mobile });
     await AsyncStorage.removeItem(PENDING_KEY);
   } catch {

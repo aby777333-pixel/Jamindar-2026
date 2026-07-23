@@ -5,6 +5,7 @@ import { Screen, Button } from "@/components/ui";
 import { Brandmark } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { verifyOtp, sendOtp, useAuth } from "@/lib/store";
+import { flushPendingAcquisition } from "@/lib/audit";
 import { colors } from "@/lib/theme";
 
 export default function Verify() {
@@ -28,6 +29,7 @@ export default function Verify() {
     try {
       const res = await verifyOtp(mobile, code);
       const profile = await refreshProfile();
+      await flushPendingAcquisition(mobile); // one-time referral/acquisition attribution
       if (profile?.is_profile_complete) {
         router.replace("/(tabs)/home");
       } else if (profile?.role === "super_admin") {

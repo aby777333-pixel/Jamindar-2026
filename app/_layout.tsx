@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { applyAppFontGlobally } from "@/lib/fonts";
+import { initAcquisitionCapture } from "@/lib/acquisition";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 applyAppFontGlobally();
@@ -40,6 +41,9 @@ export default function RootLayout() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // capture referral / QR / campaign attribution from the launch (and live) URL
+  useEffect(() => initAcquisitionCapture(), []);
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});

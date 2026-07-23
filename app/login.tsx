@@ -5,11 +5,13 @@ import { Screen, Button } from "@/components/ui";
 import { Brandmark } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
+import { captureInviteCode } from "@/lib/acquisition";
 import { colors, space, type as T } from "@/lib/theme";
 
 export default function Login() {
   const router = useRouter();
   const [mobile, setMobile] = useState("");
+  const [invite, setInvite] = useState("");
   const [loading, setLoading] = useState(false);
 
   const digits = mobile.replace(/[^0-9]/g, "");
@@ -17,6 +19,7 @@ export default function Login() {
 
   async function onSend() {
     if (!valid) return;
+    if (invite.trim()) captureInviteCode(invite);
     setLoading(true);
     try {
       const res = await sendOtp(digits);
@@ -55,6 +58,14 @@ export default function Login() {
           placeholder="98765 43210"
           maxLength={13}
           autoFocus
+        />
+
+        <Field
+          label="Invite code (optional)"
+          value={invite}
+          onChangeText={setInvite}
+          placeholder="JA-REF-00001"
+          autoCapitalize="characters"
         />
 
         <Button label="Send OTP" onPress={onSend} loading={loading} disabled={!valid} />
