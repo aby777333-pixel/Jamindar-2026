@@ -21,6 +21,20 @@ export type ProjectPhase = "ongoing" | "current" | "future";
 export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost";
 export type VisitStatus = "requested" | "confirmed" | "completed" | "cancelled";
 
+export type KycStatus = "not_started" | "pending" | "approved" | "rejected";
+export type PartnerStatus = "none" | "eligible" | "pending" | "verified" | "rejected";
+
+/** How a user first entered the Jamin ecosystem (captured for analytics). */
+export type AcquisitionSource =
+  | "promoter_referral"
+  | "friend_referral"
+  | "property_link"
+  | "qr"
+  | "social_ad"
+  | "google_search"
+  | "website"
+  | "organic";
+
 export interface Profile {
   id: string;
   mobile: string;
@@ -38,7 +52,26 @@ export interface Profile {
   is_profile_complete: boolean;
   created_at: string;
   last_login: string | null;
+  // ── buyer-module foundation (migration 0006) ──
+  member_code: string | null;         // permanent Buyer/Promoter ID, e.g. JA000001
+  gender: string | null;
+  dob: string | null;
+  acquisition_source: AcquisitionSource | null;
+  acquisition_meta: Record<string, unknown>;
+  referred_by: string | null;
+  referral_code: string | null;       // personal referral code, e.g. JA-REF-00001
+  kyc_status: KycStatus;
+  partner_status: PartnerStatus;
+  partner_code: string | null;
+  partner_verified_at: string | null;
 }
+
+export const KYC_STATUS_META: Record<KycStatus, { label: string; tone: "neutral" | "warning" | "success" | "danger"; icon: string }> = {
+  not_started: { label: "KYC not started", tone: "neutral", icon: "shield-outline" },
+  pending: { label: "KYC pending review", tone: "warning", icon: "time-outline" },
+  approved: { label: "KYC verified", tone: "success", icon: "shield-checkmark" },
+  rejected: { label: "KYC rejected", tone: "danger", icon: "close-circle-outline" },
+};
 
 export interface Property {
   id: string;

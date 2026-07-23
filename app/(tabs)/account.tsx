@@ -8,7 +8,16 @@ import { RolePreviewBar } from "@/components/RolePreview";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space } from "@/lib/theme";
 import { initials } from "@/lib/format";
-import { ROLE_LABELS } from "@/lib/types";
+import { ROLE_LABELS, KYC_STATUS_META } from "@/lib/types";
+
+const KYC_TONE: Record<"neutral" | "warning" | "success" | "danger", { bg: string; fg: string }> = {
+  neutral: { bg: colors.surfaceSunken, fg: colors.inkSoft },
+  warning: { bg: colors.goldSoft, fg: colors.goldDark },
+  success: { bg: colors.successSoft, fg: colors.success },
+  danger: { bg: colors.brandSoft, fg: colors.brand },
+};
+
+const ID_LABEL: Record<string, string> = { buyer: "Buyer ID", promoter: "Promoter ID", super_admin: "Member ID" };
 
 export default function Account() {
   const router = useRouter();
@@ -60,9 +69,28 @@ export default function Account() {
             <Ionicons name="checkmark-circle" size={20} color={colors.success} />
           </View>
           <Text style={{ color: colors.inkFaint, marginTop: 2, fontSize: 13 }}>+{profile?.mobile}</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: space.sm }}>
+
+          {profile?.member_code ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: colors.surfaceSunken, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+              <Ionicons name="finger-print" size={13} color={colors.inkFaint} />
+              <Text style={{ color: colors.inkSoft, fontSize: 12, fontWeight: "600", letterSpacing: 0.5 }}>
+                {ID_LABEL[profile.role] ?? "Member ID"} · {profile.member_code}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={{ flexDirection: "row", gap: 8, marginTop: space.sm, flexWrap: "wrap", justifyContent: "center" }}>
             <Badge label={ROLE_LABELS[role].toUpperCase()} tone="role" />
-            <Badge label="VERIFIED" tone="verified" icon="shield-checkmark" />
+            {(() => {
+              const meta = KYC_STATUS_META[profile?.kyc_status ?? "not_started"];
+              const tone = KYC_TONE[meta.tone];
+              return (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: tone.bg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+                  <Ionicons name={meta.icon as any} size={13} color={tone.fg} />
+                  <Text style={{ color: tone.fg, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>{meta.label.toUpperCase()}</Text>
+                </View>
+              );
+            })()}
           </View>
         </Card>
 
