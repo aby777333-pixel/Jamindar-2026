@@ -25,7 +25,9 @@ export default function Account() {
   const role = useEffectiveRole();
 
   const rows: { icon: string; label: string; onPress: () => void }[] = [
+    { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
     { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
+    { icon: "gift", label: "Referral centre", onPress: () => router.push("/referral" as Href) },
     { icon: "notifications", label: "Notifications", onPress: () => router.push("/notifications" as Href) },
     { icon: "sparkles", label: "Jamindar assistant", onPress: () => router.push("/(tabs)/assistant") },
     { icon: "mic", label: "Jamindar voice settings", onPress: () => router.push("/jamindar/settings") },

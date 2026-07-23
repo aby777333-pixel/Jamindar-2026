@@ -66,7 +66,13 @@ export default function RootLayout() {
             <Stack.Screen name="promoter/index" />
             <Stack.Screen name="buyer/onboarding" />
             <Stack.Screen name="buyer/kyc" />
+            <Stack.Screen name="buyer/dashboard" />
             <Stack.Screen name="notifications" />
+            <Stack.Screen name="referral" />
+            <Stack.Screen name="saved" />
+            <Stack.Screen name="visits" />
+            <Stack.Screen name="interests" />
+            <Stack.Screen name="support" />
             <Stack.Screen name="tools/calculators" />
             <Stack.Screen name="tools/legal" />
             <Stack.Screen name="tools/compare" />
