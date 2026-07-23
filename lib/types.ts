@@ -161,6 +161,23 @@ export interface Property {
   promoter_id: string | null;
   is_featured: boolean;
   created_at: string;
+  // ── property experience (migration 0010) ──
+  master_plan_url: string | null;
+  plot_layout: { plot_no: string; status?: string }[];
+  documents: { label: string; url: string; size?: string }[];
+  drone_videos: string[];
+  rera_number: string | null;
+  legal: { ownership?: string; encumbrance?: string; notes?: string } & Record<string, unknown>;
+  investment: {
+    roi?: string | number;
+    rental_yield?: string | number;
+    appreciation?: string;
+    price_history?: { label: string; value: number }[];
+  } & Record<string, unknown>;
+  street_view_url: string | null;
+  google_earth_url: string | null;
+  nearby_places: { category?: string; name: string; distance?: string; duration?: string }[];
+  tab_config: { order?: string[]; hidden?: string[] };
 }
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
