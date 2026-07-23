@@ -290,6 +290,17 @@ function renderEditor(){
       ${chips("Project phase","project_phase",PHASES)}
       <div class="switch">Featured listing <div class="tgl ${CUR.is_featured?'on':''}" data-tgl="is_featured"><b></b></div></div>
     </div>
+    <div class="sec"><h4>Project & referral</h4>
+      ${fld("Project name","project_name")}${fld("Location (map link or text)","location_text")}${fld("Total project value (₹)","total_project_value","","number")}
+      <label>Nearby (distance)</label><div class="grid3">
+        <div><input data-near="bus_stand" placeholder="Bus stand" value="${esc(CUR.nearby_defaults?.bus_stand||"")}"/></div>
+        <div><input data-near="railway_station" placeholder="Railway" value="${esc(CUR.nearby_defaults?.railway_station||"")}"/></div>
+        <div><input data-near="school" placeholder="School" value="${esc(CUR.nearby_defaults?.school||"")}"/></div>
+        <div><input data-near="college" placeholder="College" value="${esc(CUR.nearby_defaults?.college||"")}"/></div>
+        <div><input data-near="hospital" placeholder="Hospital" value="${esc(CUR.nearby_defaults?.hospital||"")}"/></div>
+      </div>
+      <label>Referral (per sq ft)</label><div class="grid3">${fld("Direct ₹/sqft","referral_direct_per_sqft","150","number")}${fld("Indirect ₹/sqft","referral_indirect_per_sqft","100","number")}${fld("Indirect levels up to","referral_indirect_levels","5","number")}</div>
+    </div>
     <div class="sec"><h4>Pricing & size</h4><div class="grid2">
       ${fld("Price (₹)","price","4250000","number")}${fld("Area value","area_value","2400","number")}
       ${fld("Area unit","area_unit","sqft")}${fld("Property age","property_age","New")}
@@ -364,6 +375,9 @@ window.saveProperty = async ()=>{
     road_frontage:g("road_frontage").trim()||null, lat:num("lat"), lng:num("lng"), gmaps_url:g("gmaps_url").trim()||null, street_view_url:g("street_view_url").trim()||null, google_earth_url:g("google_earth_url").trim()||null,
     description:g("description").trim()||null, vastu_facing:g("vastu_facing").trim()||null, amenities:arr("_amenities"), utilities:arr("_utilities"),
     approvals, rera_number:g("rera_number").trim()||null, title_status:g("title_status").trim()||null, legal, investment, seo,
+    project_name:g("project_name").trim()||null, location_text:g("location_text").trim()||null, total_project_value:num("total_project_value"),
+    referral_direct_per_sqft:num("referral_direct_per_sqft"), referral_indirect_per_sqft:num("referral_indirect_per_sqft"), referral_indirect_levels:num("referral_indirect_levels"),
+    nearby_defaults:(()=>{const o={};document.querySelectorAll('#drawer [data-near]').forEach(e=>o[e.dataset.near]=e.value.trim());return o;})(),
   };
   if(!payload.title){ toast("Title is required"); return; }
   try{
@@ -391,7 +405,7 @@ async function loadMedia(){
     <hr style="border:none;border-top:1px solid var(--hair);margin:16px 0"/>
     <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
       <div style="flex:1;min-width:150px"><label>Add document</label>
-      <select id="doc-kind">${["brochure","flyer","pamphlet","catalogue","presentation","price_list","master_plan","layout_plan","floor_plan","site_plan","location_map","google_earth","legal","approval","rera","noc","virtual_tour","video","drone","other"].map(k=>`<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}</select></div>
+      <select id="doc-kind">${["brochure","profile","project_overview","poster","flyer","pamphlet","catalogue","presentation","price_list","master_plan","layout_plan","floor_plan","site_plan","location_map","google_earth","legal","approval","rera","noc","virtual_tour","video","drone","other"].map(k=>`<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}</select></div>
       <input type="file" style="display:none" id="doc-input"/>
       <button class="btn grey sm" onclick="document.getElementById('doc-input').click()">Upload file</button>
       <input id="doc-url" placeholder="…or paste URL" style="flex:1;min-width:150px"/>

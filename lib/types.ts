@@ -178,7 +178,24 @@ export interface Property {
   google_earth_url: string | null;
   nearby_places: { category?: string; name: string; distance?: string; duration?: string }[];
   tab_config: { order?: string[]; hidden?: string[] };
+  // ── project + referral economics (migration 0014) ──
+  project_name: string | null;
+  location_text: string | null;
+  nearby_defaults: Record<string, string>;
+  referral_direct_per_sqft: number | null;
+  referral_indirect_per_sqft: number | null;
+  referral_indirect_levels: number | null;
+  total_project_value: number | null;
 }
+
+/** Standard nearby landmarks captured for every project. */
+export const NEARBY_DEFAULTS: { key: string; label: string }[] = [
+  { key: "bus_stand", label: "Bus stand" },
+  { key: "railway_station", label: "Railway station" },
+  { key: "school", label: "School" },
+  { key: "college", label: "College" },
+  { key: "hospital", label: "Hospital" },
+];
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   residential_plot: "Residential Plot",

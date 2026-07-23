@@ -46,6 +46,10 @@ export default function PropertyEdit() {
     road_frontage: "", plot_length: "", plot_breadth: "", plot_dimensions: "",
     title_status: "", property_age: "", price_negotiable: false, taxes: "", maintenance_charges: "", utilities: "",
     seo_title: "", seo_description: "", seo_keywords: "", seo_slug: "",
+    // project + referral economics
+    project_name: "", location_text: "", total_project_value: "",
+    referral_direct_per_sqft: "", referral_indirect_per_sqft: "", referral_indirect_levels: "",
+    near_bus_stand: "", near_railway_station: "", near_school: "", near_college: "", near_hospital: "",
   });
   const [aiBusy, setAiBusy] = useState(false);
   const set = (k: keyof typeof f) => (v: any) => setF((s) => ({ ...s, [k]: v }));
@@ -76,6 +80,9 @@ export default function PropertyEdit() {
           title_status: (p as any).title_status ?? "", property_age: (p as any).property_age ?? "", price_negotiable: !!(p as any).price_negotiable,
           taxes: (p as any).taxes ?? "", maintenance_charges: (p as any).maintenance_charges ?? "", utilities: ((p as any).utilities ?? []).join(", "),
           seo_title: (p as any).seo?.title ?? "", seo_description: (p as any).seo?.description ?? "", seo_keywords: (p as any).seo?.keywords ?? "", seo_slug: (p as any).seo?.slug ?? "",
+          project_name: (p as any).project_name ?? "", location_text: (p as any).location_text ?? "", total_project_value: (p as any).total_project_value?.toString() ?? "",
+          referral_direct_per_sqft: (p as any).referral_direct_per_sqft?.toString() ?? "", referral_indirect_per_sqft: (p as any).referral_indirect_per_sqft?.toString() ?? "", referral_indirect_levels: (p as any).referral_indirect_levels?.toString() ?? "",
+          near_bus_stand: (p as any).nearby_defaults?.bus_stand ?? "", near_railway_station: (p as any).nearby_defaults?.railway_station ?? "", near_school: (p as any).nearby_defaults?.school ?? "", near_college: (p as any).nearby_defaults?.college ?? "", near_hospital: (p as any).nearby_defaults?.hospital ?? "",
         });
       }
       setLoading(false);
@@ -116,6 +123,9 @@ export default function PropertyEdit() {
         taxes: f.taxes.trim() || null, maintenance_charges: f.maintenance_charges.trim() || null,
         utilities: f.utilities.split(",").map((s) => s.trim()).filter(Boolean),
         seo: { title: f.seo_title.trim() || null, description: f.seo_description.trim() || null, keywords: f.seo_keywords.trim() || null, slug: f.seo_slug.trim() || null },
+        project_name: f.project_name.trim() || null, location_text: f.location_text.trim() || null, total_project_value: numOrNull(f.total_project_value),
+        referral_direct_per_sqft: numOrNull(f.referral_direct_per_sqft), referral_indirect_per_sqft: numOrNull(f.referral_indirect_per_sqft), referral_indirect_levels: numOrNull(f.referral_indirect_levels),
+        nearby_defaults: { bus_stand: f.near_bus_stand.trim(), railway_station: f.near_railway_station.trim(), school: f.near_school.trim(), college: f.near_college.trim(), hospital: f.near_hospital.trim() },
       };
 
       if (editing) {
@@ -172,6 +182,22 @@ export default function PropertyEdit() {
           <Choice label="Status" options={STATUSES.map((s) => ({ k: s, l: s }))} value={f.status} onChange={set("status")} />
           <Choice label="Project phase" options={PHASES.map((s) => ({ k: s, l: s }))} value={f.project_phase} onChange={set("project_phase")} />
           <Toggle label="Featured listing" value={f.is_featured} onChange={set("is_featured")} />
+        </Sec>
+
+        <Sec title="Project & referral">
+          <Field label="Project name" value={f.project_name} onChangeText={set("project_name")} placeholder="Prestige Meadows" />
+          <Field label="Location (map link or text)" value={f.location_text} onChangeText={set("location_text")} autoCapitalize="none" placeholder="https://maps… or address" />
+          <Field label="Total project value (₹)" value={f.total_project_value} onChangeText={set("total_project_value")} keyboardType="numeric" />
+          <Text style={{ color: colors.inkSoft, fontWeight: "600", marginTop: 12, marginBottom: 2, fontSize: 13 }}>Nearby (distance)</Text>
+          <Field label="Bus stand" value={f.near_bus_stand} onChangeText={set("near_bus_stand")} placeholder="2 km" />
+          <Field label="Railway station" value={f.near_railway_station} onChangeText={set("near_railway_station")} placeholder="5 km" />
+          <Field label="School" value={f.near_school} onChangeText={set("near_school")} placeholder="1 km" />
+          <Field label="College" value={f.near_college} onChangeText={set("near_college")} placeholder="3 km" />
+          <Field label="Hospital" value={f.near_hospital} onChangeText={set("near_hospital")} placeholder="2 km" />
+          <Text style={{ color: colors.inkSoft, fontWeight: "600", marginTop: 12, marginBottom: 2, fontSize: 13 }}>Referral (per sq ft)</Text>
+          <Field label="Direct ₹/sqft" value={f.referral_direct_per_sqft} onChangeText={set("referral_direct_per_sqft")} keyboardType="numeric" placeholder="150" />
+          <Field label="Indirect ₹/sqft" value={f.referral_indirect_per_sqft} onChangeText={set("referral_indirect_per_sqft")} keyboardType="numeric" placeholder="100" />
+          <Field label="Indirect levels up to" value={f.referral_indirect_levels} onChangeText={set("referral_indirect_levels")} keyboardType="numeric" placeholder="5" />
         </Sec>
 
         <Sec title="Pricing & size">

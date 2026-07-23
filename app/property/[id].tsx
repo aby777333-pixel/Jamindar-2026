@@ -18,7 +18,7 @@ import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
-import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
+import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
 
 type TabKey =
   | "overview" | "photos" | "videos" | "master_plan"
@@ -219,7 +219,7 @@ export default function PropertyDetail() {
     videos: (property.videos?.length ?? 0) > 0 || (property.drone_videos?.length ?? 0) > 0,
     master_plan: !!property.master_plan_url || (property.plot_layout?.length ?? 0) > 0,
     amenities: (property.amenities?.length ?? 0) > 0,
-    location: !!(property.gmaps_url || (property.lat && property.lng) || property.street_view_url || property.google_earth_url || (property.nearby_places?.length ?? 0) > 0 || (property.nearby_landmarks?.length ?? 0) > 0),
+    location: !!(property.gmaps_url || (property.lat && property.lng) || property.street_view_url || property.google_earth_url || (property.nearby_places?.length ?? 0) > 0 || (property.nearby_landmarks?.length ?? 0) > 0 || Object.values(property.nearby_defaults ?? {}).some(Boolean)),
     legal: !!property.rera_number || Object.values(property.approvals ?? {}).some(Boolean) || Object.keys(property.legal ?? {}).length > 0 || (property.documents?.length ?? 0) > 0,
     investment: Object.keys(property.investment ?? {}).length > 0,
   };
@@ -283,6 +283,11 @@ export default function PropertyDetail() {
         </View>
 
         <View style={{ padding: 20 }}>
+          {property.project_name ? (
+            <Text style={{ fontSize: T.caption.fontSize + 1, fontWeight: "600", color: colors.brand, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 3 }}>
+              {property.project_name}
+            </Text>
+          ) : null}
           <Text style={{ fontSize: T.title.fontSize - 4, fontWeight: "600", color: colors.ink, letterSpacing: -0.5 }}>{property.title}</Text>
           <Text style={{ color: colors.inkFaint, marginTop: 4 }}>
             {[property.locality, property.city, property.district, property.state].filter(Boolean).join(", ")}
@@ -384,6 +389,7 @@ function Overview({ property, voiceBusy, translated, showOriginal, onListen, onT
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
         <MetaChip icon="pricetag" label={PROPERTY_TYPE_LABELS[property.property_type]} />
+        {property.total_project_value ? <MetaChip icon="cash" label={`Project ${formatINR(property.total_project_value)}`} /> : null}
         {property.vastu_facing ? <MetaChip icon="compass" label={`${property.vastu_facing} facing`} /> : null}
         {property.plots_available != null ? <MetaChip icon="grid" label={`${property.plots_available}/${property.plots_total} plots`} /> : null}
         {Object.entries(property.approvals ?? {}).filter(([, v]) => v).map(([k]) => <MetaChip key={k} icon="checkmark-circle" label={k.toUpperCase()} />)}
@@ -494,6 +500,7 @@ function LocationTab({ property, onMap }: { property: Property; onMap: () => voi
   const streetUrl = property.street_view_url || (lat && lng ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}` : null);
   const satUrl = lat && lng ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}&basemap=satellite` : property.gmaps_url;
   const earthUrl = property.google_earth_url || (lat && lng ? `https://earth.google.com/web/search/${lat},${lng}` : null);
+  const defaults = NEARBY_DEFAULTS.map((d) => ({ label: d.label, value: property.nearby_defaults?.[d.key] })).filter((d) => d.value);
   return (
     <View style={{ gap: 12 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -502,6 +509,18 @@ function LocationTab({ property, onMap }: { property: Property; onMap: () => voi
         <MapTile icon="walk" label="Street View" onPress={() => openUrl(streetUrl)} available={!!streetUrl} />
         <MapTile icon="planet" label="Google Earth" onPress={() => openUrl(earthUrl)} available={!!earthUrl} />
       </View>
+      {defaults.length > 0 ? (
+        <Card>
+          <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 8 }}>Connectivity</Text>
+          {defaults.map((d, i) => (
+            <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
+              <Ionicons name="navigate-circle-outline" size={16} color={colors.brand} />
+              <Text style={{ flex: 1, color: colors.ink, fontSize: 13 }}>{d.label}</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{d.value}</Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
       {nearby.length > 0 ? (
         <Card>
           <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 8 }}>Nearby</Text>

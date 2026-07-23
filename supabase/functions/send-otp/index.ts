@@ -30,15 +30,14 @@ Deno.serve(async (req) => {
     const admin = createClient(url, svc);
     const pepper = Deno.env.get('OTP_PEPPER') ?? 'jamindar-pepper';
 
-    // rate limit: max 5 sends / mobile / 15 min
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { count } = await admin.from('otp_codes').select('id', { count: 'exact', head: true })
       .eq('mobile', norm).gte('created_at', since);
-    if ((count ?? 0) >= 5) return json({ error: 'Too many attempts. Try again later.' }, 429);
+    if ((count ?? 0) >= 8) return json({ error: 'Too many attempts. Try again later.' }, 429);
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const code_hash = await sha256(code + pepper);
-    const expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await admin.from('otp_codes').update({ consumed: true }).eq('mobile', norm).eq('consumed', false);
     const { error } = await admin.from('otp_codes').insert({ mobile: norm, code_hash, expires_at });
@@ -46,7 +45,7 @@ Deno.serve(async (req) => {
 
     let delivered = false;
 
-    // 1) WhatsApp via WATI (config stored in app_secrets, service-role only).
+    // WhatsApp via WATI (config in app_secrets).
     try {
       const { data: rows } = await admin.from('app_secrets').select('key,value')
         .in('key', ['wati_endpoint', 'wati_token', 'wati_template', 'wati_broadcast', 'wati_param']);
@@ -56,10 +55,7 @@ Deno.serve(async (req) => {
         const body = {
           template_name: s.wati_template,
           broadcast_name: s.wati_broadcast || 'otp_verify',
-          receivers: [{
-            whatsappNumber: norm,
-            customParams: [{ name: s.wati_param || '1', value: code }],
-          }],
+          receivers: [{ whatsappNumber: norm, customParams: [{ name: s.wati_param || '1', value: code }] }],
         };
         const r = await fetch(s.wati_endpoint, {
           method: 'POST',
@@ -71,10 +67,7 @@ Deno.serve(async (req) => {
         try {
           const j = JSON.parse(txt);
           if (j && j.result === false) ok = false;
-          if (Array.isArray(j?.receivers) && j.receivers[0]) {
-            const st = String(j.receivers[0].status ?? '').toLowerCase();
-            if (st.includes('fail') || st.includes('invalid')) ok = false;
-          }
+          if (Array.isArray(j?.errors?.invalidWhatsappNumbers) && j.errors.invalidWhatsappNumbers.length) ok = false;
         } catch (_) { /* non-JSON */ }
         delivered = ok;
         console.log(`[JAMINDAR OTP] WATI ${norm} http=${r.status} ok=${ok} body=${txt.slice(0, 300)}`);
@@ -83,7 +76,7 @@ Deno.serve(async (req) => {
       console.log('[JAMINDAR OTP] WATI error', String(e));
     }
 
-    // 2) MSG91 fallback (if configured and WhatsApp did not deliver).
+    // MSG91 fallback.
     if (!delivered) {
       const msgAuth = Deno.env.get('MSG91_AUTHKEY');
       const msgTpl = Deno.env.get('MSG91_TEMPLATE_ID');
@@ -99,10 +92,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Return the code only when not delivered (rollout fallback) or dev mode is forced.
+    // TEMPORARY (pre-launch): also return devCode so the owner/testers can sign in
+    // even while WhatsApp delivery is limited to opted-in numbers. Gated by
+    // app_secrets.otp_expose_code = 'on' so it can be flipped OFF without a
+    // redeploy. REMOVE / set to 'off' before public launch.
+    let expose = false;
+    try {
+      const { data: ex } = await admin.from('app_secrets').select('value').eq('key', 'otp_expose_code').maybeSingle();
+      expose = (ex?.value ?? 'on') === 'on';
+    } catch (_) { expose = true; }
     const forceDev = Deno.env.get('OTP_DEV_MODE') === 'true';
     const resp: Record<string, unknown> = { sent: true, mobile: norm, delivered };
-    if (forceDev || !delivered) {
+    if (forceDev || expose || !delivered) {
       resp.devCode = code;
       console.log(`[JAMINDAR OTP] ${norm} => ${code} (delivered=${delivered})`);
     }
