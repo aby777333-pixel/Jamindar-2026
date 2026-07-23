@@ -73,6 +73,61 @@ export const KYC_STATUS_META: Record<KycStatus, { label: string; tone: "neutral"
   rejected: { label: "KYC rejected", tone: "danger", icon: "close-circle-outline" },
 };
 
+export interface KycSubmission {
+  id: string;
+  user_id: string;
+  status: "pending" | "approved" | "rejected";
+  pan_number: string | null;
+  aadhaar_number: string | null;
+  pan_doc: string | null;
+  aadhaar_front: string | null;
+  aadhaar_back: string | null;
+  addr_house: string | null;
+  addr_street: string | null;
+  addr_landmark: string | null;
+  addr_area: string | null;
+  addr_city: string | null;
+  addr_district: string | null;
+  addr_state: string | null;
+  addr_country: string | null;
+  addr_pincode: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_proof: string | null;
+  upi_id: string | null;
+  nominee_name: string | null;
+  nominee_relationship: string | null;
+  nominee_phone: string | null;
+  nominee_email: string | null;
+  nominee_address: string | null;
+  nominee_pan: string | null;
+  nominee_aadhaar: string | null;
+  nominee_pan_doc: string | null;
+  nominee_aadhaar_front: string | null;
+  nominee_aadhaar_back: string | null;
+  reviewed_by: string | null;
+  review_reason: string | null;
+  review_corrections: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  meta: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface Property {
   id: string;
   title: string;

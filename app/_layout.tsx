@@ -64,6 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="admin/index" />
             <Stack.Screen name="promoter/index" />
             <Stack.Screen name="buyer/onboarding" />
+            <Stack.Screen name="buyer/kyc" />
             <Stack.Screen name="tools/calculators" />
             <Stack.Screen name="tools/legal" />
             <Stack.Screen name="tools/compare" />

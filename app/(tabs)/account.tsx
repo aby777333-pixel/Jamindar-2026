@@ -1,6 +1,6 @@
 import { Text, View, Pressable, Alert, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import { Badge } from "@/components/premium";
@@ -33,6 +33,14 @@ export default function Account() {
     { icon: "document-text", label: "Legal guide", onPress: () => router.push("/tools/legal") },
   ];
   if (role === "buyer") rows.splice(1, 0, { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") });
+  // KYC entry — always reachable; label reflects current status.
+  if (profile && profile.kyc_status !== "approved") {
+    rows.splice(1, 0, {
+      icon: "shield-checkmark",
+      label: profile.kyc_status === "pending" ? "KYC — under review" : profile.kyc_status === "rejected" ? "KYC — action needed" : "Complete your KYC",
+      onPress: () => router.push("/buyer/kyc" as Href),
+    });
+  }
   if (role === "promoter") rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
   // Admin console is always reachable for real super admins, even while previewing another role.
   if (profile?.role === "super_admin") rows.push({ icon: "shield-checkmark", label: "Admin console", onPress: () => router.push("/admin") });
