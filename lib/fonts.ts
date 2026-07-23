@@ -1,21 +1,23 @@
 import React from "react";
 import { Text, TextInput, StyleSheet } from "react-native";
 
-// Map every fontWeight to the matching Manrope variant so the whole app
+// Map every fontWeight to the matching Inter variant so the whole app
 // renders in this premium typeface with true weights (no synthetic bold).
-const REGULAR = "Manrope_400Regular";
+// Inter is the locked brand face (2026-07-23): digital-native, fintech-grade,
+// crisp at small sizes. Headings 600, titles/buttons 500, body 400.
+const REGULAR = "Inter_400Regular";
 const WEIGHT_TO_FONT: Record<string, string> = {
   "100": REGULAR,
   "200": REGULAR,
   "300": REGULAR,
   "400": REGULAR,
   normal: REGULAR,
-  "500": "Manrope_500Medium",
-  "600": "Manrope_600SemiBold",
-  "700": "Manrope_700Bold",
-  bold: "Manrope_700Bold",
-  "800": "Manrope_800ExtraBold",
-  "900": "Manrope_800ExtraBold",
+  "500": "Inter_500Medium",
+  "600": "Inter_600SemiBold",
+  "700": "Inter_700Bold",
+  bold: "Inter_700Bold",
+  "800": "Inter_800ExtraBold",
+  "900": "Inter_800ExtraBold",
 };
 
 function familyForWeight(w: unknown): string {
@@ -47,7 +49,7 @@ function patchComponent(Comp: any) {
   }
 }
 
-/** Route all <Text>/<TextInput> through Manrope. Call once before first render. */
+/** Route all <Text>/<TextInput> through Inter. Call once before first render. */
 export function applyAppFontGlobally() {
   patchComponent(Text as any);
   patchComponent(TextInput as any);

@@ -27,19 +27,20 @@ export function GreetingHeader({
         style={{
           width: 46,
           height: 46,
-          borderRadius: 23,
+          borderRadius: 15,
           backgroundColor: colors.brand,
           alignItems: "center",
           justifyContent: "center",
+          ...elevation.low,
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.body.fontSize }}>{initials}</Text>
+        <Text style={{ color: "#fff", fontWeight: "600", fontSize: T.small.fontSize + 1 }}>{initials}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, fontWeight: "600" }}>
+        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, fontWeight: "400" }}>
           {greeting} 🙏
         </Text>
-        <Text numberOfLines={1} style={{ fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>
+        <Text numberOfLines={1} style={{ fontSize: T.subhead.fontSize, fontWeight: "600", color: colors.ink, letterSpacing: -0.5 }}>
           {name}
         </Text>
       </View>
@@ -50,6 +51,8 @@ export function GreetingHeader({
           height: 46,
           borderRadius: 15,
           backgroundColor: colors.surface,
+          borderWidth: 1,
+          borderColor: colors.border,
           alignItems: "center",
           justifyContent: "center",
           ...elevation.low,
@@ -129,14 +132,10 @@ export function SearchRow({
           width: 50,
           height: 50,
           borderRadius: 15,
-          backgroundColor: colors.brand,
+          backgroundColor: colors.ink,
           alignItems: "center",
           justifyContent: "center",
-          shadowColor: colors.brand,
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 5,
+          ...elevation.low,
         }}
       >
         <Ionicons name="options" size={22} color="#fff" />
@@ -145,71 +144,110 @@ export function SearchRow({
   );
 }
 
-/** Glossy red gradient hero with headline + Get Started pill + photo. */
+/** Premium navy + gold hero. Kicker · headline (gold accent word) · red CTA. */
 export function LandHero({
-  title = "Find Your\nPerfect Land",
-  subtitle = "Buy, sell & rent verified\nplots with confidence.",
-  cta = "Get Started",
-  image,
+  kicker = "✦ Your AI advisor",
+  title = "Meet Jamindar",
+  accentWord = "Jamindar",
+  subtitle = "Ask about any plot — in your own\nlanguage, by voice.",
+  cta = "Talk to Jamindar",
+  ctaIcon = "mic",
   onPress,
 }: {
+  kicker?: string;
   title?: string;
+  accentWord?: string;
   subtitle?: string;
   cta?: string;
+  ctaIcon?: keyof typeof Ionicons.glyphMap;
   image?: string;
   onPress?: () => void;
 }) {
+  // Split the title so the accent word renders in gold (premium jewel accent).
+  const idx = accentWord ? title.indexOf(accentWord) : -1;
+  const before = idx >= 0 ? title.slice(0, idx) : title;
+  const accent = idx >= 0 ? accentWord : "";
+  const after = idx >= 0 ? title.slice(idx + accentWord.length) : "";
+
   return (
     <View
       style={{
-        borderRadius: 22,
+        borderRadius: 24,
         overflow: "hidden",
-        shadowColor: colors.brand,
-        shadowOpacity: 0.3,
-        shadowRadius: 22,
-        shadowOffset: { width: 0, height: 12 },
-        elevation: 6,
+        shadowColor: colors.navy,
+        shadowOpacity: 0.4,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 14 },
+        elevation: 7,
       }}
     >
       <LinearGradient
-        colors={["#F0474E", "#E11B22", "#A5141A"]}
+        colors={["#212B47", colors.navy, "#0E1322"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ flexDirection: "row" }}
+        style={{ padding: space.md, paddingBottom: space.md + 2, position: "relative" }}
       >
-        <View style={{ flex: 1.35, paddingVertical: space.md, paddingLeft: space.md, paddingRight: space.xs }}>
-          <Text style={{ color: "#fff", fontSize: T.title.fontSize - 3, lineHeight: T.title.lineHeight - 4, fontWeight: "800", letterSpacing: -0.4 }}>
-            {title}
+        {/* soft gold glow, top-right */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            right: -60,
+            top: -70,
+            width: 190,
+            height: 190,
+            borderRadius: 95,
+            backgroundColor: "rgba(224,164,35,0.16)",
+          }}
+        />
+        <View
+          style={{
+            alignSelf: "flex-start",
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "rgba(255,255,255,0.07)",
+            borderWidth: 1,
+            borderColor: "rgba(224,164,35,0.22)",
+            borderRadius: 999,
+            paddingHorizontal: 11,
+            paddingVertical: 5,
+          }}
+        >
+          <Text style={{ color: colors.gold, fontSize: T.caption.fontSize + 1, fontWeight: "500", letterSpacing: 0.6 }}>
+            {kicker}
           </Text>
-          <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: T.small.fontSize - 1, marginTop: space.xs, lineHeight: 17 }}>
-            {subtitle}
-          </Text>
-          <Pressable
-            onPress={onPress}
-            style={{
-              alignSelf: "flex-start",
-              marginTop: space.sm,
-              backgroundColor: "#fff",
-              borderRadius: 999,
-              paddingHorizontal: 18,
-              paddingVertical: 10,
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 8,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 3,
-            }}
-          >
-            <Text style={{ color: colors.brand, fontWeight: "800", fontSize: T.small.fontSize }}>{cta}</Text>
-          </Pressable>
         </View>
-        <View style={{ flex: 1 }}>
-          {image ? (
-            <Image source={{ uri: image }} style={{ width: "100%", height: "100%", borderTopLeftRadius: 40 }} />
-          ) : (
-            <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderTopLeftRadius: 40 }} />
-          )}
-        </View>
+        <Text style={{ marginTop: space.sm, fontSize: T.subhead.fontSize + 3, lineHeight: T.subhead.lineHeight + 3, fontWeight: "600", letterSpacing: -0.6, color: "#fff", maxWidth: 220 }}>
+          {before}
+          <Text style={{ color: colors.gold }}>{accent}</Text>
+          {after}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: T.small.fontSize, marginTop: 4, lineHeight: 18, maxWidth: 210 }}>
+          {subtitle}
+        </Text>
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => ({
+            alignSelf: "flex-start",
+            marginTop: space.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 7,
+            backgroundColor: colors.brand,
+            borderRadius: 14,
+            paddingHorizontal: 16,
+            paddingVertical: 11,
+            shadowColor: colors.brand,
+            shadowOpacity: pressed ? 0 : 0.5,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: pressed ? 1 : 6,
+            transform: [{ translateY: pressed ? 1 : 0 }],
+          })}
+        >
+          <Ionicons name={ctaIcon} size={16} color="#fff" />
+          <Text style={{ color: "#fff", fontWeight: "500", fontSize: T.small.fontSize + 1 }}>{cta}</Text>
+        </Pressable>
       </LinearGradient>
     </View>
   );
@@ -325,7 +363,7 @@ export function VerifiedListingCard({
       style={({ pressed }) => ({
         width,
         backgroundColor: colors.surface,
-        borderRadius: 18,
+        borderRadius: 20,
         overflow: "hidden",
         borderWidth: 1,
         borderColor: colors.border,
@@ -333,7 +371,7 @@ export function VerifiedListingCard({
         transform: [{ translateY: pressed ? 1 : 0 }],
       })}
     >
-      <View style={{ height: 118 }}>
+      <View style={{ height: 122 }}>
         {property.images?.[0] ? (
           <Image source={{ uri: property.images[0] }} style={{ width: "100%", height: "100%" }} />
         ) : (
@@ -367,14 +405,14 @@ export function VerifiedListingCard({
               flexDirection: "row",
               alignItems: "center",
               gap: 3,
-              backgroundColor: "rgba(20,160,90,0.95)",
+              backgroundColor: "rgba(255,255,255,0.94)",
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 999,
             }}
           >
-            <Ionicons name="checkmark-circle" size={11} color="#fff" />
-            <Text style={{ color: "#fff", fontSize: T.caption.fontSize, fontWeight: "700" }}>{tag}</Text>
+            <Ionicons name="checkmark-circle" size={11} color={colors.success} />
+            <Text style={{ color: colors.success, fontSize: T.caption.fontSize, fontWeight: "600" }}>{tag}</Text>
           </View>
         ) : null}
         <Pressable
@@ -396,15 +434,15 @@ export function VerifiedListingCard({
           <Text style={{ color: colors.ink, fontSize: T.caption.fontSize, fontWeight: "700" }}>Map View</Text>
         </Pressable>
       </View>
-      <View style={{ padding: 12 }}>
-        <Text numberOfLines={1} style={{ fontWeight: "800", fontSize: T.small.fontSize + 1, color: colors.ink }}>
+      <View style={{ padding: 13 }}>
+        <Text numberOfLines={1} style={{ fontWeight: "600", fontSize: T.small.fontSize + 1, color: colors.ink, letterSpacing: -0.3 }}>
           {property.title}
         </Text>
-        <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 1 }}>
+        <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
           {loc}
         </Text>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 7 }}>
-          <Text style={{ color: colors.brand, fontWeight: "800", fontSize: T.body.fontSize }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.surfaceSunken }}>
+          <Text style={{ color: colors.ink, fontWeight: "600", fontSize: T.body.fontSize, letterSpacing: -0.4 }}>
             {property.price != null ? formatINR(property.price) : "On request"}
           </Text>
           {property.area_value ? (
@@ -422,10 +460,10 @@ export function VerifiedListingCard({
 export function RowHeader({ title, actionLabel = "See all", onAction }: { title: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-      <Text style={{ fontWeight: "800", fontSize: T.subhead.fontSize - 2, color: colors.ink }}>{title}</Text>
+      <Text style={{ fontWeight: "600", fontSize: T.subhead.fontSize - 2, color: colors.ink, letterSpacing: -0.4 }}>{title}</Text>
       {onAction ? (
         <Pressable onPress={onAction}>
-          <Text style={{ color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>{actionLabel}</Text>
+          <Text style={{ color: colors.brand, fontWeight: "500", fontSize: T.small.fontSize }}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>

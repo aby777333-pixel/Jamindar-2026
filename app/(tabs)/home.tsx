@@ -109,9 +109,9 @@ export default function Home() {
           <SearchRow onPress={() => browse()} onFilter={() => browse()} />
         </View>
 
-        {/* hero */}
+        {/* hero — Ask Jamindar (AI advisor) */}
         <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
-          <LandHero image={featured?.[0]?.images?.[0]} onPress={() => browse()} />
+          <LandHero onPress={() => router.push("/(tabs)/assistant")} />
         </View>
 
         {/* super-admin role preview switcher */}
