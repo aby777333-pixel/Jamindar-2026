@@ -9,6 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
 import { topApproval } from "@/components/land";
+import { PromoterContactBlock } from "@/components/ContactActions";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
@@ -389,6 +390,12 @@ export default function PropertyDetail() {
               ))}
             </>
           ) : null}
+
+          {/* Contact your Jamin partner — direct routing from a verified profile */}
+          <PromoterContactBlock
+            promoterId={property.promoter_id ?? profile?.assigned_promoter ?? null}
+            context={`Hi, I'm interested in ${property.title} (${formatINR(property.price)}) on Jamin Properties.`}
+          />
         </View>
       </ScrollView>
 
