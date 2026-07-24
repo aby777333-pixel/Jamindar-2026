@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View, KeyboardAvoidingView, Platform, Alert, Image } from "react-native";
+import { Text, View, KeyboardAvoidingView, Platform, Alert, Image, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,8 +60,16 @@ export default function Login() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "center" }}
+        style={{ flex: 1 }}
       >
+        {/* Centered when it fits, scrollable when it doesn't (small screens /
+            keyboard open) — with vertical padding so nothing hugs the edges. */}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingVertical: space.lg }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <View style={{ alignItems: "center", marginBottom: space.lg }}>
           {/* Jamindar mascot — framed avatar with a gold ring + soft halo. */}
           <View style={{ alignItems: "center", justifyContent: "center", marginBottom: space.sm }}>
@@ -151,6 +159,7 @@ export default function Login() {
             </View>
           ))}
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );
