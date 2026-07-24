@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo, initials } from "@/lib/format";
+import { fetchMyEarnings } from "@/lib/earnings";
 import type { Property } from "@/lib/types";
 
 /** Promoter Command Center — the anchor of the Promoter Module. Surfaces the
@@ -69,6 +70,8 @@ export default function PromoterDashboard() {
       };
     },
   });
+
+  const { data: earn } = useQuery({ queryKey: ["my-earnings", uid], enabled: !!uid, queryFn: fetchMyEarnings });
 
   if (isLoading || !data) return <Loading label="Loading your dashboard…" />;
 
@@ -136,15 +139,15 @@ export default function PromoterDashboard() {
           <VerificationBanner status={partnerStatus} onAction={() => router.push("/buyer/kyc" as Href)} />
         </View>
 
-        {/* earnings summary — honest zero state until the commission engine ships */}
-        <View style={{ marginTop: space.md }}>
+        {/* earnings summary — real ledger totals (commission engine, migration 0017) */}
+        <Pressable onPress={() => router.push("/promoter/earnings" as Href)} style={({ pressed }) => ({ marginTop: space.md, opacity: pressed ? 0.95 : 1 })}>
           <EarningsCard
-            total={formatINR(0)}
-            pending={formatINR(0)}
-            paid={formatINR(0)}
-            caption="Commission engine is being finalised — your earnings will appear here automatically."
+            total={formatINR(earn?.total ?? 0)}
+            pending={formatINR(earn?.pending ?? 0)}
+            paid={formatINR(earn?.paid ?? 0)}
+            caption={earn?.count ? `${earn.count} commission ${earn.count === 1 ? "entry" : "entries"} — tap to view history.` : "Earnings appear automatically as your network makes sales."}
           />
-        </View>
+        </Pressable>
 
         {/* Earning Tree — flagship multi-level referral network */}
         <Pressable
@@ -270,7 +273,6 @@ export default function PromoterDashboard() {
         {/* roadmap — reserved space for upcoming promoter modules incl. ML tree */}
         <PromoterSection title="Coming to your suite">
           <View style={{ gap: space.sm }}>
-            <ReservedCard icon="cash" title="Earnings & Statements" subtitle="Commission history, payouts, downloadable statements." />
             <ReservedCard icon="add-circle" title="Lead Capture" subtitle="Submit an off-market property for admin approval." />
             <ReservedCard icon="albums" title="Project Explorer" subtitle="Featured, ongoing, upcoming & ready-to-move rails." />
           </View>

@@ -123,6 +123,7 @@
       <a data-view="kyc">🛡 KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
       <a data-view="partners">🎗 Partners <span class="badge" id="b-partner" style="display:none"></span></a>
       <a data-view="tree">🌳 Promoter Tree</a>
+      <a data-view="earnings">💰 Earnings</a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -206,11 +207,11 @@ async function refreshBadges(){
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -543,6 +544,66 @@ window.loadTreeLevel = async (root,level) => {
     ${rows.length? `<table style="margin-top:12px"><thead><tr><th>User ID</th><th>Name</th><th>Mobile</th><th>Direct</th><th>Sale</th><th>Earn</th></tr></thead><tbody>
       ${rows.map(u=>`<tr><td class="muted">${esc(u.member_code||"—")}</td><td><b>${esc(u.full_name||"—")}</b></td><td class="muted">+${esc(u.mobile||"")}</td><td>${u.direct_referrals}</td><td>${inr(u.sale)}</td><td>${inr(u.earn)}</td></tr>`).join("")}</tbody></table>`
       : `<div class="empty" style="margin-top:8px">No users at this level.</div>`}</div>`;
+};
+
+// ───────── earnings & commissions ─────────
+async function renderEarnings(){
+  const [{data:cfg},{data:promos}] = await Promise.all([
+    sb.from("commission_config").select("*").order("level"),
+    sb.from("profiles").select("id,full_name,member_code,role").in("role",["promoter","super_admin"]).order("member_code"),
+  ]);
+  const cfgRows=(cfg||[]).map(c=>`<tr><td><b>Level ${c.level}</b></td><td><input id="pc-${c.level}" value="${esc(String(c.percent))}" style="width:90px"/> %</td><td style="text-align:right"><button class="btn ghost sm" onclick="saveRate(${c.level})">Save</button></td></tr>`).join("");
+  const opts=(promos||[]).map(p=>`<option value="${p.id}">${esc(p.member_code||"—")} · ${esc(p.full_name||"")}</option>`).join("");
+  $("#view").innerHTML = `
+    <div class="card" style="padding:16px;margin-bottom:16px;"><b>Record a sale</b>
+      <div class="toolbar" style="margin-top:10px">
+        <select class="grow" id="bk-seller"><option value="">Seller (promoter)…</option>${opts}</select>
+        <input id="bk-amount" placeholder="Sale amount ₹" style="width:150px"/>
+        <input class="grow" id="bk-note" placeholder="Note (optional)"/>
+        <button class="btn" onclick="recordBooking()">Record sale</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0;">Commissions fan out up the seller's referral chain using the per-level rates below.</p>
+    </div>
+    <div class="card" style="padding:16px;margin-bottom:16px;"><b>Commission rates (per level)</b>
+      <table style="margin-top:10px"><tbody>${cfgRows||`<tr><td class="muted">No levels configured.</td></tr>`}</tbody></table>
+      <div class="toolbar" style="margin-top:10px"><input id="nl-level" placeholder="Level" style="width:90px"/><input id="nl-pct" placeholder="%" style="width:90px"/><button class="btn ghost sm" onclick="addRate()">Add / update level</button></div>
+    </div>
+    <div id="comm-list"><div class="empty">Loading commissions…</div></div>`;
+  loadCommissions();
+}
+window.saveRate = async (level) => {
+  const pct=parseFloat($("#pc-"+level).value); if(isNaN(pct)) return toast("Enter a valid %");
+  const { error } = await sb.rpc("admin_set_commission",{p_level:level,p_percent:pct});
+  if(error) return toast(error.message); toast("Rate saved");
+};
+window.addRate = async () => {
+  const level=parseInt($("#nl-level").value,10), pct=parseFloat($("#nl-pct").value);
+  if(isNaN(level)||isNaN(pct)) return toast("Enter level and %");
+  const { error } = await sb.rpc("admin_set_commission",{p_level:level,p_percent:pct});
+  if(error) return toast(error.message); toast("Level saved"); renderEarnings();
+};
+window.recordBooking = async () => {
+  const seller=$("#bk-seller").value, amount=parseFloat($("#bk-amount").value), note=$("#bk-note").value||null;
+  if(!seller) return toast("Choose a seller"); if(isNaN(amount)||amount<0) return toast("Enter a valid amount");
+  const { error } = await sb.rpc("admin_record_booking",{p_seller:seller,p_sale_amount:amount,p_note:note});
+  if(error) return toast(error.message); toast("Sale recorded — commissions generated"); $("#bk-amount").value=""; $("#bk-note").value=""; loadCommissions();
+};
+async function loadCommissions(){
+  const { data } = await sb.from("commissions")
+    .select("id,level,amount,status,created_at,beneficiary:profiles!beneficiary_id(member_code,full_name),from_user:profiles!from_user_id(member_code)")
+    .order("created_at",{ascending:false}).limit(200);
+  const rows=data||[];
+  $("#comm-list").innerHTML = `<div class="card" style="padding:16px;"><b>Commission ledger</b>
+    ${rows.length? `<table style="margin-top:10px"><thead><tr><th>Beneficiary</th><th>From sale by</th><th>Level</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(c=>`<tr><td><b>${esc(c.beneficiary?.member_code||"—")}</b> <span class="muted">${esc(c.beneficiary?.full_name||"")}</span></td>
+        <td class="muted">${esc(c.from_user?.member_code||"—")}</td><td>${c.level}</td><td>${inr(c.amount)}</td>
+        <td><span class="pill ${c.status==='paid'?'ok':c.status==='cancelled'?'red':'warn'}">${esc(c.status)}</span></td>
+        <td style="text-align:right">${c.status!=='paid'?`<button class="btn gold sm" onclick="markComm('${c.id}','paid')">Mark paid</button> `:""}${c.status!=='cancelled'?`<button class="btn ghost sm" onclick="markComm('${c.id}','cancelled')">Cancel</button>`:""}</td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty" style="margin-top:8px">No commissions recorded yet.</div>`}</div>`;
+}
+window.markComm = async (id,status) => {
+  const { error } = await sb.rpc("admin_mark_commission",{p_id:id,p_status:status});
+  if(error) return toast(error.message); toast("Commission "+status); loadCommissions();
 };
 </script>
 </body>
