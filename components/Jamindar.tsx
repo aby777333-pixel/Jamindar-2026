@@ -22,7 +22,7 @@ import {
   setAudioModeAsync,
 } from "expo-audio";
 import * as FileSystem from "expo-file-system";
-import { colors } from "@/lib/theme";
+import { colors, space } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import {
@@ -497,7 +497,7 @@ export function JamindarSheet({
         >
           {/* header */}
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 10 }}>
-            <JamindarFace size={40} />
+            <JamindarFace size={space.lg + space.xs} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: "800", fontSize: 17, color: colors.ink }}>Jamindar</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Your voice property guide</Text>

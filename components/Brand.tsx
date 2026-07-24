@@ -1,5 +1,7 @@
 import { View, Text, Image } from "react-native";
-import { colors } from "@/lib/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors, space } from "@/lib/theme";
+import { elevation } from "./ui";
 
 /** The real JAMIN mark (red square + white bow-tie + gold DNA + folded corner). */
 export function Brandmark({ size = 44 }: { size?: number }) {
@@ -13,11 +15,23 @@ export function Brandmark({ size = 44 }: { size?: number }) {
 }
 
 /** Jamindar's face — the namaste mascot in a white circle with a gold ring.
- *  Use wherever Jamindar appears as a character (assistant intro, chat header),
- *  as opposed to Brandmark, which is the app's JAMIN logo. */
-export function JamindarFace({ size = 72, ring = true }: { size?: number; ring?: boolean }) {
+ *  Use wherever Jamindar appears as a character (login, verify, assistant
+ *  intro, chat header), as opposed to Brandmark, which is the app's JAMIN logo.
+ *
+ *  Golden-ratio (φ) grounded: sizes are meant to be passed from the `space`
+ *  scale (e.g. 55/89, or sums like 89+21). With `halo`, the glow diameter is
+ *  size + space.lg, keeping the whole treatment on the same harmonic rhythm. */
+export function JamindarFace({
+  size = 72,
+  ring = true,
+  halo = false,
+}: {
+  size?: number;
+  ring?: boolean;
+  halo?: boolean;
+}) {
   const border = ring ? Math.max(1.5, Math.round(size * 0.035)) : 0;
-  return (
+  const face = (
     <View
       style={{
         width: size,
@@ -35,6 +49,21 @@ export function JamindarFace({ size = 72, ring = true }: { size?: number; ring?:
         source={require("../assets/namaste.jpg")}
         style={{ width: size, height: size, resizeMode: "contain" }}
       />
+    </View>
+  );
+  if (!halo) return face;
+  const h = size + space.lg; // φ-scaled glow — one Fibonacci step beyond the face
+  return (
+    <View style={{ width: h, height: h, alignItems: "center", justifyContent: "center" }}>
+      <LinearGradient
+        colors={[colors.brandSoft, colors.goldSoft]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ position: "absolute", width: h, height: h, borderRadius: h / 2, opacity: 0.9 }}
+      />
+      <View style={{ borderRadius: size / 2, backgroundColor: "#FFFFFF", ...elevation.card }}>
+        {face}
+      </View>
     </View>
   );
 }

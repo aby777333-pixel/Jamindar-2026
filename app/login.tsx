@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Text, View, KeyboardAvoidingView, Platform, Alert, Image, ScrollView } from "react-native";
+import { Text, View, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
+import { JamindarFace } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
 import { captureInviteCode } from "@/lib/acquisition";
@@ -71,37 +72,9 @@ export default function Login() {
           bounces={false}
         >
         <View style={{ alignItems: "center", marginBottom: space.lg }}>
-          {/* Jamindar mascot — framed avatar with a gold ring + soft halo. */}
-          <View style={{ alignItems: "center", justifyContent: "center", marginBottom: space.sm }}>
-            <LinearGradient
-              colors={[colors.brandSoft, colors.goldSoft]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ position: "absolute", width: 150, height: 150, borderRadius: 75, opacity: 0.9 }}
-            />
-            <View
-              style={{
-                width: 124,
-                height: 124,
-                borderRadius: 62,
-                backgroundColor: "#FFFFFF",
-                borderWidth: 2,
-                borderColor: colors.goldLight,
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                shadowColor: "#1B1B4B",
-                shadowOpacity: 0.12,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 6,
-              }}
-            >
-              <Image
-                source={require("../assets/namaste.jpg")}
-                style={{ width: 118, height: 118, resizeMode: "contain" }}
-              />
-            </View>
+          {/* Jamindar mascot — gold-ring avatar + φ-scaled halo (space.xxl+md). */}
+          <View style={{ marginBottom: space.sm }}>
+            <JamindarFace size={space.xxl + space.md} halo />
           </View>
 
           <Text style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.md }}>

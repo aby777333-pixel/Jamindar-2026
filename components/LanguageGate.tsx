@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/lib/store";
 import { loadMemory, saveMemory, JAMINDAR_LANGUAGES } from "@/lib/jamindar";
 import { JamindarFace } from "./Brand";
-import { colors } from "@/lib/theme";
+import { colors, space } from "@/lib/theme";
 
 // device language code (e.g. "ta") -> Sarvam code
 const DEVICE_MAP: Record<string, string> = {
@@ -55,7 +55,7 @@ export function LanguageGate() {
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
         <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 22 }}>
           <View style={{ alignItems: "center", marginBottom: 14 }}>
-            <JamindarFace size={56} />
+            <JamindarFace size={space.xl} />
             <Text style={{ fontSize: 19, fontWeight: "800", color: colors.ink, marginTop: 12, textAlign: "center" }}>
               Namaste 🙏 I'm Jamindar
             </Text>

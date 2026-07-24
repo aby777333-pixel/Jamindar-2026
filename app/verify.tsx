@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { Text, View, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { Screen, Button } from "@/components/ui";
 import { JamindarFace } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { verifyOtp, sendOtp, useAuth } from "@/lib/store";
 import { flushPendingAcquisition } from "@/lib/audit";
-import { colors } from "@/lib/theme";
+import { colors, space, type as T } from "@/lib/theme";
 
 export default function Verify() {
   const router = useRouter();
@@ -59,32 +58,12 @@ export default function Verify() {
   return (
     <Screen scroll={false}>
       <View style={{ flex: 1, justifyContent: "center" }}>
-        <View style={{ alignItems: "center", marginBottom: 28 }}>
-          <View style={{ alignItems: "center", justifyContent: "center" }}>
-            <LinearGradient
-              colors={[colors.brandSoft, colors.goldSoft]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ position: "absolute", width: 118, height: 118, borderRadius: 59, opacity: 0.9 }}
-            />
-            <View
-              style={{
-                borderRadius: 45,
-                backgroundColor: "#FFFFFF",
-                shadowColor: "#1B1B4B",
-                shadowOpacity: 0.12,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 7 },
-                elevation: 6,
-              }}
-            >
-              <JamindarFace size={90} />
-            </View>
-          </View>
-          <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink, marginTop: 18 }}>
+        <View style={{ alignItems: "center", marginBottom: space.lg }}>
+          <JamindarFace size={space.xxl} halo />
+          <Text style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.md }}>
             Verify OTP
           </Text>
-          <Text style={{ color: colors.inkFaint, marginTop: 6, textAlign: "center" }}>
+          <Text style={{ color: colors.inkFaint, marginTop: space.xs, textAlign: "center", fontSize: T.body.fontSize, lineHeight: T.body.lineHeight }}>
             Enter the 6-digit code sent to{"\n"}
             <Text style={{ color: colors.ink, fontWeight: "700" }}>+{mobile}</Text>
           </Text>
