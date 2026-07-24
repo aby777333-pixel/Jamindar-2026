@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Loading } from "@/components/ui";
+import { Card, Loading, elevation } from "@/components/ui";
 import { VerifiedListingCard } from "@/components/land";
 import {
   PartnerBadge,
@@ -146,6 +146,33 @@ export default function PromoterDashboard() {
           />
         </View>
 
+        {/* Earning Tree — flagship multi-level referral network */}
+        <Pressable
+          onPress={() => router.push("/promoter/tree" as Href)}
+          style={({ pressed }) => ({
+            marginTop: space.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.sm,
+            backgroundColor: colors.surface,
+            borderRadius: space.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: space.sm + 2,
+            ...elevation.low,
+            transform: [{ translateY: pressed ? 1 : 0 }],
+          })}
+        >
+          <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.goldSoft, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="git-network" size={22} color={colors.goldDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "800", fontSize: T.small.fontSize + 1, color: colors.ink }}>Earning Tree</Text>
+            <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 1 }}>Your multi-level referral network, levelwise.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+        </Pressable>
+
         {/* KPI grid */}
         <PromoterSection title="Your performance">
           <View style={{ gap: space.sm }}>
@@ -243,7 +270,6 @@ export default function PromoterDashboard() {
         {/* roadmap — reserved space for upcoming promoter modules incl. ML tree */}
         <PromoterSection title="Coming to your suite">
           <View style={{ gap: space.sm }}>
-            <ReservedCard icon="git-network" title="Earning Tree (ML)" subtitle="Multi-level referral hierarchy & network earnings." tag="In build" />
             <ReservedCard icon="cash" title="Earnings & Statements" subtitle="Commission history, payouts, downloadable statements." />
             <ReservedCard icon="add-circle" title="Lead Capture" subtitle="Submit an off-market property for admin approval." />
             <ReservedCard icon="albums" title="Project Explorer" subtitle="Featured, ongoing, upcoming & ready-to-move rails." />

@@ -122,6 +122,7 @@
       <a data-view="properties">▤ Properties</a>
       <a data-view="kyc">🛡 KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
       <a data-view="partners">🎗 Partners <span class="badge" id="b-partner" style="display:none"></span></a>
+      <a data-view="tree">🌳 Promoter Tree</a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -205,11 +206,11 @@ async function refreshBadges(){
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -507,6 +508,42 @@ async function loadUsers(){
     <td class="muted">${u.partner_status==="verified"?"<span class='pill ok'>partner</span>":esc(u.partner_status||"")}</td></tr>`).join("")}</tbody></table>`
     : `<div class="empty card">No users found.</div>`;
 }
+
+// ───────── promoter tree (earning tree) ─────────
+async function renderTree(){
+  const { data } = await sb.from("profiles").select("id,full_name,member_code,role").in("role",["promoter","super_admin"]).order("member_code");
+  const opts=(data||[]).map(p=>`<option value="${p.id}">${esc(p.member_code||"—")} · ${esc(p.full_name||"")}</option>`).join("");
+  $("#view").innerHTML = `<div class="toolbar"><select class="grow" id="t-root"><option value="">Select a promoter to view their earning tree…</option>${opts}</select></div>
+    <div id="t-summary"><div class="empty card">Choose a promoter above to view their multi-level network.</div></div>
+    <div id="t-detail"></div>`;
+  $("#t-root").onchange = window.loadTreeSummary;
+}
+window.loadTreeSummary = async () => {
+  const root=$("#t-root").value; $("#t-detail").innerHTML="";
+  if(!root){ $("#t-summary").innerHTML=`<div class="empty card">Choose a promoter above to view their multi-level network.</div>`; return; }
+  $("#t-summary").innerHTML=`<div class="empty">Loading tree…</div>`;
+  const { data, error } = await sb.rpc("admin_promoter_tree_summary",{p_root:root});
+  if(error){ $("#t-summary").innerHTML=`<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows=data||[]; const total=rows.reduce((s,r)=>s+Number(r.users),0);
+  $("#t-summary").innerHTML = `<div class="stats">
+      <div class="stat card"><div class="n">${total}</div><div class="l">Total network</div></div>
+      <div class="stat card"><div class="n" style="color:var(--gold-dark)">${rows.length}</div><div class="l">Levels deep</div></div>
+    </div>` + (rows.length? `<table><thead><tr><th>S.No</th><th>Level</th><th>No. of users</th><th></th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr><td class="muted">${i+1}</td><td><b>Level ${r.level}</b></td><td>${r.users}</td>
+      <td style="text-align:right"><button class="btn ghost sm" onclick="loadTreeLevel('${root}',${r.level})">View</button></td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty card">No referrals yet for this promoter.</div>`);
+};
+window.loadTreeLevel = async (root,level) => {
+  $("#t-detail").innerHTML=`<div class="empty">Loading level ${level}…</div>`;
+  const { data, error } = await sb.rpc("admin_promoter_tree_level",{p_root:root,p_level:level});
+  if(error){ $("#t-detail").innerHTML=`<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows=data||[];
+  $("#t-detail").innerHTML = `<div class="card" style="padding:16px;margin-top:16px;">
+    <b>Level ${level}</b> · <span class="muted">${rows.length} users · Total sale ${inr(0)} · Commission —</span>
+    ${rows.length? `<table style="margin-top:12px"><thead><tr><th>User ID</th><th>Name</th><th>Mobile</th><th>Direct</th><th>Sale</th><th>Earn</th></tr></thead><tbody>
+      ${rows.map(u=>`<tr><td class="muted">${esc(u.member_code||"—")}</td><td><b>${esc(u.full_name||"—")}</b></td><td class="muted">+${esc(u.mobile||"")}</td><td>${u.direct_referrals}</td><td>${inr(u.sale)}</td><td>${inr(u.earn)}</td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty" style="margin-top:8px">No users at this level.</div>`}</div>`;
+};
 </script>
 </body>
 </html>
