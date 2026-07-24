@@ -86,7 +86,7 @@ export default function PromoterDashboard() {
   const shortcuts: { icon: string; label: string; to: Href; tint?: string; accent?: string }[] = [
     { icon: "id-card", label: "Digital Card", to: "/promoter/card" as Href, tint: colors.goldSoft, accent: colors.goldDark },
     { icon: "gift", label: "Referrals", to: "/referral" as Href },
-    { icon: "business", label: "Projects", to: "/(tabs)/properties" as Href },
+    { icon: "business", label: "Projects", to: "/promoter/explorer" as Href },
     { icon: "shield-checkmark", label: "KYC", to: "/buyer/kyc" as Href, tint: colors.successSoft, accent: colors.success },
     { icon: "notifications", label: "Alerts", to: "/notifications" as Href },
     { icon: "help-buoy", label: "Support", to: "/support" as Href },
@@ -274,7 +274,6 @@ export default function PromoterDashboard() {
         <PromoterSection title="Coming to your suite">
           <View style={{ gap: space.sm }}>
             <ReservedCard icon="add-circle" title="Lead Capture" subtitle="Submit an off-market property for admin approval." />
-            <ReservedCard icon="albums" title="Project Explorer" subtitle="Featured, ongoing, upcoming & ready-to-move rails." />
           </View>
         </PromoterSection>
       </ScrollView>
