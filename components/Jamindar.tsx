@@ -51,7 +51,7 @@ import {
 import { formatINR } from "@/lib/format";
 import { computeSuggestions } from "@/lib/suggestions";
 import type { Property } from "@/lib/types";
-import { Brandmark } from "./Brand";
+import { JamindarFace } from "./Brand";
 
 type UIMsg = ChatMsg & { results?: Property[]; filters?: SearchFilters; options?: { label: string; value: string }[] };
 
@@ -497,7 +497,7 @@ export function JamindarSheet({
         >
           {/* header */}
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 10 }}>
-            <Brandmark size={34} />
+            <JamindarFace size={40} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: "800", fontSize: 17, color: colors.ink }}>Jamindar</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Your voice property guide</Text>

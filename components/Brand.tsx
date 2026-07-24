@@ -12,6 +12,33 @@ export function Brandmark({ size = 44 }: { size?: number }) {
   );
 }
 
+/** Jamindar's face — the namaste mascot in a white circle with a gold ring.
+ *  Use wherever Jamindar appears as a character (assistant intro, chat header),
+ *  as opposed to Brandmark, which is the app's JAMIN logo. */
+export function JamindarFace({ size = 72, ring = true }: { size?: number; ring?: boolean }) {
+  const border = ring ? Math.max(1.5, Math.round(size * 0.035)) : 0;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: "#FFFFFF",
+        overflow: "hidden",
+        borderWidth: border,
+        borderColor: colors.goldLight,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Image
+        source={require("../assets/namaste.jpg")}
+        style={{ width: size, height: size, resizeMode: "contain" }}
+      />
+    </View>
+  );
+}
+
 /** Full wordmark: red JAMIN, black PROPERTIES, gold tagline. */
 export function Wordmark({
   size = "md",
