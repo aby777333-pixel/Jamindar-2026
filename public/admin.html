@@ -124,6 +124,7 @@
       <a data-view="partners">🎗 Partners <span class="badge" id="b-partner" style="display:none"></span></a>
       <a data-view="tree">🌳 Promoter Tree</a>
       <a data-view="earnings">💰 Earnings</a>
+      <a data-view="subs">📥 Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -197,21 +198,23 @@ async function boot(){
 sb.auth.getSession().then(({data})=>{ if(data.session) boot(); });
 
 async function refreshBadges(){
-  const [{count:k},{count:p}] = await Promise.all([
+  const [{count:k},{count:p},{count:s}] = await Promise.all([
     sb.from("kyc_submissions").select("id",{count:"exact",head:true}).eq("status","pending"),
     sb.from("profiles").select("id",{count:"exact",head:true}).eq("partner_status","pending"),
+    sb.from("property_submissions").select("id",{count:"exact",head:true}).eq("status","submitted"),
   ]);
-  const bk=$("#b-kyc"), bp=$("#b-partner");
+  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs");
   if(k){bk.style.display="inline-block";bk.textContent=k;} else bk.style.display="none";
   if(p){bp.style.display="inline-block";bp.textContent=p;} else bp.style.display="none";
+  if(s){bs.style.display="inline-block";bs.textContent=s;} else bs.style.display="none";
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -604,6 +607,47 @@ async function loadCommissions(){
 window.markComm = async (id,status) => {
   const { error } = await sb.rpc("admin_mark_commission",{p_id:id,p_status:status});
   if(error) return toast(error.message); toast("Commission "+status); loadCommissions();
+};
+
+// ───────── property submissions (lead capture) ─────────
+async function renderSubmissions(){
+  const status = window.__subFilter || "";
+  let q = sb.from("property_submissions").select("*, promoter:profiles!promoter_id(member_code,full_name,mobile)").order("created_at",{ascending:false}).limit(200);
+  if(status) q = q.eq("status", status);
+  const { data } = await q; const rows=data||[];
+  const chip=(v,l)=>`<button class="btn ${((window.__subFilter||'')===v)?'':'grey'} sm" onclick="subFilter('${v}')">${l}</button>`;
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('submitted','Submitted')}${chip('under_review','Under review')}${chip('info_required','Info required')}${chip('approved','Approved')}${chip('rejected','Rejected')}</div>
+    <div id="sub-list">${rows.length? rows.map(subCard).join("") : `<div class="empty card">No submissions.</div>`}</div>`;
+}
+function subCard(s){
+  const loc=[s.locality,s.city,s.state].filter(Boolean).join(", ")||"Location pending";
+  const imgs=(s.images||[]).slice(0,6).map(u=>`<img src="${esc(u)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-right:6px;flex:none"/>`).join("");
+  const st={submitted:'warn',under_review:'warn',info_required:'warn',approved:'ok',rejected:'red'}[s.status]||'grey';
+  const geo = (s.lat!=null&&s.lng!=null)?`· GPS ${Number(s.lat).toFixed(4)}, ${Number(s.lng).toFixed(4)} `:"";
+  return `<div class="card" style="padding:16px;margin-bottom:12px">
+    <div><b>${esc(s.title||"Untitled property")}</b> <span class="pill ${st}">${esc(s.status.replace("_"," "))}</span>
+      <div class="muted" style="font-size:13px;margin-top:4px">${esc(loc)}${s.price?` · ₹${Number(s.price).toLocaleString("en-IN")}`:""}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">By ${esc(s.promoter?.member_code||"—")} ${esc(s.promoter?.full_name||"")}${s.promoter?.mobile?` · +${esc(s.promoter.mobile)}`:""}</div></div>
+    ${imgs?`<div style="display:flex;margin-top:10px;overflow-x:auto">${imgs}</div>`:""}
+    ${s.description?`<div style="font-size:13px;margin-top:8px">${esc(s.description)}</div>`:""}
+    <div class="muted" style="font-size:12px;margin-top:8px">
+      ${s.seller_name?`Seller: ${esc(s.seller_name)} `:""}${s.seller_phone?`· ${esc(s.seller_phone)} `:""}${geo}
+      ${s.gmaps_url?`· <a href="${esc(s.gmaps_url)}" target="_blank" rel="noopener">Map</a> `:""}${s.street_view_url?`· <a href="${esc(s.street_view_url)}" target="_blank" rel="noopener">Street View</a> `:""}
+      ${(s.videos&&s.videos.length)?`· ${s.videos.length} video(s) `:""}${(s.documents&&s.documents.length)?`· ${s.documents.length} doc(s)`:""}</div>
+    ${s.review_reason?`<div style="font-size:12px;color:var(--brand);margin-top:6px">Note to promoter: ${esc(s.review_reason)}</div>`:""}
+    <div class="toolbar" style="margin-top:12px;justify-content:flex-end">
+      <button class="btn grey sm" onclick="reviewSub('${s.id}','under_review')">Start review</button>
+      <button class="btn grey sm" onclick="reviewSub('${s.id}','info_required',true)">Request info</button>
+      <button class="btn ghost sm" onclick="reviewSub('${s.id}','rejected',true)">Reject</button>
+      <button class="btn sm" onclick="reviewSub('${s.id}','approved')">Approve</button>
+    </div></div>`;
+}
+window.subFilter = (v)=>{ window.__subFilter=v; renderSubmissions(); };
+window.reviewSub = async (id,decision,ask)=>{
+  let reason=null;
+  if(ask){ reason=prompt(decision==='rejected'?"Reason for rejection (shown to promoter):":"What information is needed?"); if(reason===null) return; }
+  const { error } = await sb.rpc("admin_review_submission",{p_id:id,p_decision:decision,p_reason:reason});
+  if(error) return toast(error.message); toast("Submission "+decision.replace("_"," ")); refreshBadges(); renderSubmissions();
 };
 </script>
 </body>

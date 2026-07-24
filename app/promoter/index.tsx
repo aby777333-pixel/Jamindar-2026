@@ -87,6 +87,7 @@ export default function PromoterDashboard() {
     { icon: "id-card", label: "Digital Card", to: "/promoter/card" as Href, tint: colors.goldSoft, accent: colors.goldDark },
     { icon: "gift", label: "Referrals", to: "/referral" as Href },
     { icon: "business", label: "Projects", to: "/promoter/explorer" as Href },
+    { icon: "add-circle", label: "Submit", to: "/promoter/leads" as Href },
     { icon: "shield-checkmark", label: "KYC", to: "/buyer/kyc" as Href, tint: colors.successSoft, accent: colors.success },
     { icon: "notifications", label: "Alerts", to: "/notifications" as Href },
     { icon: "help-buoy", label: "Support", to: "/support" as Href },
@@ -273,7 +274,8 @@ export default function PromoterDashboard() {
         {/* roadmap — reserved space for upcoming promoter modules incl. ML tree */}
         <PromoterSection title="Coming to your suite">
           <View style={{ gap: space.sm }}>
-            <ReservedCard icon="add-circle" title="Lead Capture" subtitle="Submit an off-market property for admin approval." />
+            <ReservedCard icon="chatbubbles" title="In-app messaging" subtitle="Live chat & video calling with your leads." />
+            <ReservedCard icon="document-text" title="Downloadable statements" subtitle="Monthly PDF statements & incentive programs." />
           </View>
         </PromoterSection>
       </ScrollView>
