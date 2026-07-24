@@ -1,12 +1,21 @@
 import { useState } from "react";
-import { Text, View, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { Text, View, KeyboardAvoidingView, Platform, Alert, Image } from "react-native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
-import { Brandmark } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
 import { captureInviteCode } from "@/lib/acquisition";
 import { colors, space, type as T } from "@/lib/theme";
+
+/** Small reassurance row shown under the form — reinforces the value prop
+ *  and gives the screen a finished, premium base instead of empty space. */
+const TRUST: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
+  { icon: "shield-checkmark", label: "Secure OTP" },
+  { icon: "language", label: "12 languages" },
+  { icon: "mic", label: "Voice or text" },
+];
 
 export default function Login() {
   const router = useRouter();
@@ -36,12 +45,57 @@ export default function Login() {
 
   return (
     <Screen scroll={false}>
+      {/* Soft decorative glows — brand at top-right, gold at bottom-left —
+          give the plain surface some depth without competing with the form. */}
+      <LinearGradient
+        colors={[colors.brandSoft, "transparent"]}
+        style={{ position: "absolute", top: -90, right: -70, width: 280, height: 280, borderRadius: 140 }}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={[colors.goldSoft, "transparent"]}
+        style={{ position: "absolute", bottom: -80, left: -80, width: 260, height: 260, borderRadius: 130 }}
+        pointerEvents="none"
+      />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1, justifyContent: "center" }}
       >
         <View style={{ alignItems: "center", marginBottom: space.lg }}>
-          <Brandmark size={64} />
+          {/* Jamindar mascot — framed avatar with a gold ring + soft halo. */}
+          <View style={{ alignItems: "center", justifyContent: "center", marginBottom: space.sm }}>
+            <LinearGradient
+              colors={[colors.brandSoft, colors.goldSoft]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ position: "absolute", width: 150, height: 150, borderRadius: 75, opacity: 0.9 }}
+            />
+            <View
+              style={{
+                width: 124,
+                height: 124,
+                borderRadius: 62,
+                backgroundColor: "#FFFFFF",
+                borderWidth: 2,
+                borderColor: colors.goldLight,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                shadowColor: "#1B1B4B",
+                shadowOpacity: 0.12,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 8 },
+                elevation: 6,
+              }}
+            >
+              <Image
+                source={require("../assets/namaste.jpg")}
+                style={{ width: 118, height: 118, resizeMode: "contain" }}
+              />
+            </View>
+          </View>
+
           <Text style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.md }}>
             Enter your mobile
           </Text>
@@ -72,6 +126,31 @@ export default function Login() {
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.md }}>
           By continuing you agree to Jamin's Terms & Privacy Policy.
         </Text>
+
+        {/* Trust row — fills the lower space with a finished, premium base. */}
+        <View style={{ flexDirection: "row", justifyContent: "center", marginTop: space.lg }}>
+          {TRUST.map((it) => (
+            <View key={it.label} style={{ flex: 1, alignItems: "center", paddingHorizontal: space.xxs }}>
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: colors.surface,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name={it.icon} size={18} color={colors.brand} />
+              </View>
+              <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, fontWeight: "600", textAlign: "center", marginTop: 6 }}>
+                {it.label}
+              </Text>
+            </View>
+          ))}
+        </View>
       </KeyboardAvoidingView>
     </Screen>
   );
