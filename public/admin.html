@@ -125,6 +125,8 @@
       <a data-view="tree">🌳 Promoter Tree</a>
       <a data-view="earnings">💰 Earnings</a>
       <a data-view="subs">📥 Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
+      <a data-view="visits">🗓 Visits <span class="badge" id="b-visits" style="display:none"></span></a>
+      <a data-view="leads">📇 Leads</a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -198,23 +200,25 @@ async function boot(){
 sb.auth.getSession().then(({data})=>{ if(data.session) boot(); });
 
 async function refreshBadges(){
-  const [{count:k},{count:p},{count:s}] = await Promise.all([
+  const [{count:k},{count:p},{count:s},{count:vv}] = await Promise.all([
     sb.from("kyc_submissions").select("id",{count:"exact",head:true}).eq("status","pending"),
     sb.from("profiles").select("id",{count:"exact",head:true}).eq("partner_status","pending"),
     sb.from("property_submissions").select("id",{count:"exact",head:true}).eq("status","submitted"),
+    sb.from("site_visits").select("id",{count:"exact",head:true}).eq("status","requested"),
   ]);
-  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs");
+  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs"), bv=$("#b-visits");
   if(k){bk.style.display="inline-block";bk.textContent=k;} else bk.style.display="none";
   if(p){bp.style.display="inline-block";bp.textContent=p;} else bp.style.display="none";
   if(s){bs.style.display="inline-block";bs.textContent=s;} else bs.style.display="none";
+  if(vv){bv.style.display="inline-block";bv.textContent=vv;} else bv.style.display="none";
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -649,6 +653,47 @@ window.reviewSub = async (id,decision,ask)=>{
   const { error } = await sb.rpc("admin_review_submission",{p_id:id,p_decision:decision,p_reason:reason});
   if(error) return toast(error.message); toast("Submission "+decision.replace("_"," ")); refreshBadges(); renderSubmissions();
 };
+
+// ───────── site visits ─────────
+async function renderVisits(){
+  const status = window.__visitFilter || "";
+  let q = sb.from("site_visits").select("*, buyer:profiles!site_visits_buyer_id_fkey(member_code,full_name,mobile), property:properties!site_visits_property_id_fkey(title,locality,city)").order("created_at",{ascending:false}).limit(300);
+  if(status) q = q.eq("status", status);
+  const { data } = await q; const rows=data||[];
+  const chip=(v,l)=>`<button class="btn ${((window.__visitFilter||'')===v)?'':'grey'} sm" onclick="visitFilter('${v}')">${l}</button>`;
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('requested','Requested')}${chip('confirmed','Confirmed')}${chip('completed','Completed')}${chip('cancelled','Cancelled')}</div>
+    ${rows.length? `<table><thead><tr><th>Property</th><th>Buyer</th><th>Preferred</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(v=>{const st={requested:'warn',confirmed:'',completed:'ok',cancelled:'red'}[v.status]||'grey';
+      return `<tr><td><b>${esc(v.property?.title||'Property')}</b><div class="muted" style="font-size:12px">${esc([v.property?.locality,v.property?.city].filter(Boolean).join(', '))}</div></td>
+      <td>${esc(v.buyer?.full_name||'—')}<div class="muted" style="font-size:12px">${esc(v.buyer?.member_code||'')}${v.buyer?.mobile?' · +'+esc(v.buyer.mobile):''}</div></td>
+      <td class="muted">${v.preferred_date?esc(v.preferred_date):'—'}</td>
+      <td><span class="pill ${st}">${esc(v.status)}</span></td>
+      <td style="text-align:right">${(v.status!=='confirmed'&&v.status!=='completed'&&v.status!=='cancelled')?`<button class="btn sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button> `:''}${v.status!=='completed'&&v.status!=='cancelled'?`<button class="btn gold sm" onclick="setVisit('${v.id}','completed')">Complete</button> `:''}${v.status!=='cancelled'?`<button class="btn ghost sm" onclick="setVisit('${v.id}','cancelled')">Cancel</button>`:''}</td></tr>`;}).join('')}</tbody></table>`
+      : `<div class="empty card">No site visits.</div>`}`;
+}
+window.visitFilter=(v)=>{window.__visitFilter=v;renderVisits();};
+window.setVisit=async(id,status)=>{const {error}=await sb.from('site_visits').update({status}).eq('id',id); if(error) return toast(error.message); toast('Visit '+status); refreshBadges(); renderVisits();};
+
+// ───────── leads ─────────
+async function renderLeads(){
+  const status=window.__leadFilter||'';
+  let q=sb.from('leads').select('*, buyer:profiles!leads_buyer_id_fkey(member_code,full_name,mobile), promoter:profiles!leads_promoter_id_fkey(member_code), property:properties!leads_property_id_fkey(title,city)').order('created_at',{ascending:false}).limit(300);
+  if(status) q=q.eq('status',status);
+  const {data}=await q; const rows=data||[];
+  const chip=(v,l)=>`<button class="btn ${((window.__leadFilter||'')===v)?'':'grey'} sm" onclick="leadFilter('${v}')">${l}</button>`;
+  $("#view").innerHTML=`<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('new','New')}${chip('contacted','Contacted')}${chip('qualified','Qualified')}${chip('converted','Converted')}${chip('lost','Lost')}</div>
+    ${rows.length? `<table><thead><tr><th>Buyer</th><th>Source</th><th>Property</th><th>Promoter</th><th>Status</th><th>Set</th></tr></thead><tbody>
+      ${rows.map(l=>{const st={new:'warn',contacted:'',qualified:'',converted:'ok',lost:'red'}[l.status]||'grey';
+      return `<tr><td><b>${esc(l.buyer?.full_name||'—')}</b><div class="muted" style="font-size:12px">${esc(l.buyer?.member_code||'')}${l.buyer?.mobile?' · +'+esc(l.buyer.mobile):''}</div></td>
+      <td class="muted">${esc((l.source||'').replace(/_/g,' '))}</td>
+      <td class="muted">${esc(l.property?.title||'—')}</td>
+      <td class="muted">${esc(l.promoter?.member_code||'—')}</td>
+      <td><span class="pill ${st}">${esc(l.status)}</span></td>
+      <td><select onchange="setLead('${l.id}',this.value)" style="width:auto;padding:6px 8px"><option value="">Set…</option><option>contacted</option><option>qualified</option><option>converted</option><option>lost</option></select></td></tr>`;}).join('')}</tbody></table>`
+      : `<div class="empty card">No leads.</div>`}`;
+}
+window.leadFilter=(v)=>{window.__leadFilter=v;renderLeads();};
+window.setLead=async(id,status)=>{if(!status)return; const {error}=await sb.from('leads').update({status}).eq('id',id); if(error) return toast(error.message); toast('Lead '+status); renderLeads();};
 </script>
 </body>
 </html>
