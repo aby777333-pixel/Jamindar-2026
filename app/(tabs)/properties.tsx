@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Text, View, Pressable, ScrollView, Image, TextInput } from "react-native";
+import { Text, View, Pressable, ScrollView, FlatList, Image, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,10 @@ import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
 import { useCompare } from "@/lib/compare";
+
+/** Fixed row height keeps every result card identical — without it the media
+ *  column has no definite height to resolve against and cards render ragged. */
+const CARD_H = 124;
 
 const FILTERS: { key: PropertyType | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -150,24 +154,26 @@ export default function Properties() {
       ) : list.length === 0 ? (
         <Empty title="No properties found" subtitle="Try a different filter or search term." />
       ) : (
-        <ScrollView
+        // FlatList (not ScrollView): virtualised, and it scrolls the full list
+        // reliably inside the tab navigator's bounded height.
+        <FlatList
           style={{ flex: 1, marginTop: 14 }}
+          data={list}
+          keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 110, gap: 14 }}
           showsVerticalScrollIndicator={false}
-        >
-          {list.map((p) => (
-            <Pressable key={p.id} onPress={() => router.push(`/property/${p.id}`)}>
-              <Card style={{ padding: 0, overflow: "hidden", flexDirection: "row" }}>
-                <View style={{ width: 110, backgroundColor: colors.surfaceSunken }}>
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item: p }) => (
+            <Pressable onPress={() => router.push(`/property/${p.id}`)}>
+              <Card style={{ padding: 0, overflow: "hidden", flexDirection: "row", height: CARD_H }}>
+                <View style={{ width: 110, height: "100%", backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
                   {p.images?.[0] ? (
                     <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} />
                   ) : (
-                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", minHeight: 110 }}>
-                      <Ionicons name="image" size={28} color={colors.inkFaint} />
-                    </View>
+                    <Ionicons name="image" size={28} color={colors.inkFaint} />
                   )}
                 </View>
-                <View style={{ flex: 1, padding: 12 }}>
+                <View style={{ flex: 1, minWidth: 0, padding: 12, justifyContent: "center" }}>
                   <Text style={{ fontWeight: "700", color: colors.ink }} numberOfLines={1}>
                     {p.title}
                   </Text>
@@ -189,8 +195,8 @@ export default function Properties() {
                 </View>
               </Card>
             </Pressable>
-          ))}
-        </ScrollView>
+          )}
+        />
       )}
     </SafeAreaView>
   );

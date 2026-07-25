@@ -141,6 +141,14 @@ export async function pickAndUploadAvatar(userId: string): Promise<string | null
   return supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
 }
 
+/** Delete every stored avatar for a user, so removing the photo also reclaims
+ *  the storage (uploads are timestamped, so older ones would otherwise linger). */
+export async function removeStoredAvatars(userId: string): Promise<void> {
+  const { data } = await supabase.storage.from("avatars").list(userId);
+  const paths = (data ?? []).map((f) => `${userId}/${f.name}`);
+  if (paths.length) await supabase.storage.from("avatars").remove(paths);
+}
+
 /** Add an external link (e.g. a 360° tour) or a hosted document URL. */
 export async function addLink(propertyId: string, kind: string, url: string, caption?: string): Promise<void> {
   const existing = await listMedia(propertyId);

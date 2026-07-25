@@ -6,6 +6,7 @@ import { Card } from "@/components/ui";
 import { Badge } from "@/components/premium";
 import { RolePreviewBar } from "@/components/RolePreview";
 import { useAuth, useEffectiveRole } from "@/lib/store";
+import { useUnreadMessages, useRealtimeInbox } from "@/lib/messaging";
 import { colors, space } from "@/lib/theme";
 import { initials } from "@/lib/format";
 import { ROLE_LABELS, KYC_STATUS_META } from "@/lib/types";
@@ -23,9 +24,14 @@ export default function Account() {
   const router = useRouter();
   const { profile, signOut } = useAuth();
   const role = useEffectiveRole();
+  const { data: unread = 0 } = useUnreadMessages(!!profile?.id);
+  useRealtimeInbox(!!profile?.id);
 
-  const rows: { icon: string; label: string; onPress: () => void }[] = [
+  const rows: { icon: string; label: string; badge?: number; onPress: () => void }[] = [
     { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
+    { icon: "chatbubbles", label: "Messages", badge: unread, onPress: () => router.push("/messages" as Href) },
+    { icon: "heart", label: "My wishlist", onPress: () => router.push("/saved" as Href) },
+    { icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) },
     { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
     { icon: "gift", label: "Referral centre", onPress: () => router.push("/referral" as Href) },
     { icon: "notifications", label: "Notifications", onPress: () => router.push("/notifications" as Href) },
@@ -44,7 +50,10 @@ export default function Account() {
       onPress: () => router.push("/buyer/kyc" as Href),
     });
   }
-  if (role === "promoter") rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
+  if (role === "promoter") {
+    rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
+    rows.push({ icon: "calendar-outline", label: "Site visit desk", onPress: () => router.push("/manage-visits" as Href) });
+  }
   // Admin console is always reachable for real super admins, even while previewing another role.
   if (profile?.role === "super_admin") rows.push({ icon: "shield-checkmark", label: "Admin console", onPress: () => router.push("/admin") });
 
@@ -134,6 +143,11 @@ export default function Account() {
             >
               <Ionicons name={r.icon as any} size={22} color={colors.brand} />
               <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: colors.ink }}>{r.label}</Text>
+              {r.badge && r.badge > 0 ? (
+                <View style={{ minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{r.badge}</Text>
+                </View>
+              ) : null}
               <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
             </Pressable>
           ))}

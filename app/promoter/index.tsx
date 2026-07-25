@@ -85,6 +85,8 @@ export default function PromoterDashboard() {
 
   const shortcuts: { icon: string; label: string; to: Href; tint?: string; accent?: string }[] = [
     { icon: "id-card", label: "Digital Card", to: "/promoter/card" as Href, tint: colors.goldSoft, accent: colors.goldDark },
+    { icon: "calendar", label: "Site visits", to: "/manage-visits" as Href, tint: "#F2EBFB", accent: "#7C4BC9" },
+    { icon: "chatbubbles", label: "Messages", to: "/messages" as Href, tint: "#ECEEFB", accent: "#4B57C9" },
     { icon: "gift", label: "Referrals", to: "/referral" as Href },
     { icon: "business", label: "Projects", to: "/promoter/explorer" as Href },
     { icon: "add-circle", label: "Submit", to: "/promoter/leads" as Href },

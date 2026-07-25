@@ -6,7 +6,7 @@ import { Screen, Button } from "@/components/ui";
 import { Field } from "@/components/Field";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
-import { pickAndUploadAvatar } from "@/lib/property-media";
+import { pickAndUploadAvatar, removeStoredAvatars } from "@/lib/property-media";
 import { initials } from "@/lib/format";
 import { colors } from "@/lib/theme";
 
@@ -48,6 +48,32 @@ export default function ProfileSetup() {
     } finally {
       setAvatarBusy(false);
     }
+  }
+
+  /** Clear the photo and fall back to the initials avatar. */
+  async function onRemoveAvatar() {
+    if (!profile) return;
+    Alert.alert("Remove photo", "Your profile picture will be replaced by your initials.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setAvatarBusy(true);
+          try {
+            const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", profile.id);
+            if (error) throw error;
+            setAvatarUrl("");
+            await removeStoredAvatars(profile.id).catch(() => {});
+            await refreshProfile();
+          } catch (e: any) {
+            Alert.alert("Couldn't remove photo", e?.message ?? "Please try again.");
+          } finally {
+            setAvatarBusy(false);
+          }
+        },
+      },
+    ]);
   }
 
   async function onFinish() {
@@ -114,7 +140,20 @@ export default function ProfileSetup() {
               <Ionicons name="camera" size={16} color="#fff" />
             </View>
           </Pressable>
-          <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 8 }}>Tap to add your photo</Text>
+          {avatarUrl ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
+              <Pressable onPress={onPickAvatar} disabled={avatarBusy} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name="camera-outline" size={15} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontSize: 13, fontWeight: "600" }}>Change photo</Text>
+              </Pressable>
+              <Pressable onPress={onRemoveAvatar} disabled={avatarBusy} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name="trash-outline" size={15} color={colors.inkFaint} />
+                <Text style={{ color: colors.inkFaint, fontSize: 13, fontWeight: "600" }}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 8 }}>Tap to add your photo</Text>
+          )}
         </View>
 
         <Text style={{ fontSize: 26, fontWeight: "800", color: colors.ink }}>Complete your profile</Text>

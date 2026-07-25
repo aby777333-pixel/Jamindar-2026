@@ -123,6 +123,8 @@ export default function AdminConsole() {
           <Card style={{ padding: 0, marginBottom: 24 }}>
             {[
               { icon: "business", label: "Property Management", note: "Create, edit, media, availability", href: "/admin/properties" as Href },
+              { icon: "calendar", label: "Site Visits", note: "Confirm, reschedule, cancel bookings", href: "/manage-visits" as Href },
+              { icon: "chatbubbles", label: "Messages", note: "Conversations, moderation & audit", href: "/messages" as Href },
               { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts", href: null },
               { icon: "bar-chart", label: "Analytics & Reports", note: "Trends, funnels, exports", href: null },
             ].map((r, i) => {

@@ -144,7 +144,7 @@ export default function Home() {
 
         {/* projects by phase */}
         <View style={{ paddingHorizontal: 20, marginTop: space.md }}>
-          <RowHeader title="Projects" onAction={() => browse()} actionLabel="View all" />
+          <RowHeader title="Projects" onAction={() => router.push("/projects" as Href)} actionLabel="View all" />
           <View style={{ flexDirection: "row", gap: 11, marginTop: space.sm }}>
             {PROJECT_PHASES.map((p) => (
               <QuickActionTile key={p.phase} emoji={p.emoji} label={p.label} tint={p.tint} onPress={() => openPhase(p.phase)} />
@@ -155,7 +155,7 @@ export default function Home() {
         {/* types of lands */}
         <View style={{ marginTop: space.md }}>
           <View style={{ paddingHorizontal: 20 }}>
-            <RowHeader title="Types of Lands" onAction={() => browse()} actionLabel="See all" />
+            <RowHeader title="Types of Lands" onAction={() => router.push("/land-types" as Href)} actionLabel="See all" />
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 6, marginTop: space.sm }}>
             {LAND_TYPES.map((lt) => (
@@ -167,7 +167,7 @@ export default function Home() {
         {/* verified listings */}
         <View style={{ marginTop: space.md }}>
           <View style={{ paddingHorizontal: 20 }}>
-            <RowHeader title="Verified Listings" onAction={() => browse()} />
+            <RowHeader title="Verified Listings" onAction={() => browse({ featured: true })} />
           </View>
           {featured && featured.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 14, marginTop: space.sm }}>

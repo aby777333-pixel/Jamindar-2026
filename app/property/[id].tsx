@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator, Modal, Dimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +9,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
 import { topApproval } from "@/components/land";
-import { PromoterContactBlock } from "@/components/ContactActions";
+import { PartnerContactCard, ContactHubSheet } from "@/components/ContactHub";
+import { SiteVisitSheet } from "@/components/SiteVisitSheet";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
@@ -47,11 +48,24 @@ export default function PropertyDetail() {
   const { profile } = useAuth();
   const role = useEffectiveRole();
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const [imgIndex, setImgIndex] = useState(0);
   const [tab, setTab] = useState<TabKey>("overview");
   const [mediaMode, setMediaMode] = useState<"photos" | "videos">("photos");
   const [fullscreen, setFullscreen] = useState<number | null>(null);
+  const [visitOpen, setVisitOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const SCREEN_W = Dimensions.get("window").width;
+  const heroRef = useRef<ScrollView>(null);
+  const fullRef = useRef<ScrollView>(null);
+
+  /** Selecting a photo anywhere (thumbnail grid) drives the hero carousel too,
+   *  so the image and the pagination dots never disagree. */
+  function selectImage(i: number) {
+    setImgIndex(i);
+    setMediaMode("photos");
+    heroRef.current?.scrollTo({ x: i * SCREEN_W, animated: true });
+  }
   const compare = useCompare();
   const [lang, setLang] = useState("en-IN");
   const [translated, setTranslated] = useState<string | null>(null);
@@ -165,29 +179,20 @@ export default function PropertyDetail() {
     await WebBrowser.openBrowserAsync(property.brochure_url);
   }
 
-  async function onSiteVisit() {
-    if (!profile) return;
-    await supabase.from("site_visits").insert({
-      property_id: id,
-      buyer_id: profile.id,
-      promoter_id: property?.promoter_id ?? null,
-      status: "requested",
-    });
-    logActivity("site_visit_requested", { property_id: id });
-    Alert.alert("Site visit requested", "Our team will contact you to confirm a convenient time.");
+  function onSiteVisit() {
+    if (!profile) {
+      Alert.alert("Sign in required", "Please sign in to book a site visit.");
+      return;
+    }
+    setVisitOpen(true);
   }
 
-  async function onCallback() {
-    if (!profile) return;
-    await supabase.from("leads").insert({
-      buyer_id: profile.id,
-      promoter_id: property?.promoter_id ?? null,
-      property_id: id,
-      source: "callback_request",
-      status: "new",
-    });
-    logActivity("callback_requested", { property_id: id });
-    Alert.alert("Callback requested", "A Jamin advisor will call you shortly. Namaste 🙏");
+  function onContact() {
+    if (!profile) {
+      Alert.alert("Sign in required", "Please sign in to contact a Jamin partner.");
+      return;
+    }
+    setContactOpen(true);
   }
 
   function onMap() {
@@ -241,12 +246,13 @@ export default function PropertyDetail() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
         {/* gallery — swipeable photos / videos + tap to fullscreen */}
         <View style={{ height: 250, backgroundColor: colors.surfaceSunken }}>
           {mediaMode === "photos" ? (
             images.length > 0 ? (
               <ScrollView
+                ref={heroRef}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
@@ -348,7 +354,7 @@ export default function PropertyDetail() {
             {activeTab === "overview" && (
               <Overview property={property} voiceBusy={voiceBusy} translated={translated} showOriginal={showOriginal} onListen={() => speakText(translated && !showOriginal ? translated : property.description!)} onTranslate={() => onTranslate(property.description!)} onToggleOriginal={() => setShowOriginal((v) => !v)} phaseLabel={phase.label} />
             )}
-            {activeTab === "photos" && <PhotosTab images={images} active={imgIndex} onSelect={setImgIndex} />}
+            {activeTab === "photos" && <PhotosTab images={images} active={imgIndex} onSelect={selectImage} onOpen={setFullscreen} />}
             {activeTab === "videos" && <VideosTab videos={property.videos ?? []} drone={property.drone_videos ?? []} />}
             {activeTab === "master_plan" && <MasterPlanTab property={property} />}
             {activeTab === "amenities" && <AmenitiesTab amenities={property.amenities ?? []} />}
@@ -391,31 +397,40 @@ export default function PropertyDetail() {
             </>
           ) : null}
 
-          {/* Contact your Jamin partner — direct routing from a verified profile */}
-          <PromoterContactBlock
-            promoterId={property.promoter_id ?? profile?.assigned_promoter ?? null}
+          {/* Contact your Jamin partner — routing resolved server-side */}
+          <PartnerContactCard
+            propertyId={String(id)}
             context={`Hi, I'm interested in ${property.title} (${formatINR(property.price)}) on Jamin Properties.`}
           />
         </View>
       </ScrollView>
 
-      {/* persistent action bar */}
-      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 22, flexDirection: "row", alignItems: "center", gap: 10 }}>
+      {/* persistent action bar — sits above the system navigation bar, never under it */}
+      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 10, flexDirection: "row", alignItems: "center", gap: 2 }}>
         <QuickAction icon="document-text" label="Brochure" onPress={onBrochure} />
         <QuickAction icon="share-social" label="Share" onPress={onShare} />
-        <QuickAction icon="call" label="Call" onPress={onCallback} />
-        <Pressable onPress={() => { if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; } compare.toggle(id); }} style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+        <QuickAction icon="call" label="Contact" onPress={onContact} />
+        <Pressable onPress={() => { if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; } compare.toggle(id); }} style={{ alignItems: "center", justifyContent: "center", width: 54 }}>
           <Ionicons name={compare.has(id) ? "checkmark-circle" : "git-compare"} size={22} color={colors.brand} />
-          <Text style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{compare.has(id) ? "Added" : "Compare"}</Text>
+          <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{compare.has(id) ? "Added" : "Compare"}</Text>
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Button label="Schedule Site Visit" onPress={onSiteVisit} />
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 6 }}>
+          <Button label="Book Site Visit" onPress={onSiteVisit} />
         </View>
       </View>
       {/* fullscreen photo viewer */}
       <Modal visible={fullscreen !== null} transparent animationType="fade" onRequestClose={() => setFullscreen(null)}>
         <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={{ x: (fullscreen ?? 0) * SCREEN_W, y: 0 }}>
+          {/* contentOffset alone is unreliable on Android — scroll on layout too */}
+          <ScrollView
+            ref={fullRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: (fullscreen ?? 0) * SCREEN_W, y: 0 }}
+            onLayout={() => fullRef.current?.scrollTo({ x: (fullscreen ?? 0) * SCREEN_W, animated: false })}
+            onMomentumScrollEnd={(e) => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+          >
             {images.map((uri, i) => (
               <View key={i} style={{ width: SCREEN_W, height: "100%", alignItems: "center", justifyContent: "center" }}>
                 <Image source={{ uri }} style={{ width: SCREEN_W, height: "100%" }} resizeMode="contain" />
@@ -427,6 +442,18 @@ export default function PropertyDetail() {
           </Pressable>
         </View>
       </Modal>
+      <SiteVisitSheet
+        visible={visitOpen}
+        onClose={() => setVisitOpen(false)}
+        propertyId={String(id)}
+        propertyLabel={property.title}
+      />
+      <ContactHubSheet
+        visible={contactOpen}
+        onClose={() => setContactOpen(false)}
+        propertyId={String(id)}
+        context={`Hi, I'm interested in ${property.title} on Jamin Properties.`}
+      />
       <JamindarFab />
     </SafeAreaView>
   );
@@ -482,15 +509,24 @@ function Overview({ property, voiceBusy, translated, showOriginal, onListen, onT
   );
 }
 
-function PhotosTab({ images, active, onSelect }: { images: string[]; active: number; onSelect: (i: number) => void }) {
+function PhotosTab({ images, active, onSelect, onOpen }: { images: string[]; active: number; onSelect: (i: number) => void; onOpen: (i: number) => void }) {
   if (images.length === 0) return <EmptyNote label="No photos uploaded for this property yet." />;
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-      {images.map((uri, i) => (
-        <Pressable key={i} onPress={() => onSelect(i)} style={{ width: "48%", height: 120, borderRadius: 14, overflow: "hidden", borderWidth: i === active ? 2 : 0, borderColor: colors.brand }}>
-          <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
-        </Pressable>
-      ))}
+    <View>
+      <Text style={{ color: colors.inkFaint, fontSize: 12, marginBottom: 8 }}>
+        Tap a photo to show it above · tap again to view full screen
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {images.map((uri, i) => (
+          <Pressable
+            key={i}
+            onPress={() => (i === active ? onOpen(i) : onSelect(i))}
+            style={{ width: "48%", height: 120, borderRadius: 14, overflow: "hidden", borderWidth: i === active ? 2 : 0, borderColor: colors.brand }}
+          >
+            <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -704,9 +740,9 @@ function MetaChip({ icon, label }: { icon: string; label: string }) {
 
 function QuickAction({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", width: 54 }}>
       <Ionicons name={icon as any} size={22} color={colors.brand} />
-      <Text style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{label}</Text>
+      <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{label}</Text>
     </Pressable>
   );
 }

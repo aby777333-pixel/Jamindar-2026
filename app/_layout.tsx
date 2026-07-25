@@ -78,7 +78,12 @@ export default function RootLayout() {
             <Stack.Screen name="notifications" />
             <Stack.Screen name="referral" />
             <Stack.Screen name="saved" />
+            <Stack.Screen name="projects" />
+            <Stack.Screen name="land-types" />
             <Stack.Screen name="visits" />
+            <Stack.Screen name="manage-visits" />
+            <Stack.Screen name="messages/index" />
+            <Stack.Screen name="messages/[id]" />
             <Stack.Screen name="interests" />
             <Stack.Screen name="support" />
             <Stack.Screen name="tools/calculators" />

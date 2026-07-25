@@ -9,7 +9,11 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -145,6 +149,28 @@ export function JamindarSheet({
   const scrollRef = useRef<ScrollView>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const insets = useSafeAreaInsets();
+  const { height: screenH } = useWindowDimensions();
+  const [kb, setKb] = useState(0);
+
+  // A RN Modal window does not reliably inherit adjustResize, so the keyboard
+  // would sit on top of the input row. Track its real height and lift the
+  // sheet by exactly that much, shrinking it so the top stays on screen.
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = Keyboard.addListener(showEvt, (e) => {
+      setKb(e.endCoordinates?.height ?? 0);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    const onHide = Keyboard.addListener(hideEvt, () => setKb(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
+
+  const sheetH = Math.max(260, Math.min(screenH * 0.85, screenH - kb - 24));
 
   // Load memory, voice prefs and resume the last conversation on open.
   useEffect(() => {
@@ -491,7 +517,8 @@ export function JamindarSheet({
             backgroundColor: colors.surfaceAlt,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
-            height: "85%",
+            height: sheetH,
+            marginBottom: kb,
             paddingTop: 14,
           }}
         >
@@ -548,6 +575,7 @@ export function JamindarSheet({
             ref={scrollRef}
             style={{ flex: 1, marginTop: 10 }}
             contentContainerStyle={{ padding: 18, gap: 10 }}
+            keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {msgs.map((m, i) => (
@@ -645,7 +673,7 @@ export function JamindarSheet({
               gap: 10,
               paddingHorizontal: 16,
               paddingVertical: 12,
-              paddingBottom: 28,
+              paddingBottom: kb > 0 ? 12 : Math.max(insets.bottom, 12) + 8,
               backgroundColor: colors.surface,
               borderTopWidth: 1,
               borderColor: colors.border,
