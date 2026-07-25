@@ -28,6 +28,28 @@ const LANG_NAMES: Record<string, string> = {
   "od-IN": "Odia",
 };
 
+// Which Unicode block each language must actually appear in. Prompting alone
+// is not reliable — sarvam-30b answers in English maybe a third of the time —
+// so a reply that contains none of its target script gets translated before we
+// return it. That makes the language chip deterministic rather than a request.
+const SCRIPTS: Record<string, RegExp> = {
+  "ta-IN": /[஀-௿]/,   // Tamil
+  "hi-IN": /[ऀ-ॿ]/,   // Devanagari
+  "mr-IN": /[ऀ-ॿ]/,   // Devanagari
+  "te-IN": /[ఀ-౿]/,   // Telugu
+  "kn-IN": /[ಀ-೿]/,   // Kannada
+  "ml-IN": /[ഀ-ൿ]/,   // Malayalam
+  "gu-IN": /[઀-૿]/,   // Gujarati
+  "bn-IN": /[ঀ-৿]/,   // Bengali
+  "pa-IN": /[਀-੿]/,   // Gurmukhi
+  "od-IN": /[଀-୿]/,   // Odia
+};
+
+// Shown when the model returns nothing at all, so the user never sees an empty
+// bubble. Translated into the active language by the same path as a real reply.
+const EMPTY_FALLBACK =
+  "Sorry, I did not catch that. Could you say it again, or ask me about plots, budget, location or legal terms?";
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
@@ -134,7 +156,23 @@ Deno.serve(async (req) => {
       const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: 1200 }) });
       const d = await r.json();
       if (!r.ok) return json({ error: d?.error?.message ?? "chat failed", raw: d }, 502);
-      const reply = d?.choices?.[0]?.message?.content ?? "";
+
+      const choice = d?.choices?.[0];
+      // The model sometimes puts everything in reasoning and leaves content
+      // empty, which surfaced as blank chat bubbles. Take the first field that
+      // actually has text.
+      let reply = String(choice?.message?.content ?? "").trim();
+      if (!reply) reply = String(choice?.message?.reasoning_content ?? "").trim();
+      if (!reply) reply = String(choice?.text ?? "").trim();
+      if (!reply) reply = EMPTY_FALLBACK;
+
+      // Enforce the chosen language rather than hoping the model obeyed.
+      const script = SCRIPTS[chosen];
+      if (script && !script.test(reply)) {
+        const translated = (await translateText(reply, chosen, "auto")).trim();
+        if (translated) reply = translated;
+      }
+
       const lang = payload.language ?? "en-IN";
       const userText = payload.userText ?? "";
 

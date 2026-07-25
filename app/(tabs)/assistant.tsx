@@ -19,7 +19,10 @@ export default function AssistantTab() {
           Your multilingual voice guide. Ask about plots, budgets, locations, or legal terms — by
           voice or text, in your own language.
         </Text>
-        <Button label="Start talking" onPress={() => setOpen(true)} style={{ marginTop: space.md, paddingHorizontal: space.xl }} />
+        {/* paddingHorizontal here would land on the Pressable OUTSIDE the
+            coloured pill; the Button carries its own padding, so just let it
+            stretch inside the screen's padding for even margins all round. */}
+        <Button label="Start talking" onPress={() => setOpen(true)} style={{ marginTop: space.md, alignSelf: "stretch" }} />
       </View>
       <JamindarSheet visible={open} onClose={() => setOpen(false)} />
     </SafeAreaView>

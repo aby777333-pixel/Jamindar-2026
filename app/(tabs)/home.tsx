@@ -16,7 +16,6 @@ import {
   LAND_TYPES,
   PROJECT_PHASES,
 } from "@/components/land";
-import { RolePreviewBar } from "@/components/RolePreview";
 import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
@@ -115,12 +114,8 @@ export default function Home() {
           <LandHero onPress={() => router.navigate("/(tabs)/assistant")} />
         </View>
 
-        {/* super-admin role preview switcher */}
-        {profile?.role === "super_admin" ? (
-          <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
-            <RolePreviewBar />
-          </View>
-        ) : null}
+        {/* Role preview lives in the Admin console now — it is a testing tool
+            and does not belong on a live user-facing screen. */}
 
         {/* role access + Jamindar */}
         <View style={{ paddingHorizontal: 20, marginTop: space.md, flexDirection: "row", gap: 12 }}>

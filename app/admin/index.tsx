@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, StatCard, Loading, SectionTitle } from "@/components/ui";
 import { JamindarFab } from "@/components/Jamindar";
+import { RolePreviewBar } from "@/components/RolePreview";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
@@ -143,6 +144,13 @@ export default function AdminConsole() {
               return r.href ? <Pressable key={r.label} onPress={() => router.push(r.href!)}>{body}</Pressable> : <View key={r.label}>{body}</View>;
             })}
           </Card>
+
+          {/* Testing tool — kept here rather than on Home/Account so it never
+              appears in the live user-facing UI. */}
+          <SectionTitle>Testing</SectionTitle>
+          <View style={{ marginBottom: 24 }}>
+            <RolePreviewBar />
+          </View>
 
           <SectionTitle>Recent Jamindar Conversations</SectionTitle>
           {recentVoice && recentVoice.length > 0 ? (

@@ -4,7 +4,6 @@ import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import { Badge } from "@/components/premium";
-import { RolePreviewBar } from "@/components/RolePreview";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useUnreadMessages, useRealtimeInbox } from "@/lib/messaging";
 import { colors, space } from "@/lib/theme";
@@ -120,11 +119,7 @@ export default function Account() {
           </View>
         </Card>
 
-        {profile?.role === "super_admin" ? (
-          <View style={{ marginBottom: 16 }}>
-            <RolePreviewBar />
-          </View>
-        ) : null}
+        {/* Role preview moved to the Admin console — testing tool, not live UI. */}
 
         <Card style={{ padding: 0 }}>
           {rows.map((r, i) => (
