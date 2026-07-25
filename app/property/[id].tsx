@@ -13,6 +13,7 @@ import { Card, Loading, Button } from "@/components/ui";
 import { topApproval } from "@/components/land";
 import { PartnerContactCard, ContactHubSheet } from "@/components/ContactHub";
 import { SiteVisitSheet } from "@/components/SiteVisitSheet";
+import { ZoomableImageViewer } from "@/components/ImageViewer";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +21,7 @@ import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useCompare } from "@/lib/compare";
 import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
+import { propertyShareMessage } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
@@ -189,8 +191,24 @@ export default function PropertyDetail() {
   async function onShare() {
     if (!property) return;
     logActivity("property_shared", { property_id: property.id });
+    // A verified promoter's card and referral code ride along, so the
+    // recipient knows who sent it and the lead is attributed back.
     await Share.share({
-      message: `${property.title} — ${formatINR(property.price)}\n${[property.locality, property.city].filter(Boolean).join(", ")}\nvia Jamin Properties`,
+      message: propertyShareMessage(
+        {
+          id: property.id,
+          title: property.title,
+          price: property.price != null ? formatINR(property.price) : "Price on request",
+          location: [property.locality, property.city, property.state].filter(Boolean).join(", "),
+          highlights: (property.amenities ?? []).slice(0, 4),
+        },
+        {
+          name: profile?.full_name,
+          promoterId: profile?.partner_code,
+          mobile: profile?.mobile,
+          verified: profile?.partner_status === "verified",
+        }
+      ),
     });
   }
 
@@ -630,10 +648,43 @@ function InlineVideo({ uri, height }: { uri: string; height: number }) {
 function MasterPlanTab({ property }: { property: Property }) {
   const plots = property.plot_layout ?? [];
   const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
+  const [zoom, setZoom] = useState(false);
   return (
     <View style={{ gap: 14 }}>
       {property.master_plan_url ? (
-        <Image source={{ uri: property.master_plan_url }} style={{ width: "100%", height: 220, borderRadius: 16, backgroundColor: colors.surfaceSunken }} resizeMode="cover" />
+        <>
+          {/* contain, not cover: a layout drawing must never be cropped */}
+          <Pressable onPress={() => setZoom(true)}>
+            <Image
+              source={{ uri: property.master_plan_url }}
+              style={{ width: "100%", height: 240, borderRadius: 16, backgroundColor: "#fff" }}
+              resizeMode="contain"
+            />
+            <View
+              style={{
+                position: "absolute",
+                right: 10,
+                bottom: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                backgroundColor: "rgba(0,0,0,0.62)",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+              }}
+            >
+              <Ionicons name="expand" size={13} color="#fff" />
+              <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "700" }}>Tap to zoom</Text>
+            </View>
+          </Pressable>
+          <ZoomableImageViewer
+            visible={zoom}
+            uri={property.master_plan_url}
+            title={`${property.title} — layout plan`}
+            onClose={() => setZoom(false)}
+          />
+        </>
       ) : (
         <EmptyNote label="Master plan image not available for this property." />
       )}

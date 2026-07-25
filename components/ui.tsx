@@ -124,12 +124,12 @@ export function Button({
   const radius = space.sm + 3;
 
   // The label sits INSIDE the coloured surface, so the surface must carry the
-  // horizontal padding. Without this a caller's paddingHorizontal lands on the
-  // outer Pressable — outside the pill — and the pill hugs the text.
+  // horizontal padding. Without it a caller's paddingHorizontal lands on the
+  // outer Pressable — outside the pill — and the pill hugs its text.
   const surface = {
     borderRadius: radius,
     paddingVertical: space.sm + 2,
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.lg,
     minHeight: 52,
     alignItems: "center" as const,
     justifyContent: "center" as const,
@@ -173,10 +173,7 @@ export function Button({
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={{
-            borderRadius: radius,
-            paddingVertical: space.sm + 2,
-            alignItems: "center",
-            justifyContent: "center",
+            ...surface,
             borderTopWidth: 1,
             borderTopColor: "rgba(255,255,255,0.35)",
           }}
@@ -186,10 +183,7 @@ export function Button({
       ) : (
         <View
           style={{
-            borderRadius: radius,
-            paddingVertical: space.sm + 2,
-            alignItems: "center",
-            justifyContent: "center",
+            ...surface,
             borderWidth: variant === "outline" ? 1.5 : 0,
             borderColor: colors.brand,
           }}

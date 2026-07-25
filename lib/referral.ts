@@ -62,3 +62,54 @@ export async function shareReferral(channel: ShareChannel, code: string): Promis
       return null;
   }
 }
+
+/** Deep link to a property, carrying the sharer's referral code when present
+ *  so the lead is attributed back to them. */
+export function propertyLink(propertyId: string, refCode?: string | null): string {
+  const parts = [`p=${encodeURIComponent(propertyId)}`];
+  if (refCode) parts.push(`ref=${encodeURIComponent(refCode)}`);
+  return `${REFERRAL_BASE}?${parts.join("&")}`;
+}
+
+export interface PromoterCard {
+  name?: string | null;
+  promoterId?: string | null;   // partner_code, e.g. JA-P-0001
+  designation?: string | null;
+  mobile?: string | null;
+  verified?: boolean;
+}
+
+/**
+ * Share text for a property.
+ *
+ * A plain buyer sends the listing. A verified promoter sends the listing plus
+ * their digital-card details and referral link, so whoever opens it knows who
+ * sent it and the lead is attributed back to them.
+ */
+export function propertyShareMessage(
+  property: { id: string; title: string; price?: string | null; location?: string | null; highlights?: string[] },
+  promoter?: PromoterCard | null
+): string {
+  const lines: string[] = ["🏡 " + property.title];
+  if (property.price) lines.push(property.price);
+  if (property.location) lines.push("📍 " + property.location);
+  if (property.highlights?.length) {
+    lines.push("", ...property.highlights.slice(0, 4).map((h) => "• " + h));
+  }
+
+  const ref = promoter?.verified ? promoter.promoterId ?? null : null;
+  lines.push("", propertyLink(property.id, ref));
+
+  if (promoter?.verified && promoter.name) {
+    lines.push(
+      "",
+      "— — —",
+      `${promoter.name}${promoter.designation ? ` · ${promoter.designation}` : ""}`,
+      "Verified Jamin Partner" + (promoter.promoterId ? ` · ${promoter.promoterId}` : ""),
+    );
+    if (promoter.mobile) lines.push(`📞 +${promoter.mobile.replace(/^\+/, "")}`);
+  }
+
+  lines.push("", "JAMIN PROPERTIES · Signature for Fortune");
+  return lines.join("\n");
+}
