@@ -20,7 +20,7 @@ import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { initials } from "@/lib/format";
+import { initials, greetingFor } from "@/lib/format";
 import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
 import { encodeFilters, type SearchFilters } from "@/lib/property-search";
@@ -97,6 +97,7 @@ export default function Home() {
         <View style={{ paddingHorizontal: 20, paddingTop: space.xs }}>
           <GreetingHeader
             name={firstName}
+            greeting={greetingFor()}
             initials={initials(profile?.full_name)}
             avatarUrl={profile?.avatar_url}
             onBell={() => router.push("/notifications" as Href)}

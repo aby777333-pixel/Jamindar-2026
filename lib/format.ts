@@ -39,3 +39,17 @@ export function timeAgo(iso?: string | null): string {
   const days = Math.floor(h / 24);
   return `${days}d ago`;
 }
+
+/**
+ * Greeting for the device's own clock and timezone.
+ * `getHours()` is local time, so a user in Erode and one abroad each get the
+ * greeting that matches the time they are actually looking at.
+ */
+export function greetingFor(now: Date = new Date()): string {
+  const h = now.getHours();
+  if (h < 5) return "Good Night";
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  if (h < 21) return "Good Evening";
+  return "Good Night";
+}

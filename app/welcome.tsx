@@ -84,7 +84,9 @@ export default function Welcome() {
           <Button
             label="Get Started"
             onPress={() => router.push("/login")}
-            style={{ marginTop: space.lg, alignSelf: "stretch" }}
+            // explicit width, not alignSelf: a centred parent was leaving the
+            // pill hugging its label
+            style={{ marginTop: space.lg, width: "100%" }}
           />
           <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.sm }}>
             Sign in with your mobile number — no passwords, ever.

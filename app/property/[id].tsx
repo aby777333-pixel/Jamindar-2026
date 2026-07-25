@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator, Modal, Dimensions } from "react-native";
+import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator, Modal, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useVideoPlayer, VideoView } from "expo-video";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,7 +57,29 @@ export default function PropertyDetail() {
   const [fullscreen, setFullscreen] = useState<number | null>(null);
   const [visitOpen, setVisitOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const SCREEN_W = Dimensions.get("window").width;
+  const [videoIndex, setVideoIndex] = useState(0);
+  // Live dimensions, not a one-off Dimensions.get(): the fullscreen viewer
+  // unlocks rotation, so width/height must follow the device.
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+
+  // Photos open full-frame in whatever way the phone is being held. The app is
+  // portrait-locked overall, so rotation is unlocked only while the viewer is
+  // open and restored to portrait on close.
+  const viewerOpen = fullscreen !== null;
+  useEffect(() => {
+    if (!viewerOpen) return;
+    ScreenOrientation.unlockAsync().catch(() => {});
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, [viewerOpen]);
+
+  // Keep the open photo centred when the device rotates.
+  useEffect(() => {
+    if (!viewerOpen) return;
+    const id = setTimeout(() => fullRef.current?.scrollTo({ x: imgIndex * SCREEN_W, animated: false }), 60);
+    return () => clearTimeout(id);
+  }, [SCREEN_W, viewerOpen, imgIndex]);
   const heroRef = useRef<ScrollView>(null);
   const fullRef = useRef<ScrollView>(null);
 
@@ -270,16 +294,33 @@ export default function PropertyDetail() {
               </View>
             )
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 14, gap: 12, alignItems: "center" }}>
-              {allVideos.map((u, i) => (
-                <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(u)} style={{ width: 190, height: 222, borderRadius: 16, overflow: "hidden", backgroundColor: "#0b0d12", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  <Ionicons name="play-circle" size={52} color="#fff" />
-                  <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" }}>
-                    {i < (property.videos?.length ?? 0) ? `Walkthrough ${i + 1}` : "Drone flyover"}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            // Plays in place, filling the media frame, with native controls and
+            // a fullscreen button — no more bouncing out to the browser.
+            <View style={{ flex: 1, backgroundColor: "#000" }}>
+              {allVideos[videoIndex] ? (
+                <InlineVideo key={allVideos[videoIndex]} uri={allVideos[videoIndex]} height={250} />
+              ) : null}
+              {allVideos.length > 1 ? (
+                <View style={{ position: "absolute", bottom: 8, alignSelf: "center", flexDirection: "row", gap: 6 }}>
+                  {allVideos.map((_, i) => (
+                    <Pressable
+                      key={i}
+                      onPress={() => setVideoIndex(i)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 999,
+                        backgroundColor: i === videoIndex ? "#fff" : "rgba(0,0,0,0.45)",
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: i === videoIndex ? colors.ink : "#fff" }}>
+                        {i < (property.videos?.length ?? 0) ? `Walkthrough ${i + 1}` : "Drone"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           )}
           <LinearGradient colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 90 }} pointerEvents="none" />
           <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 70 }} pointerEvents="none" />
@@ -419,27 +460,41 @@ export default function PropertyDetail() {
         </View>
       </View>
       {/* fullscreen photo viewer */}
-      <Modal visible={fullscreen !== null} transparent animationType="fade" onRequestClose={() => setFullscreen(null)}>
+      <Modal
+        visible={viewerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreen(null)}
+        supportedOrientations={["portrait", "landscape"]}
+      >
         <View style={{ flex: 1, backgroundColor: "#000" }}>
-          {/* contentOffset alone is unreliable on Android — scroll on layout too */}
+          {/* Pages are sized from live window dimensions, and the scroll offset
+              is re-applied whenever those change, so rotating the phone keeps
+              the same photo filling the screen. */}
           <ScrollView
             ref={fullRef}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             contentOffset={{ x: (fullscreen ?? 0) * SCREEN_W, y: 0 }}
-            onLayout={() => fullRef.current?.scrollTo({ x: (fullscreen ?? 0) * SCREEN_W, animated: false })}
+            onLayout={() => fullRef.current?.scrollTo({ x: imgIndex * SCREEN_W, animated: false })}
             onMomentumScrollEnd={(e) => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
           >
             {images.map((uri, i) => (
-              <View key={i} style={{ width: SCREEN_W, height: "100%", alignItems: "center", justifyContent: "center" }}>
-                <Image source={{ uri }} style={{ width: SCREEN_W, height: "100%" }} resizeMode="contain" />
+              <View key={i} style={{ width: SCREEN_W, height: SCREEN_H, alignItems: "center", justifyContent: "center" }}>
+                <Image source={{ uri }} style={{ width: SCREEN_W, height: SCREEN_H }} resizeMode="contain" />
               </View>
             ))}
           </ScrollView>
-          <Pressable onPress={() => setFullscreen(null)} style={{ position: "absolute", top: 48, right: 20, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: 22, padding: 9 }}>
-            <Ionicons name="close" size={24} color="#fff" />
-          </Pressable>
+
+          <View style={{ position: "absolute", top: Math.max(insets.top, 16) + 8, left: 0, right: 0, flexDirection: "row", alignItems: "center", paddingHorizontal: 20 }}>
+            <Text style={{ flex: 1, color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "600" }}>
+              {imgIndex + 1} / {images.length}
+            </Text>
+            <Pressable onPress={() => setFullscreen(null)} hitSlop={10} style={{ backgroundColor: "rgba(255,255,255,0.16)", borderRadius: 22, padding: 9 }}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </Pressable>
+          </View>
         </View>
       </Modal>
       <SiteVisitSheet
@@ -536,19 +591,39 @@ function VideosTab({ videos, drone }: { videos: string[]; drone: string[] }) {
   const all = [...videos.map((u) => ({ u, d: false })), ...drone.map((u) => ({ u, d: true }))];
   if (all.length === 0) return <EmptyNote label="No videos available for this property." />;
   return (
-    <View style={{ gap: 10 }}>
+    <View style={{ gap: 14 }}>
       {all.map((v, i) => (
-        <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(v.u)}>
-          <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name={v.d ? "airplane" : "play"} size={20} color={colors.brand} />
-            </View>
-            <Text style={{ flex: 1, fontWeight: "600", color: colors.ink }}>{v.d ? "Drone flyover" : `Walkthrough ${i + 1}`}</Text>
-            <Ionicons name="open-outline" size={18} color={colors.inkFaint} />
-          </Card>
-        </Pressable>
+        <View key={v.u} style={{ borderRadius: 16, overflow: "hidden", backgroundColor: "#000" }}>
+          <InlineVideo uri={v.u} height={210} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.surface }}>
+            <Ionicons name={v.d ? "airplane" : "play"} size={16} color={colors.brand} />
+            <Text style={{ flex: 1, fontWeight: "600", color: colors.ink, fontSize: 13.5 }}>
+              {v.d ? "Drone flyover" : `Walkthrough ${i + 1}`}
+            </Text>
+          </View>
+        </View>
       ))}
     </View>
+  );
+}
+
+/** Inline player. Keyed by uri by callers so a source change reloads cleanly. */
+function InlineVideo({ uri, height }: { uri: string; height: number }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = false;
+  });
+  return (
+    <VideoView
+      style={{ width: "100%", height }}
+      player={player}
+      nativeControls
+      // fullscreen opens landscape, matching how a walkthrough is shot.
+      // Picture-in-picture is deliberately not enabled — it needs extra native
+      // manifest config, and nothing asked for it.
+      fullscreenOptions={{ enable: true, orientation: "landscape" }}
+      contentFit="contain"
+    />
   );
 }
 
