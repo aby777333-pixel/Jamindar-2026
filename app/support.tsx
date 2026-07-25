@@ -38,7 +38,7 @@ export default function Support() {
               <Text style={{ fontWeight: "600", color: colors.ink, fontSize: 13 }}>Email us</Text>
             </Card>
           </Pressable>
-          <Pressable onPress={() => router.push("/(tabs)/assistant" as Href)} style={{ flex: 1 }}>
+          <Pressable onPress={() => router.navigate("/(tabs)/assistant" as Href)} style={{ flex: 1 }}>
             <Card style={{ alignItems: "center", paddingVertical: 18 }}>
               <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
                 <Ionicons name="sparkles" size={20} color={colors.brand} />

@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./supabase";
+import { liveChannel } from "./realtime";
 
 export type MessageKind = "text" | "image" | "file" | "property" | "system";
 
@@ -124,8 +125,9 @@ export function useRealtimeThread(threadId?: string | null) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!threadId) return;
+    // unique topic — a fixed `thread:<id>` collides on remount / double mount
     const channel = supabase
-      .channel(`thread:${threadId}`)
+      .channel(liveChannel(`thread-${threadId}`))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages", filter: `thread_id=eq.${threadId}` },
@@ -148,8 +150,10 @@ export function useRealtimeInbox(enabled = true) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
+    // Account and Messages both mount this hook, so the topic must be unique
+    // per subscriber — a shared "inbox" topic collides and crashes the app.
     const channel = supabase
-      .channel("inbox")
+      .channel(liveChannel("inbox"))
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
         qc.invalidateQueries({ queryKey: ["threads"] });
         qc.invalidateQueries({ queryKey: ["unread-messages"] });

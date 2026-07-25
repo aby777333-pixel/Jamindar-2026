@@ -205,7 +205,7 @@ export default function PromoterDashboard() {
         </PromoterSection>
 
         {/* assigned projects */}
-        <PromoterSection title="Assigned projects" actionLabel={data.assigned.length ? "See all" : undefined} onAction={() => router.push("/(tabs)/properties" as Href)}>
+        <PromoterSection title="Assigned projects" actionLabel={data.assigned.length ? "See all" : undefined} onAction={() => router.navigate("/(tabs)/properties" as Href)}>
           {data.assigned.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
               {data.assigned.map((p) => (

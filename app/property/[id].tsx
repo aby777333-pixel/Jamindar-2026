@@ -366,11 +366,11 @@ export default function PropertyDetail() {
           {/* alternatives + similar (always available under the tabs) */}
           {property.price ? (
             <View style={{ flexDirection: "row", gap: 10, marginTop: 22 }}>
-              <Pressable onPress={() => router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMax: property.price! }) } })} style={altChip}>
+              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMax: property.price! }) } })} style={altChip}>
                 <Ionicons name="trending-down" size={16} color={colors.success} />
                 <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Cheaper options</Text>
               </Pressable>
-              <Pressable onPress={() => router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMin: property.price! }) } })} style={altChip}>
+              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMin: property.price! }) } })} style={altChip}>
                 <Ionicons name="trending-up" size={16} color={colors.brand} />
                 <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Premium options</Text>
               </Pressable>

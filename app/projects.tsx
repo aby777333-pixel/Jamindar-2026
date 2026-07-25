@@ -87,7 +87,7 @@ export default function Projects() {
   function openProject(p: ProjectRow) {
     // Filtering on project_name only works when the group actually has one.
     if (p.named) {
-      router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ projectName: p.name }) } });
+      router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ projectName: p.name }) } });
     } else if (p.firstId) {
       router.push(`/property/${p.firstId}`);
     }

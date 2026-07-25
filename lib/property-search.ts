@@ -104,7 +104,7 @@ export function parseSearchQuery(text: string): SearchFilters {
 
 /** True if the utterance carries real search filters (not just "open properties"). */
 export function hasSearchFilters(f: SearchFilters): boolean {
-  return !!(f.types || f.city || f.budgetMin || f.budgetMax || f.amenities || f.approvals || f.facing || f.phase || f.featured || f.projectName);
+  return !!(f.types || f.city || f.budgetMin || f.budgetMax || f.amenities || f.approvals || f.facing || f.phase || f.featured || f.projectName || f.loanEligible);
 }
 
 export async function searchProperties(f: SearchFilters): Promise<Property[]> {
@@ -120,6 +120,7 @@ export async function searchProperties(f: SearchFilters): Promise<Property[]> {
   }
   if (f.phase) q = q.eq("project_phase", f.phase);
   if (f.featured) q = q.eq("is_featured", true);
+  if (f.loanEligible) q = q.eq("loan_eligible", true);
   if (f.projectName) q = q.eq("project_name", f.projectName);
   q = q.order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(30);
   const { data } = await q;
@@ -133,6 +134,7 @@ export function describeFilters(f: SearchFilters): string {
   }
   const parts: string[] = [];
   if (f.featured) parts.push("Verified");
+  if (f.loanEligible) parts.push("bank-loan eligible");
   if (f.phase) parts.push(PHASE_LABELS[f.phase].replace(" projects", ""));
   if (f.approvals?.length) parts.push(f.approvals.map((a) => a.toUpperCase()).join("/") + "-approved");
   if (f.facing) parts.push(`${f.facing}-facing`);

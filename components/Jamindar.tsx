@@ -636,7 +636,7 @@ export function JamindarSheet({
                       <Pressable
                         onPress={() => {
                           onClose();
-                          router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters(m.filters!) } });
+                          router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters(m.filters!) } });
                         }}
                         style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.brandSoft }}
                       >

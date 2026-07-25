@@ -55,8 +55,8 @@ export default function Explorer() {
   });
 
   function openList(type?: PropertyType) {
-    if (!type) return router.push("/(tabs)/properties" as Href);
-    router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [type] }) } } as never);
+    if (!type) return router.navigate("/(tabs)/properties" as Href);
+    router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [type] }) } } as never);
   }
 
   const all = data?.all ?? [];

@@ -67,7 +67,7 @@ export default function Home() {
   const roleAction = ROLE_ACTION[role] ?? ROLE_ACTION.buyer;
 
   function browse(filters?: SearchFilters) {
-    router.push(
+    router.navigate(
       filters
         ? { pathname: "/(tabs)/properties", params: { filters: encodeFilters(filters) } }
         : "/(tabs)/properties"
@@ -87,7 +87,7 @@ export default function Home() {
 
   function runSuggestion(s: Suggestion) {
     if (s.action.type === "checklist") Alert.alert("Pre-purchase checklist", checklistText());
-    else if (s.action.type === "visits") router.push("/(tabs)/account");
+    else if (s.action.type === "visits") router.navigate("/(tabs)/account");
     else browse(s.action.filters);
   }
 
@@ -112,7 +112,7 @@ export default function Home() {
 
         {/* hero — Ask Jamindar (AI advisor) */}
         <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
-          <LandHero onPress={() => router.push("/(tabs)/assistant")} />
+          <LandHero onPress={() => router.navigate("/(tabs)/assistant")} />
         </View>
 
         {/* super-admin role preview switcher */}
@@ -138,7 +138,7 @@ export default function Home() {
             icon="sparkles"
             bg={colors.brandSoft}
             fg={colors.brand}
-            onPress={() => router.push("/(tabs)/assistant")}
+            onPress={() => router.navigate("/(tabs)/assistant")}
           />
         </View>
 

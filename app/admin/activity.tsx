@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
+import { liveChannel } from "@/lib/realtime";
 import { useAuth } from "@/lib/store";
 import { colors, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
@@ -95,7 +96,7 @@ export default function AdminActivity() {
   useEffect(() => {
     if (!isAdmin) return;
     const channel = supabase
-      .channel("admin-activity")
+      .channel(liveChannel("admin-activity"))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, () => {
         qc.invalidateQueries({ queryKey: ["admin-activity"] });
       })

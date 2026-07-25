@@ -59,7 +59,7 @@ export default function BuyerDashboard() {
         {/* grid */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           {ITEMS.map((it) => (
-            <Pressable key={it.label} onPress={() => router.push(it.href)} style={{ width: "30.5%", alignItems: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, paddingVertical: 18 }}>
+            <Pressable key={it.label} onPress={() => router.navigate(it.href)} style={{ width: "30.5%", alignItems: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, paddingVertical: 18 }}>
               <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
                 <Ionicons name={it.icon as any} size={22} color={colors.brand} />
               </View>

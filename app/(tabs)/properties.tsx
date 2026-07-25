@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text, View, Pressable, ScrollView, FlatList, Image, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -34,11 +34,26 @@ export default function Properties() {
   const [search, setSearch] = useState("");
   const compareCount = useCompare((s) => s.ids.length);
 
+  // When we arrive with a category already applied (e.g. Types of Lands →
+  // Farm Land), preselect the matching chip so the banner and the chip row
+  // agree instead of showing two competing filters.
+  useEffect(() => {
+    const t = jamindarFilters?.types;
+    setFilter(t && t.length === 1 ? t[0] : "all");
+  }, [params.filters]);
+
   const { data, isLoading } = useQuery({
     queryKey: ["properties", filter, params.filters ?? ""],
     queryFn: async (): Promise<Property[]> => {
-      // If Jamindar passed structured filters, honour them exactly.
-      if (jamindarFilters) return searchProperties(jamindarFilters);
+      // Structured filters from Jamindar / a project phase, refined by the
+      // type chip. Previously the chip was ignored entirely here, so tapping
+      // "Plots" on a project-phase view did nothing.
+      if (jamindarFilters) {
+        return searchProperties({
+          ...jamindarFilters,
+          types: filter !== "all" ? [filter] : jamindarFilters.types,
+        });
+      }
       let q = supabase
         .from("properties")
         .select("*")
@@ -90,7 +105,7 @@ export default function Properties() {
           >
             <Ionicons name="sparkles" size={16} color={colors.brand} />
             <Text style={{ flex: 1, color: colors.brand, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
-              Jamindar: {describeFilters(jamindarFilters)}
+              Showing: {describeFilters(jamindarFilters)}
             </Text>
             <Pressable onPress={() => router.replace("/(tabs)/properties")}>
               <Ionicons name="close-circle" size={18} color={colors.brand} />
@@ -122,11 +137,17 @@ export default function Properties() {
         </View>
       </View>
 
-      {/* filters */}
+      {/* type chips — labelled as refining when a filter is already applied,
+          so it is clear they narrow the active selection rather than compete */}
+      {jamindarFilters ? (
+        <Text style={{ color: colors.inkFaint, fontSize: 11.5, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", paddingHorizontal: 20, marginTop: 12 }}>
+          Refine by type
+        </Text>
+      ) : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={{ marginTop: 14, maxHeight: 44 }}
+        style={{ marginTop: jamindarFilters ? 6 : 14, maxHeight: 44 }}
         contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
       >
         {FILTERS.map((f) => (

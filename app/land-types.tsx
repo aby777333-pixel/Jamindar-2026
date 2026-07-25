@@ -60,7 +60,7 @@ export default function LandTypes() {
   });
 
   function openType(type: PropertyType) {
-    router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [type] }) } });
+    router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [type] }) } });
   }
 
   return (

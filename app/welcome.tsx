@@ -56,9 +56,19 @@ export default function Welcome() {
             />
           </View>
 
-          <Text style={{ letterSpacing: 4, color: colors.inkSoft, marginTop: space.lg, fontSize: T.small.fontSize, fontWeight: "600" }}>
-            N A M A S T E  🙏
-          </Text>
+          {/* The emoji is a sibling, not part of the letter-spaced string:
+              letterSpacing applied across the whole line let 🙏 wrap onto its
+              own row on narrow screens, and the trailing space after the last
+              character pushed the centred text off-axis. */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: space.lg }}>
+            <Text
+              numberOfLines={1}
+              style={{ letterSpacing: 4, color: colors.inkSoft, fontSize: T.small.fontSize, fontWeight: "600" }}
+            >
+              N A M A S T E
+            </Text>
+            <Text style={{ fontSize: T.small.fontSize, marginLeft: 2 }}>🙏</Text>
+          </View>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
