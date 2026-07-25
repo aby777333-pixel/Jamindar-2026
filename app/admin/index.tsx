@@ -122,6 +122,7 @@ export default function AdminConsole() {
           <SectionTitle>Management</SectionTitle>
           <Card style={{ padding: 0, marginBottom: 24 }}>
             {[
+              { icon: "pulse", label: "Live Activity", note: "Every platform event, in real time", href: "/admin/activity" as Href },
               { icon: "business", label: "Property Management", note: "Create, edit, media, availability", href: "/admin/properties" as Href },
               { icon: "calendar", label: "Site Visits", note: "Confirm, reschedule, cancel bookings", href: "/manage-visits" as Href },
               { icon: "chatbubbles", label: "Messages", note: "Conversations, moderation & audit", href: "/messages" as Href },
