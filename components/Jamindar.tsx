@@ -93,9 +93,14 @@ const PROFILE_STEPS: IntakeStep[] = [
 ];
 
 /** Floating Jamindar assistant button + conversational sheet.
- *  Fully usable by touch; voice is additive. Drop it on any screen. */
-export function JamindarFab() {
+ *  Fully usable by touch; voice is additive. Drop it on any screen.
+ *
+ *  `bottomOffset` is the height of whatever already sits at the bottom of the
+ *  host screen (tab bar, action bar). The system navigation inset is added on
+ *  top of it here, so the button can never sit under the navigation bar. */
+export function JamindarFab({ bottomOffset = 24 }: { bottomOffset?: number } = {}) {
   const [open, setOpen] = useState(false);
+  const insets = useSafeAreaInsets();
   return (
     <>
       <Pressable
@@ -106,7 +111,7 @@ export function JamindarFab() {
         style={{
           position: "absolute",
           right: 18,
-          bottom: 90,
+          bottom: Math.max(insets.bottom, 8) + bottomOffset,
           width: 60,
           height: 60,
           borderRadius: 30,

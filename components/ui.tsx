@@ -123,10 +123,27 @@ export function Button({
     variant === "gold" ? ["#E8C766", "#C9A227", "#9C7D1A"] : ["#F0474E", "#E11B22", "#B8151B"];
   const radius = space.sm + 3;
 
+  // The label sits INSIDE the coloured surface, so the surface must carry the
+  // horizontal padding. Without this a caller's paddingHorizontal lands on the
+  // outer Pressable — outside the pill — and the pill hugs the text.
+  const surface = {
+    borderRadius: radius,
+    paddingVertical: space.sm + 2,
+    paddingHorizontal: space.md,
+    minHeight: 52,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  };
+
   const inner = loading ? (
     <ActivityIndicator color={fg} />
   ) : (
-    <Text style={{ color: fg, fontWeight: "700", fontSize: T.body.fontSize, letterSpacing: 0.3 }}>{label}</Text>
+    <Text
+      numberOfLines={1}
+      style={{ color: fg, fontWeight: "700", fontSize: T.body.fontSize, letterSpacing: 0.3, textAlign: "center" }}
+    >
+      {label}
+    </Text>
   );
 
   return (

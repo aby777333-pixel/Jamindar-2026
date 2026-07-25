@@ -19,6 +19,11 @@ type ProjectRow = {
   plots: number;
   minPrice: number | null;
   image: string | null;
+  /** True when the group came from a real project_name. When false the group is
+   *  a single listing whose title stands in for the project, so tapping it must
+   *  open that listing rather than filter on a project_name that is null. */
+  named: boolean;
+  firstId: string | null;
 };
 
 const PHASE_META: Record<ProjectPhase, { label: string; bg: string; fg: string }> = {
@@ -38,12 +43,16 @@ export default function Projects() {
     queryFn: async (): Promise<ProjectRow[]> => {
       const { data } = await supabase
         .from("properties")
-        .select("project_name,project_phase,city,price,images,status")
+        .select("id,title,project_name,project_phase,city,price,images,status")
         .in("status", ["available", "reserved", "sold"]);
       const rows = (data as Partial<Property>[]) ?? [];
       const byName = new Map<string, ProjectRow>();
       for (const p of rows) {
-        const name = (p.project_name ?? "").trim();
+        // Listings may carry no project_name — in this catalogue the title is
+        // the project ("Jamin Lake View Villa Plots"), so fall back to it
+        // rather than dropping the row and showing an empty page.
+        const named = !!(p.project_name ?? "").trim();
+        const name = named ? (p.project_name as string).trim() : (p.title ?? "").trim();
         if (!name) continue;
         const cur = byName.get(name);
         const price = typeof p.price === "number" ? p.price : null;
@@ -56,6 +65,8 @@ export default function Projects() {
             plots: 1,
             minPrice: price,
             image: img,
+            named,
+            firstId: p.id ?? null,
           });
         } else {
           cur.plots += 1;
@@ -73,8 +84,13 @@ export default function Projects() {
     [data, phase]
   );
 
-  function openProject(name: string) {
-    router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ projectName: name }) } });
+  function openProject(p: ProjectRow) {
+    // Filtering on project_name only works when the group actually has one.
+    if (p.named) {
+      router.push({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ projectName: p.name }) } });
+    } else if (p.firstId) {
+      router.push(`/property/${p.firstId}`);
+    }
   }
 
   return (
@@ -126,7 +142,7 @@ export default function Projects() {
           renderItem={({ item: p }) => {
             const meta = PHASE_META[p.phase] ?? PHASE_META.current;
             return (
-              <Pressable onPress={() => openProject(p.name)}>
+              <Pressable onPress={() => openProject(p)}>
                 <Card style={{ padding: 0, overflow: "hidden", flexDirection: "row", height: 104 }}>
                   <View style={{ width: 104, height: "100%", backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
                     {p.image ? (

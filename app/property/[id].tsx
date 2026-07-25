@@ -454,7 +454,8 @@ export default function PropertyDetail() {
         propertyId={String(id)}
         context={`Hi, I'm interested in ${property.title} on Jamin Properties.`}
       />
-      <JamindarFab />
+      {/* clears the persistent action bar at the foot of this screen */}
+      <JamindarFab bottomOffset={86} />
     </SafeAreaView>
   );
 }

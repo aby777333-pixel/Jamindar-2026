@@ -40,7 +40,8 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-      <JamindarFab />
+      {/* clears the floating tab bar (≈71pt tall + its 13pt bottom margin) */}
+      <JamindarFab bottomOffset={92} />
     </View>
   );
 }

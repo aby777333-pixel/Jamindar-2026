@@ -12,6 +12,22 @@ const cors = {
 const SARVAM = "https://api.sarvam.ai";
 const CHAT_MODEL = "sarvam-30b";
 
+// The picked language chip must actually steer the reply, so we name the
+// language for the model rather than relying on it to infer one.
+const LANG_NAMES: Record<string, string> = {
+  "en-IN": "English",
+  "hi-IN": "Hindi",
+  "ta-IN": "Tamil",
+  "te-IN": "Telugu",
+  "kn-IN": "Kannada",
+  "ml-IN": "Malayalam",
+  "mr-IN": "Marathi",
+  "gu-IN": "Gujarati",
+  "bn-IN": "Bengali",
+  "pa-IN": "Punjabi",
+  "od-IN": "Odia",
+};
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
@@ -25,7 +41,7 @@ const SYSTEM_PROMPT = `You are Jamindar, the multilingual AI property advisor of
 STYLE (important for voice): Reply in short, natural spoken sentences. NO markdown, headings, asterisks or bullet characters. Keep replies brief — usually under 90 words — unless the user explicitly asks for full detail. Greet new users with Namaste.
 
 CORE RULES:
-- The system default language is English. Reply in the SAME language the user used (English, Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi or mixed).
+- Always reply in the ACTIVE LANGUAGE given below. That is the language the user picked in the app, and it takes priority over the language they happen to type in. If no active language is given, reply in the same language the user used.
 - Adapt follow-up questions to earlier answers; never repeat questions already answered.
 - Explain legal & financial terms in plain, simple language.
 
@@ -105,7 +121,16 @@ Deno.serve(async (req) => {
     if (action === "chat") {
       const memoryNote = payload.memory ? `\n\nWHAT YOU KNOW ABOUT THIS USER (do not re-ask): ${JSON.stringify(payload.memory).slice(0, 800)}` : "";
       const factsNote = payload.propertyContext ? `\n\nADMIN-PROVIDED PROPERTY FACTS you may use: ${String(payload.propertyContext).slice(0, 1200)}` : "";
-      const messages = [{ role: "system", content: SYSTEM_PROMPT + memoryNote + factsNote }, ...(payload.messages ?? [])];
+      // The user's chosen language wins over whatever language they happened to
+      // type in — otherwise picking "தமிழ்" and typing "Hi" returns English.
+      const chosen = String(payload.language ?? "en-IN");
+      const chosenName = LANG_NAMES[chosen] ?? "English";
+      const langNote =
+        `\n\nACTIVE LANGUAGE: The user has selected ${chosenName} (${chosen}). Write EVERY reply in ${chosenName}, ` +
+        `in that language's own script, even when the user writes to you in English or another language. ` +
+        `Keep property names, place names and legal document names in their usual form. ` +
+        `Only switch language if the user explicitly asks you to.`;
+      const messages = [{ role: "system", content: SYSTEM_PROMPT + langNote + memoryNote + factsNote }, ...(payload.messages ?? [])];
       const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: 1200 }) });
       const d = await r.json();
       if (!r.ok) return json({ error: d?.error?.message ?? "chat failed", raw: d }, 502);
@@ -118,10 +143,13 @@ Deno.serve(async (req) => {
         try {
           await admin.from("voice_logs").insert({ user_id: userId, session_id: payload.conversationId ?? null, original_text: userText || null, detected_language: lang, ai_response: reply, intent: payload.intent ?? null });
           if (payload.conversationId) {
+            // Detect the real source rather than assuming the chip's language:
+            // a user may type English while Tamil is selected, and forcing
+            // source=ta-IN on English text produces nonsense translations.
             let userEn = userText, replyEn = reply;
             if (lang && !lang.startsWith("en")) {
-              userEn = userText ? await translateText(userText, "en-IN", lang) : "";
-              replyEn = await translateText(reply, "en-IN", lang);
+              userEn = userText ? await translateText(userText, "en-IN", "auto") : "";
+              replyEn = await translateText(reply, "en-IN", "auto");
             }
             const rows: any[] = [];
             if (userText) rows.push({ conversation_id: payload.conversationId, user_id: userId, role: "user", content: userText, content_en: userEn, language: lang, intent: payload.intent ?? null });
