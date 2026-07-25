@@ -23,6 +23,10 @@ type ChannelDef = {
   tint: string;
   fg: string;
   available: (c: ResolvedContact) => boolean;
+  /** Hidden entirely (rather than greyed) when this contact can't use it. */
+  show?: (c: ResolvedContact) => boolean;
+  /** Why it's unavailable, when that needs explaining. */
+  unavailable?: (c: ResolvedContact) => string;
 };
 
 const CHANNELS: ChannelDef[] = [
@@ -61,6 +65,9 @@ const CHANNELS: ChannelDef[] = [
     tint: "#E8F1FE",
     fg: "#2B6FE1",
     available: (c) => !!c.mobile,
+    // The Jamin desk answers calls, WhatsApp and email — not SMS. Hide it there
+    // so texts don't disappear into a number nobody watches.
+    show: (c) => c.kind !== "desk",
   },
   {
     key: "in_app_chat",
@@ -70,6 +77,8 @@ const CHANNELS: ChannelDef[] = [
     tint: "#ECEEFB",
     fg: "#4B57C9",
     available: (c) => !!c.id,
+    unavailable: (c) =>
+      c.kind === "desk" ? "Use WhatsApp or email to reach the desk" : "Not available for this contact",
   },
   {
     key: "email",
@@ -256,7 +265,7 @@ export function ContactHubSheet({
 
               {/* channels */}
               <View style={{ marginTop: 16, gap: 10 }}>
-                {CHANNELS.map((def) => {
+                {CHANNELS.filter((def) => def.show?.(contact) ?? true).map((def) => {
                   const on = def.available(contact);
                   const working = busy === def.key;
                   return (
@@ -292,7 +301,7 @@ export function ContactHubSheet({
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14.5 }}>{def.label}</Text>
                         <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
-                          {on ? def.hint : "Not available for this contact"}
+                          {on ? def.hint : def.unavailable?.(contact) ?? "Not available for this contact"}
                         </Text>
                       </View>
                       {working ? (

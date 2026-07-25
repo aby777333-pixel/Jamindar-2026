@@ -67,6 +67,7 @@ export default function RootLayout() {
             <Stack.Screen name="property/[id]" options={{ presentation: "card" }} />
             <Stack.Screen name="admin/index" />
             <Stack.Screen name="admin/activity" />
+            <Stack.Screen name="admin/desk-contact" />
             <Stack.Screen name="admin/kyc" />
             <Stack.Screen name="admin/partners" />
             <Stack.Screen name="admin/properties" />
