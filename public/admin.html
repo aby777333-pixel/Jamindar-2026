@@ -269,7 +269,7 @@ async function loadProps(){
 
 const TYPES=["residential_plot","villa_plot","apartment","house","farm_land","commercial_land","industrial_land"];
 const STATUSES=["draft","available","reserved","sold","archived"];
-const PHASES=["ongoing","current","future"];
+const PHASES=["completed","current","ongoing","future"];
 const APPROVALS=["dtcp","rera","cmda","panchayat","clear_title"];
 let CUR=null; // current property being edited
 
@@ -286,6 +286,8 @@ function chips(label,key,opts){return `<label>${label}</label><div class="chips"
 
 function renderEditor(){
   const legal=CUR.legal||{}, inv=CUR.investment||{}, seo=CUR.seo||{};
+  const plotLines=(CUR.plot_layout||[]).map(r=>[r.plot??r.plot_no??"",r.size_sqft??"",r.facing??"",r.status??"available"].join("|")).join("\n");
+  const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${CUR.id?"Edit property":"New property"}</h3>
      ${CUR.id?`<button class="btn ink sm" onclick="scrollMedia()">Photos & docs</button>`:""}
@@ -333,6 +335,14 @@ function renderEditor(){
       <div class="grid2">${fld("RERA number","rera_number")}${fld("Title status","title_status","Clear")}
       <div><label>Ownership</label><input data-legal="ownership" value="${esc(legal.ownership||"")}"/></div>
       <div><label>Encumbrance</label><input data-legal="encumbrance" value="${esc(legal.encumbrance||"")}"/></div></div></div>
+    <div class="sec"><h4>Media links & loan</h4><div class="grid2">
+      ${fld("Brochure URL","brochure_url")}${fld("Master plan image URL","master_plan_url")}
+      ${fld("360° tour URL","virtual_tour_url")}${fld("Loan details","loan_details","80-90% bank loan arranged")}
+      ${fld("Encumbrance status","encumbrance_status","Nil")}</div>
+      <div class="switch">Loan eligible <div class="tgl ${CUR.loan_eligible?'on':''}" data-tgl="loan_eligible"><b></b></div></div></div>
+    <div class="sec"><h4>Plot schedule & nearby places</h4>
+      <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea></div>
+      <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div></div>
     <div class="sec"><h4>Investment</h4><div class="grid3">
       <div><label>Est. ROI</label><input data-inv="roi" value="${esc(inv.roi||"")}"/></div>
       <div><label>Rental yield</label><input data-inv="rental_yield" value="${esc(inv.rental_yield||"")}"/></div>
@@ -387,6 +397,10 @@ window.saveProperty = async ()=>{
     project_name:g("project_name").trim()||null, location_text:g("location_text").trim()||null, total_project_value:num("total_project_value"),
     referral_direct_per_sqft:num("referral_direct_per_sqft"), referral_indirect_per_sqft:num("referral_indirect_per_sqft"), referral_indirect_levels:num("referral_indirect_levels"),
     nearby_defaults:(()=>{const o={};document.querySelectorAll('#drawer [data-near]').forEach(e=>o[e.dataset.near]=e.value.trim());return o;})(),
+    brochure_url:g("brochure_url").trim()||null, master_plan_url:g("master_plan_url").trim()||null, virtual_tour_url:g("virtual_tour_url").trim()||null,
+    loan_eligible:$(`#drawer [data-tgl="loan_eligible"]`).classList.contains("on"), loan_details:g("loan_details").trim()||null, encumbrance_status:g("encumbrance_status").trim()||null,
+    plot_layout:g("_plot_layout").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[plot,size,facing,status]=l.split("|").map(x=>x.trim());const r={plot,status:status||"available"};if(size)r.size_sqft=Number(size)||null;if(facing)r.facing=facing;return r;}).filter(r=>r.plot),
+    nearby_places:g("_nearby").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[name,distance,duration,category]=l.split("|").map(x=>x.trim());const r={name};if(distance)r.distance=distance;if(duration)r.duration=duration;if(category)r.category=category;return r;}).filter(r=>r.name),
   };
   if(!payload.title){ toast("Title is required"); return; }
   try{

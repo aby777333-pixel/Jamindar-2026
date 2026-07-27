@@ -14,6 +14,7 @@ import { topApproval } from "@/components/land";
 import { PartnerContactCard, ContactHubSheet } from "@/components/ContactHub";
 import { BecomePromoterBanner } from "@/components/promoter-cta";
 import { SiteVisitSheet } from "@/components/SiteVisitSheet";
+import { CompareSheet } from "@/components/CompareSheet";
 import { ZoomableImageViewer } from "@/components/ImageViewer";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
@@ -60,6 +61,7 @@ export default function PropertyDetail() {
   const [fullscreen, setFullscreen] = useState<number | null>(null);
   const [visitOpen, setVisitOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [videoIndex, setVideoIndex] = useState(0);
   // Live dimensions, not a one-off Dimensions.get(): the fullscreen viewer
   // unlocks rotation, so width/height must follow the device.
@@ -475,25 +477,10 @@ export default function PropertyDetail() {
         <QuickAction icon="document-text" label="Brochure" onPress={onBrochure} />
         <QuickAction icon="share-social" label="Share" onPress={onShare} />
         <QuickAction icon="call" label="Contact" onPress={onContact} />
+        {/* Opens the project-picker sheet (owner request 27-07): tick projects,
+            then "Compare now" — replaces the old silent toggle. */}
         <Pressable
-          onPress={() => {
-            if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; }
-            const adding = !compare.has(id);
-            compare.toggle(id);
-            if (adding) {
-              // Make the button visibly DO something: confirm + offer the
-              // side-by-side screen (owner report: "make compare work").
-              const n = useCompare.getState().ids.length;
-              Alert.alert(
-                "Added to Compare",
-                n === 1 ? "Pick 1-2 more properties, then compare them side by side." : `${n} of 3 selected.`,
-                [
-                  { text: "Keep browsing", style: "cancel" },
-                  { text: "Compare now", onPress: () => router.push("/tools/compare") },
-                ]
-              );
-            }
-          }}
+          onPress={() => setCompareOpen(true)}
           style={{ alignItems: "center", justifyContent: "center", width: 48 }}
         >
           <Ionicons name={compare.has(id) ? "checkmark-circle" : "git-compare"} size={22} color={colors.brand} />
@@ -553,6 +540,7 @@ export default function PropertyDetail() {
         propertyId={String(id)}
         context={`Hi, I'm interested in ${property.title} on Jamin Properties.`}
       />
+      <CompareSheet visible={compareOpen} onClose={() => setCompareOpen(false)} currentId={String(id)} />
       {/* clears the persistent action bar at the foot of this screen */}
       <JamindarFab bottomOffset={86} />
     </SafeAreaView>
