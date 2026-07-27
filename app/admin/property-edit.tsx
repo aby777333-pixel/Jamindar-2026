@@ -40,7 +40,7 @@ export default function PropertyEdit() {
     rera_number: "", street_view_url: "", google_earth_url: "",
     legal_ownership: "", legal_encumbrance: "", legal_notes: "",
     inv_roi: "", inv_rental_yield: "", inv_appreciation: "",
-    documents: "", nearby_places: "",
+    documents: "", nearby_places: "", plot_layout: "",
     // India-specific
     listing_type: "sale", taluk: "", village: "", survey_number: "", patta_khata: "",
     road_frontage: "", plot_length: "", plot_breadth: "", plot_dimensions: "",
@@ -73,7 +73,10 @@ export default function PropertyEdit() {
           legal_ownership: p.legal?.ownership ?? "", legal_encumbrance: p.legal?.encumbrance ?? "", legal_notes: p.legal?.notes ?? "",
           inv_roi: p.investment?.roi?.toString() ?? "", inv_rental_yield: p.investment?.rental_yield?.toString() ?? "", inv_appreciation: p.investment?.appreciation?.toString() ?? "",
           documents: (p.documents ?? []).map((d) => `${d.label}|${d.url}${d.size ? "|" + d.size : ""}`).join("\n"),
-          nearby_places: (p.nearby_places ?? []).map((n) => `${n.name}|${n.distance ?? ""}${n.duration ? "|" + n.duration : ""}`).join("\n"),
+          // 4 fixed slots (name|distance|time|category) so saving never drops
+          // the category the seed data carries.
+          nearby_places: (p.nearby_places ?? []).map((n) => [n.name, n.distance ?? "", n.duration ?? "", n.category ?? ""].join("|").replace(/\|+$/, "")).join("\n"),
+          plot_layout: ((p.plot_layout ?? []) as any[]).map((r) => [r.plot ?? r.plot_no ?? "", r.size_sqft ?? "", r.facing ?? "", r.status ?? "available"].join("|")).join("\n"),
           listing_type: (p as any).listing_type ?? "sale", taluk: (p as any).taluk ?? "", village: (p as any).village ?? "",
           survey_number: (p as any).survey_number ?? "", patta_khata: (p as any).patta_khata ?? "", road_frontage: (p as any).road_frontage ?? "",
           plot_length: (p as any).plot_length?.toString() ?? "", plot_breadth: (p as any).plot_breadth?.toString() ?? "", plot_dimensions: (p as any).plot_dimensions ?? "",
@@ -102,7 +105,11 @@ export default function PropertyEdit() {
       if (f.inv_rental_yield.trim()) investment.rental_yield = f.inv_rental_yield.trim();
       if (f.inv_appreciation.trim()) investment.appreciation = f.inv_appreciation.trim();
       const documents = linesToArr(f.documents).map((l) => { const [label, url, size] = l.split("|").map((x) => x.trim()); return { label, url, ...(size ? { size } : {}) }; }).filter((d) => d.url);
-      const nearby_places = linesToArr(f.nearby_places).map((l) => { const [name, distance, duration] = l.split("|").map((x) => x.trim()); return { name, ...(distance ? { distance } : {}), ...(duration ? { duration } : {}) }; }).filter((n) => n.name);
+      const nearby_places = linesToArr(f.nearby_places).map((l) => { const [name, distance, duration, category] = l.split("|").map((x) => x.trim()); return { name, ...(distance ? { distance } : {}), ...(duration ? { duration } : {}), ...(category ? { category } : {}) }; }).filter((n) => n.name);
+      const plot_layout = linesToArr(f.plot_layout).map((l) => {
+        const [plot, size, facing, status] = l.split("|").map((x) => x.trim());
+        return { plot, ...(size ? { size_sqft: Number(size) || null } : {}), ...(facing ? { facing } : {}), status: status || "available" };
+      }).filter((r) => r.plot);
 
       const payload: Record<string, unknown> = {
         title: f.title.trim(), property_type: f.property_type, status: f.status, project_phase: f.project_phase,
@@ -115,7 +122,7 @@ export default function PropertyEdit() {
         brochure_url: f.brochure_url.trim() || null, virtual_tour_url: f.virtual_tour_url.trim() || null, master_plan_url: f.master_plan_url.trim() || null,
         amenities: f.amenities.split(",").map((a) => a.trim()).filter(Boolean), approvals: f.approvals,
         rera_number: f.rera_number.trim() || null, street_view_url: f.street_view_url.trim() || null, google_earth_url: f.google_earth_url.trim() || null,
-        legal, investment, documents, nearby_places,
+        legal, investment, documents, nearby_places, plot_layout,
         listing_type: f.listing_type, taluk: f.taluk.trim() || null, village: f.village.trim() || null,
         survey_number: f.survey_number.trim() || null, patta_khata: f.patta_khata.trim() || null, road_frontage: f.road_frontage.trim() || null,
         plot_length: numOrNull(f.plot_length), plot_breadth: numOrNull(f.plot_breadth), plot_dimensions: f.plot_dimensions.trim() || null,
@@ -291,7 +298,8 @@ export default function PropertyEdit() {
 
         <Sec title="Documents & nearby (one per line)">
           <Field label="Documents  (label|url|size)" value={f.documents} onChangeText={set("documents")} multiline autoCapitalize="none" hint="e.g. Layout approval|https://…|4.5 MB" />
-          <Field label="Nearby places  (name|distance|time)" value={f.nearby_places} onChangeText={set("nearby_places")} multiline hint="e.g. City Hospital|2.4 km|8 min" />
+          <Field label="Nearby places  (name|distance|time|category)" value={f.nearby_places} onChangeText={set("nearby_places")} multiline hint="e.g. City Hospital|2.4 km|8 min|Healthcare" />
+          <Field label="Plot schedule  (plot|sqft|facing|status)" value={f.plot_layout} onChangeText={set("plot_layout")} multiline hint="e.g. 1|2582|North|available — status: available / reserved / sold" />
         </Sec>
 
         <Button label={editing ? "Save changes" : "Create property"} onPress={save} loading={saving} style={{ marginTop: 6 }} />

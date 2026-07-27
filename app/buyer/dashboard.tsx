@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/lib/store";
+import { BecomePromoterBanner, InviteFriendsPrompt } from "@/components/promoter-cta";
 import { colors, space, type as T } from "@/lib/theme";
 import { initials } from "@/lib/format";
 import { KYC_STATUS_META } from "@/lib/types";
@@ -56,6 +57,11 @@ export default function BuyerDashboard() {
           ) : null}
         </View>
 
+        {/* upgrade to promoter — buyers only */}
+        <View style={{ marginBottom: space.md }}>
+          <BecomePromoterBanner />
+        </View>
+
         {/* grid */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           {ITEMS.map((it) => (
@@ -66,6 +72,11 @@ export default function BuyerDashboard() {
               <Text style={{ fontSize: 12, fontWeight: "500", color: colors.ink }} numberOfLines={1}>{it.label}</Text>
             </Pressable>
           ))}
+        </View>
+
+        {/* invite friends & family */}
+        <View style={{ marginTop: space.md }}>
+          <InviteFriendsPrompt />
         </View>
       </ScrollView>
     </SafeAreaView>

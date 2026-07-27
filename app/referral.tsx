@@ -1,13 +1,12 @@
-import { useState } from "react";
-import { Text, View, ScrollView, Pressable, Image, Alert, ActivityIndicator } from "react-native";
+import { Text, View, ScrollView, Pressable, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { fetchReferralStats, requestPartner, shareReferral, qrUrl, referralLink, type ShareChannel } from "@/lib/referral";
+import { fetchReferralStats, shareReferral, qrUrl, referralLink, type ShareChannel } from "@/lib/referral";
 
 const CHANNELS: { key: ShareChannel; label: string; icon: string; color: string }[] = [
   { key: "whatsapp", label: "WhatsApp", icon: "logo-whatsapp", color: "#25D366" },
@@ -31,8 +30,7 @@ const STATS: { key: keyof Awaited<ReturnType<typeof fetchReferralStats>>; label:
 
 export default function ReferralCentre() {
   const router = useRouter();
-  const { profile, refreshProfile } = useAuth();
-  const [busy, setBusy] = useState(false);
+  const { profile } = useAuth();
   const code = profile?.referral_code ?? "";
 
   const { data: stats } = useQuery({ queryKey: ["referral-stats", profile?.id], enabled: !!profile?.id, queryFn: fetchReferralStats });
@@ -41,19 +39,6 @@ export default function ReferralCentre() {
     if (!code) return;
     const note = await shareReferral(ch, code);
     if (note) Alert.alert("Done", note);
-  }
-
-  async function onBecomePartner() {
-    setBusy(true);
-    try {
-      await requestPartner();
-      await refreshProfile();
-      Alert.alert("Request submitted", "Our team will review your partner verification shortly.");
-    } catch (e: any) {
-      Alert.alert("Couldn't submit", e?.message ?? "Please try again.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   const ps = profile?.partner_status ?? "none";
@@ -136,9 +121,10 @@ export default function ReferralCentre() {
               <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 8, lineHeight: 20 }}>
                 {ps === "rejected" ? "Your previous request wasn't approved. You can apply again." : "Refer, earn rewards, and unlock partner tools. Get verified to become an official Jamin Partner."}
               </Text>
-              <Pressable onPress={onBecomePartner} disabled={busy} style={{ marginTop: 14, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.gold, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 14 }}>
-                {busy ? <ActivityIndicator color={colors.navy} /> : <Ionicons name="shield-checkmark" size={16} color={colors.navy} />}
-                <Text style={{ color: colors.navy, fontWeight: "700", fontSize: 13 }}>Become a Verified Partner</Text>
+              {/* Full premium pitch + the same request_partner application */}
+              <Pressable onPress={() => router.push("/become-promoter" as Href)} style={{ marginTop: 14, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.gold, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 14 }}>
+                <Ionicons name="shield-checkmark" size={16} color={colors.navy} />
+                <Text style={{ color: colors.navy, fontWeight: "700", fontSize: 13 }}>Become a Verified Promoter</Text>
               </Pressable>
             </>
           )}

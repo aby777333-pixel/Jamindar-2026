@@ -4,6 +4,7 @@ import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import { Badge } from "@/components/premium";
+import { BecomePromoterBanner } from "@/components/promoter-cta";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useUnreadMessages, useRealtimeInbox } from "@/lib/messaging";
 import { colors, space } from "@/lib/theme";
@@ -120,6 +121,11 @@ export default function Account() {
         </Card>
 
         {/* Role preview moved to the Admin console — testing tool, not live UI. */}
+
+        {/* upgrade to promoter — buyers only */}
+        <View style={{ marginBottom: space.md }}>
+          <BecomePromoterBanner />
+        </View>
 
         <Card style={{ padding: 0 }}>
           {rows.map((r, i) => (

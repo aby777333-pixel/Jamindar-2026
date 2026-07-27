@@ -12,6 +12,7 @@ import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
 import { topApproval } from "@/components/land";
 import { PartnerContactCard, ContactHubSheet } from "@/components/ContactHub";
+import { BecomePromoterBanner } from "@/components/promoter-cta";
 import { SiteVisitSheet } from "@/components/SiteVisitSheet";
 import { ZoomableImageViewer } from "@/components/ImageViewer";
 import { JamindarFab } from "@/components/Jamindar";
@@ -461,6 +462,11 @@ export default function PropertyDetail() {
             propertyId={String(id)}
             context={`Hi, I'm interested in ${property.title} (${formatINR(property.price)}) on Jamin Properties.`}
           />
+
+          {/* buyers can upgrade & earn by sharing listings like this one */}
+          <View style={{ marginTop: 14 }}>
+            <BecomePromoterBanner compact />
+          </View>
         </View>
       </ScrollView>
 
