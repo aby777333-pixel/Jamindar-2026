@@ -1,0 +1,6 @@
+# Netlify routing for merry-begonia-4c3cd1 (Jamin Properties web presence).
+# /welcome carries the app's share & referral links (?p=<property>, ?ref=<code>).
+/welcome    /welcome.html   200
+/admin      /admin.html     200
+# Everything else falls back to the Expo web export shell.
+/*          /index.html     200

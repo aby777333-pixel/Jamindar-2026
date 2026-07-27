@@ -107,6 +107,7 @@ export function Button({
   loading,
   disabled,
   style,
+  compact,
 }: {
   label: string;
   onPress?: () => void;
@@ -114,6 +115,9 @@ export function Button({
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  /** Tight rows (e.g. the property action bar): slimmer side padding so the
+   *  label never truncates when the button shares a row with icons. */
+  compact?: boolean;
 }) {
   const bg = variant === "gold" ? colors.gold : colors.brand;
   const fg = variant === "ghost" || variant === "outline" ? colors.brand : "#fff";
@@ -129,7 +133,7 @@ export function Button({
   const surface = {
     borderRadius: radius,
     paddingVertical: space.sm + 2,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: compact ? space.sm : space.lg,
     minHeight: 52,
     alignItems: "center" as const,
     justifyContent: "center" as const,
@@ -140,6 +144,8 @@ export function Button({
   ) : (
     <Text
       numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.75}
       style={{ color: fg, fontWeight: "700", fontSize: T.body.fontSize, letterSpacing: 0.3, textAlign: "center" }}
     >
       {label}

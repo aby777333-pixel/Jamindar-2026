@@ -232,28 +232,45 @@ export function LandHero({
         <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: T.small.fontSize, marginTop: 4, lineHeight: 18, maxWidth: 210 }}>
           {subtitle}
         </Text>
+        {/* Full-width button with the mic on a bright chip — reads as the one
+            obvious tap target of the card (bug report: CTA lacked prominence). */}
         <Pressable
           onPress={onPress}
           style={({ pressed }) => ({
-            alignSelf: "flex-start",
+            alignSelf: "stretch",
             marginTop: space.md,
             flexDirection: "row",
             alignItems: "center",
-            gap: 7,
+            justifyContent: "center",
+            gap: 10,
             backgroundColor: colors.brand,
-            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.25)",
+            borderRadius: 16,
             paddingHorizontal: 16,
-            paddingVertical: 11,
+            paddingVertical: 13,
             shadowColor: colors.brand,
-            shadowOpacity: pressed ? 0 : 0.5,
+            shadowOpacity: pressed ? 0 : 0.55,
             shadowRadius: 14,
             shadowOffset: { width: 0, height: 8 },
-            elevation: pressed ? 1 : 6,
+            elevation: pressed ? 1 : 8,
             transform: [{ translateY: pressed ? 1 : 0 }],
           })}
         >
-          <Ionicons name={ctaIcon} size={16} color="#fff" />
-          <Text style={{ color: "#fff", fontWeight: "500", fontSize: T.small.fontSize + 1 }}>{cta}</Text>
+          <View
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: "rgba(255,255,255,0.22)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name={ctaIcon} size={17} color="#fff" />
+          </View>
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.body.fontSize, letterSpacing: 0.2 }}>{cta}</Text>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
         </Pressable>
       </LinearGradient>
     </View>

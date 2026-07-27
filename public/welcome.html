@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jamin Properties — Signature for Fortune</title>
+<meta name="description" content="Verified plots, farm land, villas & homes across Tamil Nadu. Meet Jamindar, your multilingual AI property advisor." />
+<meta property="og:title" content="Jamin Properties" />
+<meta property="og:description" content="Verified plots & land with clear titles. Open this link to view the property and connect with the Jamin desk." />
+<meta property="og:image" content="https://merry-begonia-4c3cd1.netlify.app/jamindar.jpg" />
+<link rel="icon" type="image/jpeg" href="/jamindar.jpg" />
+<style>
+  :root {
+    --navy: #151B2E; --navy2: #212B47; --ink: #1C2130; --ink-soft: #4A5065;
+    --faint: #8A90A5; --gold: #C9A227; --gold-soft: #F7EFD8; --red: #E11B22;
+    --red-deep: #B8151B; --surface: #FFFFFF; --bg: #F4F5F8; --border: #E6E8EF;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  .hero { background: linear-gradient(135deg, var(--navy2), var(--navy) 55%, #0E1322); color: #fff; text-align: center; padding: 34px 20px 78px; position: relative; overflow: hidden; }
+  .hero::after { content: ""; position: absolute; right: -70px; top: -80px; width: 220px; height: 220px; border-radius: 50%; background: rgba(224,164,35,.16); }
+  .hero img.mascot { width: 132px; height: 132px; object-fit: contain; border-radius: 50%; background: #fff; border: 3px solid rgba(224,164,35,.55); box-shadow: 0 12px 34px rgba(0,0,0,.35); }
+  .kicker { display: inline-block; margin-top: 14px; font-size: 12px; letter-spacing: 2.4px; color: var(--gold); font-weight: 600; text-transform: uppercase; }
+  .hero h1 { margin-top: 6px; font-size: 26px; font-weight: 800; letter-spacing: -.4px; }
+  .hero h1 .g { color: var(--gold); }
+  .hero p.sub { margin: 8px auto 0; max-width: 420px; font-size: 14px; line-height: 1.55; color: rgba(255,255,255,.75); }
+  .wrap { max-width: 560px; margin: -54px auto 0; padding: 0 16px 48px; position: relative; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 14px 40px rgba(21,27,46,.10); overflow: hidden; margin-bottom: 16px; }
+  .card .pad { padding: 20px; }
+  .photo { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #E9EBF2; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--gold); background: var(--gold-soft); border-radius: 999px; padding: 4px 10px; }
+  h2.title { font-size: 21px; font-weight: 800; letter-spacing: -.3px; margin-top: 8px; }
+  .price { font-size: 19px; font-weight: 800; color: var(--red); margin-top: 4px; }
+  .loc { color: var(--ink-soft); font-size: 14px; margin-top: 6px; line-height: 1.45; }
+  .hl { margin-top: 12px; }
+  .hl li { list-style: none; display: flex; gap: 8px; align-items: flex-start; color: var(--ink-soft); font-size: 14px; line-height: 1.5; margin-top: 6px; }
+  .hl li::before { content: "✦"; color: var(--gold); font-size: 12px; margin-top: 2px; }
+  .desc { color: var(--ink-soft); font-size: 14px; line-height: 1.6; margin-top: 12px; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border: 0; border-radius: 14px; padding: 15px 18px; font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none; margin-top: 10px; transition: transform .08s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn.red { background: linear-gradient(180deg, #F0474E, var(--red), var(--red-deep)); color: #fff; box-shadow: 0 8px 22px rgba(225,27,34,.35); }
+  .btn.dark { background: var(--navy); color: #fff; }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1.5px solid var(--border); }
+  .btn.wa { background: #1FAF57; color: #fff; }
+  .note { text-align: center; color: var(--faint); font-size: 12.5px; margin-top: 12px; line-height: 1.5; }
+  .invite-code { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--gold-soft); border: 1.5px dashed var(--gold); border-radius: 14px; padding: 14px 16px; margin-top: 14px; }
+  .invite-code b { font-size: 20px; letter-spacing: 1.5px; color: #8a6d14; }
+  .copy { border: 0; background: var(--gold); color: #fff; font-weight: 700; border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  .steps li { list-style: none; display: flex; gap: 12px; margin-top: 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+  .steps .n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: var(--gold); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .footer { text-align: center; color: var(--faint); font-size: 12px; padding: 8px 20px 34px; letter-spacing: .4px; }
+  .footer b { color: var(--ink-soft); }
+  .hidden { display: none; }
+  .skeleton { padding: 26px 20px; text-align: center; color: var(--faint); font-size: 14px; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <img class="mascot" src="/jamindar.jpg" alt="Jamindar — your AI property advisor" />
+    <div class="kicker">Namaste 🙏 · Jamin Properties</div>
+    <h1 id="hero-title">Welcome to <span class="g">Jamin</span> Properties</h1>
+    <p class="sub" id="hero-sub">Verified plots, farm land, villas &amp; homes — with Jamindar, your multilingual AI advisor, by your side.</p>
+  </div>
+
+  <div class="wrap">
+    <!-- property card (?p=) -->
+    <div class="card hidden" id="property-card">
+      <img class="photo hidden" id="prop-photo" alt="Property photo" />
+      <div class="pad">
+        <span class="pill" id="prop-pill">Verified Listing</span>
+        <h2 class="title" id="prop-title"></h2>
+        <div class="price" id="prop-price"></div>
+        <div class="loc" id="prop-loc"></div>
+        <ul class="hl" id="prop-hl"></ul>
+        <p class="desc hidden" id="prop-desc"></p>
+        <a class="btn red" id="open-app" href="#">📱 Open in the Jamin app</a>
+        <a class="btn wa" id="wa-btn" href="#">💬 WhatsApp the Jamin Desk</a>
+        <a class="btn ghost" href="tel:+919384818895">📞 Call +91 93848 18895</a>
+        <p class="note">Don't have the app yet? Reply on WhatsApp and our desk will send you the download link right away.</p>
+      </div>
+    </div>
+
+    <!-- referral invite card (?ref=) -->
+    <div class="card hidden" id="invite-card">
+      <div class="pad">
+        <span class="pill">Personal Invitation</span>
+        <h2 class="title">You've been invited to Jamin Properties</h2>
+        <p class="desc">Join free and discover verified plots &amp; land with clear titles — guided in your own language by Jamindar, our AI property advisor.</p>
+        <div class="invite-code"><div><div style="font-size:11px;color:#8a6d14;font-weight:700;letter-spacing:.8px">YOUR INVITE CODE</div><b id="ref-code"></b></div><button class="copy" id="copy-btn">Copy</button></div>
+        <ul class="steps">
+          <li><span class="n">1</span><span>Get the Jamin Properties app — message our desk on WhatsApp for the download link.</span></li>
+          <li><span class="n">2</span><span>Sign in with just your mobile number — no passwords, ever.</span></li>
+          <li><span class="n">3</span><span>Your invite code is applied so your friend gets the credit. Start exploring!</span></li>
+        </ul>
+        <a class="btn wa" id="ref-wa" href="#">💬 Get the app on WhatsApp</a>
+        <a class="btn ghost" href="tel:+919384818895">📞 Call +91 93848 18895</a>
+      </div>
+    </div>
+
+    <!-- generic card (no params / load failure) -->
+    <div class="card hidden" id="generic-card">
+      <div class="pad">
+        <span class="pill">Signature for Fortune</span>
+        <h2 class="title">Land you can trust, guidance you can hear</h2>
+        <ul class="hl">
+          <li>Verified plots, farms &amp; villas with clear titles</li>
+          <li>Jamindar — AI advisor in 10 Indian languages, by voice</li>
+          <li>Free site visits, legal guidance &amp; EMI calculators</li>
+        </ul>
+        <a class="btn wa" id="gen-wa" href="https://wa.me/919384818895?text=Hi%2C%20I%27d%20like%20the%20Jamin%20Properties%20app%20download%20link.">💬 Get the app on WhatsApp</a>
+        <a class="btn ghost" href="tel:+919384818895">📞 Call +91 93848 18895</a>
+        <a class="btn ghost" href="mailto:info@jaminproperties.com">✉️ info@jaminproperties.com</a>
+      </div>
+    </div>
+
+    <div class="card" id="loading"><div class="skeleton">Loading…</div></div>
+  </div>
+
+  <div class="footer"><b>JAMIN PROPERTIES</b> · Signature for Fortune<br/>info@jaminproperties.com · +91 93848 18895</div>
+
+<script>
+(function () {
+  var SB = "https://zmxqozvivdluuxvvcegs.supabase.co";
+  var KEY = "sb_publishable_7Oe-H5Ekn7FaS9c0pVbrVQ_ph9LHHsS"; // publishable anon key (safe for browsers)
+  var q = new URLSearchParams(location.search);
+  var propId = q.get("p");
+  var ref = q.get("ref");
+  var $ = function (id) { return document.getElementById(id); };
+  function show(id) { $(id).classList.remove("hidden"); }
+  function hideLoading() { $("loading").classList.add("hidden"); }
+
+  // count the click for the referring promoter (stats only, fire-and-forget)
+  if (ref) {
+    fetch(SB + "/rest/v1/rpc/log_referral_click", {
+      method: "POST",
+      headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_code: ref })
+    }).catch(function () {});
+  }
+
+  function inr(n) {
+    if (n == null || isNaN(n)) return "Price on request";
+    n = Number(n);
+    if (n >= 1e7) return "₹" + (n / 1e7).toFixed(n % 1e7 ? 2 : 0) + " Cr";
+    if (n >= 1e5) return "₹" + (n / 1e5).toFixed(n % 1e5 ? 2 : 0) + " L";
+    return "₹" + n.toLocaleString("en-IN");
+  }
+
+  function renderProperty(p) {
+    var img = (p.images && p.images.length) ? p.images[0] : null;
+    if (img) { $("prop-photo").src = img; $("prop-photo").classList.remove("hidden"); }
+    $("prop-title").textContent = p.title || "Jamin Property";
+    var unit = p.price_unit ? " " + String(p.price_unit).replace(/_/g, " ") : "";
+    $("prop-price").textContent = p.price ? inr(p.price) + unit : "Price on request";
+    // location_text is already the full human address — never append parts to it
+    $("prop-loc").textContent = "📍 " + (p.location_text || [p.locality, p.city, p.district, p.state]
+      .filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(", ") || "Tamil Nadu");
+    var hl = [];
+    if (p.area_value) hl.push(p.area_value + " " + (p.area_unit || "sqft"));
+    if (p.plots_available != null && p.plots_total) hl.push(p.plots_available + " of " + p.plots_total + " plots available");
+    if (p.rera_number) hl.push("RERA: " + p.rera_number);
+    if (p.vastu_facing) hl.push("Facing: " + p.vastu_facing);
+    if (Array.isArray(p.amenities)) hl = hl.concat(p.amenities.slice(0, 4).map(String));
+    var ul = $("prop-hl");
+    hl.slice(0, 6).forEach(function (t) { var li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+    if (p.description) { var d = $("prop-desc"); d.textContent = String(p.description).slice(0, 260); d.classList.remove("hidden"); }
+    $("open-app").href = "jamindar://property/" + encodeURIComponent(p.id);
+    var waText = "Hi, I'm interested in " + (p.title || "a property") + " on Jamin Properties." + (ref ? " (Ref: " + ref + ")" : "");
+    $("wa-btn").href = "https://wa.me/919384818895?text=" + encodeURIComponent(waText);
+    document.title = (p.title || "Property") + " — Jamin Properties";
+    $("hero-sub").textContent = "A property was shared with you. Here are the details — verified by Jamin.";
+    hideLoading();
+    show("property-card");
+  }
+
+  function renderInvite() {
+    $("ref-code").textContent = ref;
+    $("ref-wa").href = "https://wa.me/919384818895?text=" + encodeURIComponent("Hi, I was invited to Jamin Properties with code " + ref + ". Please send me the app download link.");
+    $("copy-btn").onclick = function () {
+      (navigator.clipboard ? navigator.clipboard.writeText(ref) : Promise.reject()).then(function () {
+        $("copy-btn").textContent = "Copied!";
+        setTimeout(function () { $("copy-btn").textContent = "Copy"; }, 1600);
+      }).catch(function () {});
+    };
+    hideLoading();
+    show("invite-card");
+  }
+
+  function renderGeneric() { hideLoading(); show("generic-card"); }
+
+  if (propId && /^[0-9a-f-]{36}$/i.test(propId)) {
+    fetch(SB + "/rest/v1/properties?id=eq." + propId + "&select=id,title,price,price_unit,area_value,area_unit,plots_total,plots_available,city,district,state,locality,location_text,images,description,rera_number,vastu_facing,amenities", {
+      headers: { apikey: KEY, Authorization: "Bearer " + KEY }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (rows) {
+        if (Array.isArray(rows) && rows[0]) renderProperty(rows[0]);
+        else if (ref) renderInvite(); else renderGeneric();
+      })
+      .catch(function () { if (ref) renderInvite(); else renderGeneric(); });
+  } else if (ref) {
+    renderInvite();
+  } else {
+    renderGeneric();
+  }
+})();
+</script>
+</body>
+</html>

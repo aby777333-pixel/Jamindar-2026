@@ -474,7 +474,7 @@ export default function PropertyDetail() {
           <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{compare.has(id) ? "Added" : "Compare"}</Text>
         </Pressable>
         <View style={{ flex: 1, minWidth: 0, marginLeft: 6 }}>
-          <Button label="Book Site Visit" onPress={onSiteVisit} />
+          <Button label="Book Site Visit" onPress={onSiteVisit} compact />
         </View>
       </View>
       {/* fullscreen photo viewer */}

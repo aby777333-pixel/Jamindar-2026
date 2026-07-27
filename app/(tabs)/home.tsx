@@ -1,4 +1,5 @@
-import { Text, View, Pressable, ScrollView, Alert, Linking } from "react-native";
+import { useEffect, useState } from "react";
+import { Text, View, Pressable, ScrollView, Alert, Linking, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +35,25 @@ const ROLE_ACTION: Record<string, RoleAction> = {
   super_admin: { label: "Admin Console", sub: "Manage the ecosystem", icon: "shield-checkmark", accent: { bg: colors.goldSoft, fg: colors.goldDark }, href: "/admin" },
 };
 
+/** Time-of-day greeting that stays correct while the app is open: recomputes
+ *  every minute and whenever the app returns to the foreground, instead of
+ *  freezing at whatever the clock said when the screen first rendered. */
+function useGreeting(): string {
+  const [greeting, setGreeting] = useState(() => greetingFor());
+  useEffect(() => {
+    const update = () => setGreeting(greetingFor());
+    const id = setInterval(update, 60_000);
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") update();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, []);
+  return greeting;
+}
+
 function useFeatured() {
   return useQuery({
     queryKey: ["featured-properties"],
@@ -63,6 +83,7 @@ export default function Home() {
   });
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Guest";
+  const greeting = useGreeting();
   const roleAction = ROLE_ACTION[role] ?? ROLE_ACTION.buyer;
 
   function browse(filters?: SearchFilters) {
@@ -97,7 +118,7 @@ export default function Home() {
         <View style={{ paddingHorizontal: 20, paddingTop: space.xs }}>
           <GreetingHeader
             name={firstName}
-            greeting={greetingFor()}
+            greeting={greeting}
             initials={initials(profile?.full_name)}
             avatarUrl={profile?.avatar_url}
             onBell={() => router.push("/notifications" as Href)}
