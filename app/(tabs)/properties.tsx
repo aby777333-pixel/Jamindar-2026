@@ -173,7 +173,21 @@ export default function Properties() {
       {isLoading ? (
         <Loading />
       ) : list.length === 0 ? (
-        <Empty title="No properties found" subtitle="Try a different filter or search term." />
+        /* Owner report 27-07: a phase tile with no projects looked like a dead
+           end — the empty state now explains and offers a one-tap way out. */
+        <View>
+          <Empty
+            title="No properties found"
+            subtitle={jamindarFilters ? "No projects in this view right now — new phases are announced here first." : "Try a different filter or search term."}
+          />
+          <Pressable
+            onPress={() => { setSearch(""); setFilter("all"); router.replace("/(tabs)/properties"); }}
+            style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 }}
+          >
+            <Ionicons name="business" size={15} color="#fff" />
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Show all projects</Text>
+          </Pressable>
+        </View>
       ) : (
         // FlatList (not ScrollView): virtualised, and it scrolls the full list
         // reliably inside the tab navigator's bounded height.

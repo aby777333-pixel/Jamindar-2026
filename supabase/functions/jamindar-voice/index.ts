@@ -100,6 +100,33 @@ function leaksPrompt(t: string): boolean {
   return LEAK_MARKERS.some((m) => s.includes(m));
 }
 
+// Bug fix (owner report, all languages): sarvam-30b occasionally returns a
+// mid-sentence FRAGMENT as `content` (e.g. "നമസ്കാരം, സർ. ഞാൻ") with the real
+// reply stranded in reasoning_content, or simply cut short. A short reply that
+// does not end in sentence punctuation is treated as truncated and retried.
+function looksTruncated(t: string): boolean {
+  const s = t.trim();
+  if (!s) return true;
+  if (s.length >= 60) return false;
+  return !/[.!?…।॥)"'\]]$/.test(s);
+}
+
+// Kannada audit caught the model dumping its whole markdown "Analyze the
+// user's request…" scratchpad as content. The persona forbids markdown, so
+// analysis-shaped or heavily-markdown output is never a real reply.
+function looksLikeReasoningDump(t: string): boolean {
+  if (/\*\*\s*(analyz|draft|step|plan|response|user)/i.test(t)) return true;
+  if (/analyze the user'?s request|drafting the (reply|response)|let me (think|analyze)/i.test(t)) return true;
+  return t.includes("**") && t.length > 400;
+}
+
+// content is the ONLY user-visible candidate (choice.text as legacy fallback);
+// reasoning_content is never shown — that's where the dumps live.
+function pickReply(choice: any): string {
+  const content = String(choice?.message?.content ?? "").trim();
+  return content || String(choice?.text ?? "").trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -122,7 +149,9 @@ Deno.serve(async (req) => {
 
     async function translateText(text: string, target: string, source = "auto"): Promise<string> {
       try {
-        const r = await fetch(`${SARVAM}/translate`, { method: "POST", headers: sh, body: JSON.stringify({ input: text, source_language_code: source, target_language_code: target, mode: "formal" }) });
+        // Sarvam translate rejects very long inputs — a silent no-op here let an
+        // untranslated 5k-char reply through. Replies are short by design.
+        const r = await fetch(`${SARVAM}/translate`, { method: "POST", headers: sh, body: JSON.stringify({ input: text.slice(0, 1800), source_language_code: source, target_language_code: target, mode: "formal" }) });
         const d = await r.json();
         return d?.translated_text ?? text;
       } catch {
@@ -180,18 +209,28 @@ Deno.serve(async (req) => {
         `Keep property names, place names and legal document names in their usual form. ` +
         `Only switch language if the user explicitly asks you to.`;
       const messages = [{ role: "system", content: SYSTEM_PROMPT + langNote + memoryNote + factsNote }, ...(payload.messages ?? [])];
-      const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: 1200 }) });
-      const d = await r.json();
-      if (!r.ok) return json({ error: d?.error?.message ?? "chat failed", raw: d }, 502);
+      const callChat = async (maxTokens: number) => {
+        const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: maxTokens }) });
+        return { ok: r.ok, d: await r.json() };
+      };
+      const badReply = (s: string) => !s || leaksPrompt(s) || looksLikeReasoningDump(s) || looksTruncated(s);
+      const first = await callChat(1500);
+      if (!first.ok) return json({ error: first.d?.error?.message ?? "chat failed", raw: first.d }, 502);
 
-      const choice = d?.choices?.[0];
-      // The model sometimes puts everything in reasoning and leaves content
-      // empty, which surfaced as blank chat bubbles. Take the first field that
-      // actually has text.
-      let reply = String(choice?.message?.content ?? "").trim();
-      if (!reply) reply = String(choice?.message?.reasoning_content ?? "").trim();
-      if (!reply) reply = String(choice?.text ?? "").trim();
-      if (!reply || leaksPrompt(reply)) reply = EMPTY_FALLBACK;
+      let reply = pickReply(first.d?.choices?.[0]);
+      // Empty / fragment / leak / reasoning-dump → ONE retry, then keep the
+      // best clean attempt or fall back to the safe message.
+      if (badReply(reply)) {
+        const second = await callChat(2200);
+        if (second.ok) {
+          const r2 = pickReply(second.d?.choices?.[0]);
+          if (!badReply(r2)) reply = r2;
+          else if (r2 && !leaksPrompt(r2) && !looksLikeReasoningDump(r2) && r2.length > reply.length) reply = r2;
+        }
+      }
+      if (!reply || leaksPrompt(reply) || looksLikeReasoningDump(reply)) reply = EMPTY_FALLBACK;
+      // a tiny fragment reads worse than the polite fallback
+      if (looksTruncated(reply) && reply.length < 40) reply = EMPTY_FALLBACK;
 
       // Enforce the chosen language rather than hoping the model obeyed.
       const script = SCRIPTS[chosen];
