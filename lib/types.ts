@@ -16,7 +16,7 @@ export type PropertyStatus =
   | "sold"
   | "archived";
 
-export type ProjectPhase = "ongoing" | "current" | "future";
+export type ProjectPhase = "completed" | "current" | "ongoing" | "future";
 
 export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost";
 export type VisitStatus = "requested" | "confirmed" | "completed" | "cancelled";

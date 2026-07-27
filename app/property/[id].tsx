@@ -469,7 +469,7 @@ export default function PropertyDetail() {
         <QuickAction icon="document-text" label="Brochure" onPress={onBrochure} />
         <QuickAction icon="share-social" label="Share" onPress={onShare} />
         <QuickAction icon="call" label="Contact" onPress={onContact} />
-        <Pressable onPress={() => { if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; } compare.toggle(id); }} style={{ alignItems: "center", justifyContent: "center", width: 54 }}>
+        <Pressable onPress={() => { if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; } compare.toggle(id); }} style={{ alignItems: "center", justifyContent: "center", width: 48 }}>
           <Ionicons name={compare.has(id) ? "checkmark-circle" : "git-compare"} size={22} color={colors.brand} />
           <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{compare.has(id) ? "Added" : "Compare"}</Text>
         </Pressable>
@@ -588,13 +588,16 @@ function PhotosTab({ images, active, onSelect, onOpen }: { images: string[]; act
   return (
     <View>
       <Text style={{ color: colors.inkFaint, fontSize: 12, marginBottom: 8 }}>
-        Tap a photo to show it above · tap again to view full screen
+        Tap any photo to view it full screen
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {images.map((uri, i) => (
           <Pressable
             key={i}
-            onPress={() => (i === active ? onOpen(i) : onSelect(i))}
+            // One tap = full screen, sized to the phone's live dimensions
+            // (the viewer uses useWindowDimensions + contain, so it fits any
+            // screen and follows rotation). onSelect keeps the hero in sync.
+            onPress={() => { onSelect(i); onOpen(i); }}
             style={{ width: "48%", height: 120, borderRadius: 14, overflow: "hidden", borderWidth: i === active ? 2 : 0, borderColor: colors.brand }}
           >
             <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
@@ -867,7 +870,7 @@ function MetaChip({ icon, label }: { icon: string; label: string }) {
 
 function QuickAction({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", width: 54 }}>
+    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", width: 48 }}>
       <Ionicons name={icon as any} size={22} color={colors.brand} />
       <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{label}</Text>
     </Pressable>

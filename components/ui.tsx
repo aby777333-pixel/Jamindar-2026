@@ -70,34 +70,39 @@ export function Card({
   style?: ViewStyle;
   onPress?: () => void;
 }) {
-  const body = (
-    <View
-      style={[
-        {
-          backgroundColor: colors.surface,
-          borderRadius: space.md,
-          padding: space.sm + 3,
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderTopColor: "#FFFFFF",
-        },
-        elevation.card,
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-  if (onPress)
+  const base = {
+    backgroundColor: colors.surface,
+    borderRadius: space.md,
+    padding: space.sm + 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopColor: "#FFFFFF",
+  };
+  if (onPress) {
+    // When pressable, the Pressable — not the inner View — is the flex child
+    // of the caller's row/column, so layout props must sit on IT. Leaving them
+    // on the inner View made `flex: 1` Cards hug their content (uneven pairs
+    // like Admin Console / Ask Jamindar on Home).
+    const {
+      flex, alignSelf, width, minWidth, maxWidth,
+      margin, marginTop, marginBottom, marginLeft, marginRight,
+      ...visual
+    } = (style ?? {}) as ViewStyle;
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => ({ transform: [{ translateY: pressed ? 1 : 0 }], opacity: pressed ? 0.97 : 1 })}
+        style={({ pressed }) => ({
+          flex, alignSelf, width, minWidth, maxWidth,
+          margin, marginTop, marginBottom, marginLeft, marginRight,
+          transform: [{ translateY: pressed ? 1 : 0 }],
+          opacity: pressed ? 0.97 : 1,
+        })}
       >
-        {body}
+        <View style={[base, elevation.card, visual]}>{children}</View>
       </Pressable>
     );
-  return body;
+  }
+  return <View style={[base, elevation.card, style]}>{children}</View>;
 }
 
 export function Button({
@@ -144,9 +149,16 @@ export function Button({
   ) : (
     <Text
       numberOfLines={1}
+      // native-only safety net; web relies on the compact font size below
       adjustsFontSizeToFit
       minimumFontScale={0.75}
-      style={{ color: fg, fontWeight: "700", fontSize: T.body.fontSize, letterSpacing: 0.3, textAlign: "center" }}
+      style={{
+        color: fg,
+        fontWeight: "700",
+        fontSize: compact ? T.small.fontSize + 1 : T.body.fontSize,
+        letterSpacing: compact ? 0.1 : 0.3,
+        textAlign: "center",
+      }}
     >
       {label}
     </Text>

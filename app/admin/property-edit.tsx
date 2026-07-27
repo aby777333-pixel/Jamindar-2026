@@ -14,7 +14,7 @@ import { generateDescription } from "@/lib/property-media";
 
 const TYPES = Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[];
 const STATUSES: PropertyStatus[] = ["draft", "available", "reserved", "sold", "archived"];
-const PHASES: ProjectPhase[] = ["ongoing", "current", "future"];
+const PHASES: ProjectPhase[] = ["completed", "current", "ongoing", "future"];
 const APPROVALS = ["dtcp", "rera", "cmda", "panchayat", "clear_title"];
 
 const linesToArr = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);

@@ -27,8 +27,9 @@ type ProjectRow = {
 };
 
 const PHASE_META: Record<ProjectPhase, { label: string; bg: string; fg: string }> = {
-  ongoing: { label: "Ongoing", bg: colors.goldSoft, fg: colors.goldDark },
+  completed: { label: "Completed", bg: colors.goldSoft, fg: colors.goldDark },
   current: { label: "Ready now", bg: colors.brandSoft, fg: colors.brand },
+  ongoing: { label: "Ongoing", bg: "#E8F1FE", fg: "#2B6FE1" },
   future: { label: "Upcoming", bg: colors.successSoft, fg: colors.success },
 };
 

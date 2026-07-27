@@ -503,9 +503,12 @@ export const LAND_TYPES: LandTypeDef[] = [
   { emoji: "🏭", label: "Industrial", type: "industrial_land" },
 ];
 
-export type PhaseDef = { emoji: string; label: string; tint: string; phase: "ongoing" | "current" | "future" };
+export type PhaseDef = { emoji: string; label: string; tint: string; phase: "completed" | "current" | "ongoing" | "future" };
+// Four tiles, in the owner's requested order; the Home row gives each flex:1
+// so they spread evenly across the full width.
 export const PROJECT_PHASES: PhaseDef[] = [
-  { emoji: "🏗️", label: "Ongoing", tint: colors.goldSoft, phase: "ongoing" },
+  { emoji: "🏆", label: "Completed", tint: colors.goldSoft, phase: "completed" },
   { emoji: "🏡", label: "Current", tint: colors.brandSoft, phase: "current" },
+  { emoji: "🏗️", label: "Ongoing", tint: "#E8F1FE", phase: "ongoing" },
   { emoji: "🌱", label: "Future", tint: colors.successSoft, phase: "future" },
 ];
