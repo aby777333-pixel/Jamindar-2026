@@ -6,9 +6,10 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Card, Button, Loading } from "@/components/ui";
 import { Field } from "@/components/Field";
+import { ZoomableImageViewer } from "@/components/ImageViewer";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { fetchMyKyc, submitKyc, uploadKycDoc, type KycPayload } from "@/lib/kyc";
+import { fetchMyKyc, submitKyc, uploadKycDoc, signedKycUrl, type KycPayload } from "@/lib/kyc";
 import { logActivity } from "@/lib/audit";
 import type { KycSubmission } from "@/lib/types";
 
@@ -34,6 +35,15 @@ export default function BuyerKyc() {
   const [declared, setDeclared] = useState(false);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ uri: string; title: string } | null>(null);
+
+  /** Open a submitted document full-screen via a short-lived signed URL. */
+  async function openDoc(path: string, title: string) {
+    if (!path) return;
+    const url = await signedKycUrl(path);
+    if (url) setViewer({ uri: url, title });
+    else Alert.alert("Preview unavailable", "Couldn't open this document right now. Please try again.");
+  }
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -151,9 +161,54 @@ export default function BuyerKyc() {
               Your identity is verified. You have full access to all Jamin services.
             </Text>
           </Card>
+        ) : pending ? (
+          /* Owner report 27-07: once submitted, details are LOCKED while under
+             review — the user gets a read-only preview (docs open full screen)
+             instead of editable fields. */
+          <>
+            <StatusNote tone="warning" icon="lock-closed-outline" title="Under review — locked" body="Your KYC is submitted and locked while our team verifies it. Preview everything you sent below. We'll notify you once it's done." />
+            <Section title="Identity" subtitle="Submitted details">
+              <ReadRow label="PAN Number" value={form.pan_number} />
+              <ReadRow label="Aadhaar Number" value={form.aadhaar_number} />
+              <Divider />
+              <DocPreviewRow label="PAN card photo" hasFile={!!form.pan_doc} onView={() => openDoc(form.pan_doc, "PAN card photo")} />
+              <DocPreviewRow label="Aadhaar — front" hasFile={!!form.aadhaar_front} onView={() => openDoc(form.aadhaar_front, "Aadhaar — front")} />
+              <DocPreviewRow label="Aadhaar — back" hasFile={!!form.aadhaar_back} onView={() => openDoc(form.aadhaar_back, "Aadhaar — back")} />
+            </Section>
+            <Section title="Courier Address" subtitle="Submitted details">
+              <ReadRow label="Address" value={[form.addr_house, form.addr_street, form.addr_landmark, form.addr_area].filter(Boolean).join(", ")} />
+              <ReadRow label="City / District" value={[form.addr_city, form.addr_district].filter(Boolean).join(", ")} />
+              <ReadRow label="State — PIN" value={[form.addr_state, form.addr_pincode].filter(Boolean).join(" — ")} />
+            </Section>
+            <Section title="Bank Details" subtitle="Submitted details">
+              <ReadRow label="Account holder" value={form.bank_account_name} />
+              <ReadRow label="Account number" value={form.bank_account_number ? "•••• " + form.bank_account_number.slice(-4) : ""} />
+              <ReadRow label="IFSC · Bank" value={[form.bank_ifsc, form.bank_name].filter(Boolean).join(" · ")} />
+              {form.upi_id ? <ReadRow label="UPI" value={form.upi_id} /> : null}
+              {form.bank_proof ? (
+                <>
+                  <Divider />
+                  <DocPreviewRow label="Cancelled cheque / passbook" hasFile onView={() => openDoc(form.bank_proof, "Bank proof")} />
+                </>
+              ) : null}
+            </Section>
+            <Section title="Nominee" subtitle="Submitted details">
+              <ReadRow label="Name" value={form.nominee_name} />
+              <ReadRow label="Relationship" value={form.nominee_relationship} />
+              <ReadRow label="Phone" value={form.nominee_phone} />
+              {form.nominee_pan_doc ? <DocPreviewRow label="Nominee PAN" hasFile onView={() => openDoc(form.nominee_pan_doc, "Nominee PAN")} /> : null}
+              {form.nominee_aadhaar_front ? <DocPreviewRow label="Nominee Aadhaar — front" hasFile onView={() => openDoc(form.nominee_aadhaar_front, "Nominee Aadhaar — front")} /> : null}
+              {form.nominee_aadhaar_back ? <DocPreviewRow label="Nominee Aadhaar — back" hasFile onView={() => openDoc(form.nominee_aadhaar_back, "Nominee Aadhaar — back")} /> : null}
+            </Section>
+            <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14 }}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.inkFaint} />
+              <Text style={{ flex: 1, color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: 19 }}>
+                Need to correct something? Contact the Jamin desk from Support and our team will reopen your KYC.
+              </Text>
+            </View>
+          </>
         ) : (
           <>
-            {pending ? <StatusNote tone="warning" icon="time-outline" title="Under review" body="Your KYC is submitted and pending verification. We'll notify you once it's done. You can update your details below if needed." /> : null}
             {rejected ? <StatusNote tone="danger" icon="alert-circle-outline" title="Action needed" body={existing?.review_reason || "Your KYC was rejected. Please review your details and resubmit."} corrections={existing?.review_corrections} /> : null}
             {!existing ? <StatusNote tone="neutral" icon="shield-outline" title="Complete your KYC" body="Verify your identity to unlock agreements, bookings and all Jamin Property services. Your information is encrypted and used only for verification." /> : null}
 
@@ -225,14 +280,48 @@ export default function BuyerKyc() {
             </Pressable>
 
             <Button
-              label={rejected || pending ? "Update & resubmit" : "Preview then submit"}
+              label={rejected ? "Update & resubmit" : "Preview then submit"}
               onPress={onSubmit}
               loading={saving}
             />
           </>
         )}
       </ScrollView>
+      <ZoomableImageViewer
+        visible={!!viewer}
+        uri={viewer?.uri ?? null}
+        title={viewer?.title}
+        onClose={() => setViewer(null)}
+      />
     </SafeAreaView>
+  );
+}
+
+function ReadRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ paddingVertical: 7 }}>
+      <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1 }}>{label}</Text>
+      <Text style={{ color: colors.ink, fontWeight: "600", fontSize: T.small.fontSize + 1, marginTop: 2 }}>
+        {value || "—"}
+      </Text>
+    </View>
+  );
+}
+
+function DocPreviewRow({ label, hasFile, onView }: { label: string; hasFile: boolean; onView: () => void }) {
+  return (
+    <Pressable onPress={hasFile ? onView : undefined} disabled={!hasFile} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, opacity: hasFile ? 1 : 0.5 }}>
+      <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
+        <Ionicons name={hasFile ? "document-attach" : "document-outline"} size={20} color={hasFile ? colors.success : colors.inkFaint} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontWeight: "600", color: colors.ink, fontSize: T.small.fontSize + 1 }}>{label}</Text>
+        <Text style={{ color: hasFile ? colors.brand : colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
+          {hasFile ? "Tap to preview" : "Not attached"}
+        </Text>
+      </View>
+      {hasFile ? <Ionicons name="eye-outline" size={19} color={colors.brand} /> : null}
+    </Pressable>
   );
 }
 

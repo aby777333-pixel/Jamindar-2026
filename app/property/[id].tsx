@@ -475,7 +475,27 @@ export default function PropertyDetail() {
         <QuickAction icon="document-text" label="Brochure" onPress={onBrochure} />
         <QuickAction icon="share-social" label="Share" onPress={onShare} />
         <QuickAction icon="call" label="Contact" onPress={onContact} />
-        <Pressable onPress={() => { if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; } compare.toggle(id); }} style={{ alignItems: "center", justifyContent: "center", width: 48 }}>
+        <Pressable
+          onPress={() => {
+            if (!compare.has(id) && compare.atLimit()) { Alert.alert("Compare", "You can compare up to 3 properties. Remove one first."); return; }
+            const adding = !compare.has(id);
+            compare.toggle(id);
+            if (adding) {
+              // Make the button visibly DO something: confirm + offer the
+              // side-by-side screen (owner report: "make compare work").
+              const n = useCompare.getState().ids.length;
+              Alert.alert(
+                "Added to Compare",
+                n === 1 ? "Pick 1-2 more properties, then compare them side by side." : `${n} of 3 selected.`,
+                [
+                  { text: "Keep browsing", style: "cancel" },
+                  { text: "Compare now", onPress: () => router.push("/tools/compare") },
+                ]
+              );
+            }
+          }}
+          style={{ alignItems: "center", justifyContent: "center", width: 48 }}
+        >
           <Ionicons name={compare.has(id) ? "checkmark-circle" : "git-compare"} size={22} color={colors.brand} />
           <Text numberOfLines={1} style={{ fontSize: 10, color: colors.inkSoft, marginTop: 3 }}>{compare.has(id) ? "Added" : "Compare"}</Text>
         </Pressable>

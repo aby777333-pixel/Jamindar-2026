@@ -14,6 +14,11 @@ export function referralMessage(code: string): string {
   return `Join me on Jamin Properties — discover verified plots & land with confidence. Use my invite code ${code}: ${referralLink(code)}`;
 }
 
+/** Promoter "Build your team" invite — recruit teammates, not just buyers. */
+export function teamInviteMessage(code: string): string {
+  return `I'm building my team on Jamin Properties — join me, become a promoter and earn commissions on verified plots & land. Use my invite code ${code} when you sign up: ${referralLink(code)}`;
+}
+
 export function qrUrl(code: string, size = 220): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(referralLink(code))}`;
 }

@@ -118,6 +118,11 @@ export default function BuyerOnboarding() {
         <Text style={{ color: colors.inkFaint, fontSize: 12 }}>
           {step + 1}/{steps.length}
         </Text>
+        {/* Owner report 27-07: newcomers need a way past the questionnaire.
+            Preferences stay editable any time from Account → Buyer preferences. */}
+        <Pressable onPress={() => router.replace("/(tabs)/home")} hitSlop={8}>
+          <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 13 }}>Skip</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>

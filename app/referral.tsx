@@ -4,6 +4,7 @@ import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { fetchReferralStats, shareReferral, qrUrl, referralLink, type ShareChannel } from "@/lib/referral";
@@ -28,12 +29,22 @@ const STATS: { key: keyof Awaited<ReturnType<typeof fetchReferralStats>>; label:
   { key: "purchases", label: "Purchases" },
 ];
 
+type ReferralRow = { referred_name: string | null; referred_code: string | null; joined_at: string; referred_at: string };
+
 export default function ReferralCentre() {
   const router = useRouter();
   const { profile } = useAuth();
   const code = profile?.referral_code ?? "";
 
   const { data: stats } = useQuery({ queryKey: ["referral-stats", profile?.id], enabled: !!profile?.id, queryFn: fetchReferralStats });
+  const { data: referrals } = useQuery({
+    queryKey: ["my-referrals", profile?.id],
+    enabled: !!profile?.id,
+    queryFn: async (): Promise<ReferralRow[]> => {
+      const { data } = await supabase.rpc("my_referrals");
+      return (data as ReferralRow[]) ?? [];
+    },
+  });
 
   async function onChannel(ch: ShareChannel) {
     if (!code) return;
@@ -101,6 +112,38 @@ export default function ReferralCentre() {
             </Card>
           ))}
         </View>
+
+        {/* referral list — who you brought in (owner report 27-07 item 2) */}
+        <Text style={{ fontWeight: "600", fontSize: 15, color: colors.ink, marginTop: space.lg, marginBottom: space.sm }}>Referral list</Text>
+        {referrals && referrals.length > 0 ? (
+          <Card style={{ padding: 0 }}>
+            {referrals.map((r, i) => (
+              <View key={`${r.referred_code ?? r.joined_at}-${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
+                <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="person" size={17} color={colors.brand} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 14 }} numberOfLines={1}>
+                    {r.referred_name || "New member"}
+                  </Text>
+                  <Text style={{ color: colors.inkFaint, fontSize: 11.5, marginTop: 1 }} numberOfLines={1}>
+                    {[r.referred_code, `Joined ${new Date(r.joined_at).toLocaleDateString()}`].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ color: colors.inkFaint, fontSize: 10.5 }}>Referred</Text>
+                  <Text style={{ color: colors.inkSoft, fontSize: 11.5, fontWeight: "600" }}>{new Date(r.referred_at).toLocaleDateString()}</Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+        ) : (
+          <Card>
+            <Text style={{ color: colors.inkFaint, fontSize: 13, textAlign: "center", lineHeight: 19 }}>
+              No one has joined with your code yet. Share your invite above — everyone who signs up with it will appear here.
+            </Text>
+          </Card>
+        )}
 
         {/* partner tier */}
         <View style={{ marginTop: space.lg, borderRadius: 20, overflow: "hidden", backgroundColor: colors.navy, padding: space.md }}>

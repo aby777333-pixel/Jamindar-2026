@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, Pressable, Image } from "react-native";
+import { Text, View, ScrollView, Pressable, Image, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo, initials } from "@/lib/format";
 import { fetchMyEarnings } from "@/lib/earnings";
+import { teamInviteMessage } from "@/lib/referral";
 import type { Property } from "@/lib/types";
 
 /** Promoter Command Center — the anchor of the Promoter Module. Surfaces the
@@ -140,6 +141,38 @@ export default function PromoterDashboard() {
 
         <View style={{ marginTop: space.sm }}>
           <VerificationBanner status={partnerStatus} onAction={() => router.push("/buyer/kyc" as Href)} />
+        </View>
+
+        {/* Two ways to share (owner report 27-07): grow your team with your
+            referral link, or promote a specific project with attribution. */}
+        <View style={{ marginTop: space.md, flexDirection: "row", gap: 12 }}>
+          <Pressable
+            onPress={() => {
+              const code = profile?.referral_code ?? profile?.partner_code;
+              if (code) Share.share({ message: teamInviteMessage(code) }).catch(() => {});
+            }}
+            style={{ flex: 1, backgroundColor: colors.navy, borderRadius: space.md, padding: space.sm + 3, ...elevation.low }}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(224,164,35,0.2)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="people" size={18} color={colors.gold} />
+            </View>
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.small.fontSize + 1, marginTop: 9 }}>Build your team</Text>
+            <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: T.caption.fontSize + 1, marginTop: 2 }} numberOfLines={2}>
+              Share your referral link & recruit
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/promoter/explorer" as Href)}
+            style={{ flex: 1, backgroundColor: colors.brand, borderRadius: space.md, padding: space.sm + 3, ...elevation.low }}
+          >
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="megaphone" size={18} color="#fff" />
+            </View>
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.small.fontSize + 1, marginTop: 9 }}>Promote a project</Text>
+            <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: T.caption.fontSize + 1, marginTop: 2 }} numberOfLines={2}>
+              Pick a listing & share with your link
+            </Text>
+          </Pressable>
         </View>
 
         {/* earnings summary — real ledger totals (commission engine, migration 0017) */}

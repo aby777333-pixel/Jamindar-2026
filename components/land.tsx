@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { View, Text, Pressable, Image, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -380,6 +380,15 @@ export function VerifiedListingCard({
 }) {
   const tag = topApproval(property.approvals);
   const loc = [property.locality, property.city].filter(Boolean).join(", ") || PROPERTY_TYPE_LABELS[property.property_type];
+  // Auto-sliding project photos (owner request 27-07): the card cycles through
+  // the listing's images every few seconds instead of pinning the first one.
+  const imgs = property.images ?? [];
+  const [imgIdx, setImgIdx] = useState(0);
+  useEffect(() => {
+    if (imgs.length < 2) return;
+    const id = setInterval(() => setImgIdx((i) => (i + 1) % imgs.length), 3200);
+    return () => clearInterval(id);
+  }, [imgs.length]);
   return (
     <Pressable
       onPress={onPress}
@@ -394,8 +403,25 @@ export function VerifiedListingCard({
       }}
     >
       <View style={{ height: 122 }}>
-        {property.images?.[0] ? (
-          <Image source={{ uri: property.images[0] }} style={{ width: "100%", height: "100%" }} />
+        {imgs.length > 0 ? (
+          <>
+            <Image source={{ uri: imgs[Math.min(imgIdx, imgs.length - 1)] }} style={{ width: "100%", height: "100%" }} />
+            {imgs.length > 1 ? (
+              <View style={{ position: "absolute", bottom: 6, alignSelf: "center", flexDirection: "row", gap: 4 }}>
+                {imgs.slice(0, 6).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      width: i === imgIdx % Math.min(imgs.length, 6) ? 12 : 5,
+                      height: 5,
+                      borderRadius: 3,
+                      backgroundColor: i === imgIdx % Math.min(imgs.length, 6) ? "#fff" : "rgba(255,255,255,0.55)",
+                    }}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </>
         ) : (
           <View style={{ flex: 1, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="image" size={28} color={colors.inkFaint} />
