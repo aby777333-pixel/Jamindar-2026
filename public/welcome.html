@@ -143,6 +143,20 @@
     }).catch(function () {});
   }
 
+  // Log a WhatsApp download-link request so the Jamin desk sees who asked and
+  // with which invite code (admin console → Invites). keepalive lets the call
+  // survive the navigation to wa.me. Fire-and-forget — WhatsApp always opens.
+  function logWaRequest(source, propertyId) {
+    try {
+      fetch(SB + "/rest/v1/rpc/log_wa_request", {
+        method: "POST",
+        keepalive: true,
+        headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_code: ref || null, p_source: source, p_property: propertyId || null })
+      }).catch(function () {});
+    } catch (e) { /* never block the tap */ }
+  }
+
   function inr(n) {
     if (n == null || isNaN(n)) return "Price on request";
     n = Number(n);
@@ -172,6 +186,7 @@
     $("open-app").href = "jamindar://property/" + encodeURIComponent(p.id);
     var waText = "Hi, I'm interested in " + (p.title || "a property") + " on Jamin Properties." + (ref ? " (Ref: " + ref + ")" : "");
     $("wa-btn").href = "https://wa.me/919384818895?text=" + encodeURIComponent(waText);
+    $("wa-btn").addEventListener("click", function () { logWaRequest("property", p.id); });
     document.title = (p.title || "Property") + " — Jamin Properties";
     $("hero-sub").textContent = "A property was shared with you. Here are the details — verified by Jamin.";
     hideLoading();
@@ -181,6 +196,7 @@
   function renderInvite() {
     $("ref-code").textContent = ref;
     $("ref-wa").href = "https://wa.me/919384818895?text=" + encodeURIComponent("Hi, I was invited to Jamin Properties with code " + ref + ". Please send me the app download link.");
+    $("ref-wa").addEventListener("click", function () { logWaRequest("invite", null); });
     $("copy-btn").onclick = function () {
       (navigator.clipboard ? navigator.clipboard.writeText(ref) : Promise.reject()).then(function () {
         $("copy-btn").textContent = "Copied!";
@@ -191,7 +207,11 @@
     show("invite-card");
   }
 
-  function renderGeneric() { hideLoading(); show("generic-card"); }
+  function renderGeneric() {
+    $("gen-wa").addEventListener("click", function () { logWaRequest("generic", null); });
+    hideLoading();
+    show("generic-card");
+  }
 
   if (propId && /^[0-9a-f-]{36}$/i.test(propId)) {
     fetch(SB + "/rest/v1/properties?id=eq." + propId + "&select=id,title,price,price_unit,area_value,area_unit,plots_total,plots_available,city,district,state,locality,location_text,images,description,rera_number,vastu_facing,amenities", {

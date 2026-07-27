@@ -127,6 +127,7 @@
       <a data-view="subs">📥 Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
       <a data-view="visits">🗓 Visits <span class="badge" id="b-visits" style="display:none"></span></a>
       <a data-view="leads">📇 Leads</a>
+      <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -200,25 +201,27 @@ async function boot(){
 sb.auth.getSession().then(({data})=>{ if(data.session) boot(); });
 
 async function refreshBadges(){
-  const [{count:k},{count:p},{count:s},{count:vv}] = await Promise.all([
+  const [{count:k},{count:p},{count:s},{count:vv},{count:iv}] = await Promise.all([
     sb.from("kyc_submissions").select("id",{count:"exact",head:true}).eq("status","pending"),
     sb.from("profiles").select("id",{count:"exact",head:true}).eq("partner_status","pending"),
     sb.from("property_submissions").select("id",{count:"exact",head:true}).eq("status","submitted"),
     sb.from("site_visits").select("id",{count:"exact",head:true}).eq("status","requested"),
+    sb.from("referral_wa_requests").select("id",{count:"exact",head:true}).eq("status","new").then(r=>r.error?{count:0}:r),
   ]);
-  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs"), bv=$("#b-visits");
+  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs"), bv=$("#b-visits"), bi=$("#b-inv");
   if(k){bk.style.display="inline-block";bk.textContent=k;} else bk.style.display="none";
   if(p){bp.style.display="inline-block";bp.textContent=p;} else bp.style.display="none";
   if(s){bs.style.display="inline-block";bs.textContent=s;} else bs.style.display="none";
   if(vv){bv.style.display="inline-block";bv.textContent=vv;} else bv.style.display="none";
+  if(iv){bi.style.display="inline-block";bi.textContent=iv;} else bi.style.display="none";
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -708,6 +711,37 @@ async function renderLeads(){
 }
 window.leadFilter=(v)=>{window.__leadFilter=v;renderLeads();};
 window.setLead=async(id,status)=>{if(!status)return; const {error}=await sb.from('leads').update({status}).eq('id',id); if(error) return toast(error.message); toast('Lead '+status); renderLeads();};
+
+// ───────── WhatsApp invites (referral download-link requests from /welcome) ─────────
+async function renderInvites(){
+  const status=window.__invFilter||'';
+  let q=sb.from('referral_wa_requests').select('*, referrer:profiles!referral_wa_requests_referrer_id_fkey(member_code,full_name,mobile)').order('created_at',{ascending:false}).limit(300);
+  if(status) q=q.eq('status',status);
+  const {data,error}=await q; const rows=data||[];
+  if(error){ $("#view").innerHTML=`<div class="empty card">${esc(error.message)}</div>`; return; }
+  const chip=(v,l)=>`<button class="btn ${((window.__invFilter||'')===v)?'':'grey'} sm" onclick="invFilter('${v}')">${l}</button>`;
+  const when=(t)=>{ try{ return new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){ return t||'—'; } };
+  $("#view").innerHTML=`<div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      Each row is someone who tapped <b>“Get the app on WhatsApp”</b> on the share page — with the invite code they carried.
+      Match it to the WhatsApp message on the desk phone, send the download link, then <b>Accept</b> to credit the referrer's Downloads stat.</p></div>
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('new','New')}${chip('accepted','Accepted')}${chip('dismissed','Dismissed')}</div>
+    ${rows.length? `<table><thead><tr><th>Invite code</th><th>Referred by</th><th>Source</th><th>When</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(r=>{const st={new:'warn',accepted:'ok',dismissed:'grey'}[r.status]||'grey';
+      return `<tr><td><b>${esc(r.code||'—')}</b></td>
+      <td>${esc(r.referrer?.full_name||'—')}<div class="muted" style="font-size:12px">${esc(r.referrer?.member_code||'')}${r.referrer?.mobile?' · +'+esc(r.referrer.mobile):''}</div></td>
+      <td class="muted">${esc(r.source)}</td>
+      <td class="muted">${when(r.created_at)}</td>
+      <td><span class="pill ${st}">${esc(r.status)}</span></td>
+      <td style="text-align:right">${r.status==='new'?`<button class="btn sm" onclick="reviewInvite('${r.id}','accepted')">Accept</button> <button class="btn ghost sm" onclick="reviewInvite('${r.id}','dismissed')">Dismiss</button>`:''}</td></tr>`;}).join('')}</tbody></table>`
+      : `<div class="empty card">No WhatsApp invite requests${status?` in “${esc(status)}”`:''} yet.</div>`}`;
+}
+window.invFilter=(v)=>{window.__invFilter=v;renderInvites();};
+window.reviewInvite=async(id,decision)=>{
+  const {error}=await sb.rpc('admin_review_wa_request',{p_id:id,p_decision:decision});
+  if(error) return toast(error.message);
+  toast(decision==='accepted'?'Invite accepted — referrer credited':'Invite dismissed');
+  refreshBadges(); renderInvites();
+};
 </script>
 </body>
 </html>

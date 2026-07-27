@@ -25,7 +25,9 @@ import {
   AudioModule,
   setAudioModeAsync,
 } from "expo-audio";
-import * as FileSystem from "expo-file-system";
+// SDK 56: readAsStringAsync/EncodingType only exist on the legacy entry — the
+// main entry made every voice recording read throw (silently), so STT never ran.
+import * as FileSystem from "expo-file-system/legacy";
 import { colors, space } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
@@ -151,9 +153,23 @@ export function JamindarSheet({
   const [memory, setMemory] = useState<JamindarMemory | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [recording, setRecording] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // Gesture-race guards: a quick tap fires pressOut while startVoice is still
+  // awaiting (permission / prepare), which used to stop before the recording
+  // began and leave the button stuck on "recording".
+  const startingRef = useRef<Promise<boolean> | null>(null);
+  const recordingRef = useRef(false);
+  const recStartRef = useRef(0);
+  const pressStoppedRef = useRef(false);
+  // language for in-flight async work (state reads inside closures go stale
+  // for the very turn where STT auto-detects a new language)
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
   const [kb, setKb] = useState(0);
@@ -250,6 +266,7 @@ export function JamindarSheet({
       /* ignore */
     }
     playerRef.current = null;
+    setSpeaking(false);
   }
 
   // Play one WAV chunk fully, resolving only when it finishes (or a safety timeout).
@@ -290,13 +307,17 @@ export function JamindarSheet({
     stopSpeaking();
     const mySeq = speakSeq.current;
     try {
-      const chunks = await synthesizeSpeech(text, language, { speaker: prefs.speaker, pace: prefs.pace });
+      const chunks = await synthesizeSpeech(text, languageRef.current, { speaker: prefs.speaker, pace: prefs.pace });
+      if (speakSeq.current !== mySeq || chunks.length === 0) return; // interrupted meanwhile
+      setSpeaking(true);
       for (let i = 0; i < chunks.length; i++) {
         if (speakSeq.current !== mySeq) return; // interrupted
         await playChunkToEnd(`data:audio/wav;base64,${chunks[i]}`);
       }
     } catch {
       /* voice optional — silent fallback */
+    } finally {
+      if (speakSeq.current === mySeq) setSpeaking(false);
     }
   }
 
@@ -472,7 +493,7 @@ export function JamindarSheet({
     setBusy(true);
     try {
       const history: ChatMsg[] = [...msgs, { role: "user" as const, content: clean }].slice(-16);
-      const reply = await jamindarChat(history, { language, conversationId, memory });
+      const reply = await jamindarChat(history, { language: languageRef.current, conversationId, memory });
       pushAssistant(reply);
     } catch {
       pushAssistant("Sorry, I couldn't reach the assistant just now. Please try again.", false);
@@ -482,36 +503,104 @@ export function JamindarSheet({
   }
 
   async function startVoice() {
+    if (startingRef.current || recordingRef.current) return;
+    recStartRef.current = Date.now();
+    const p = (async () => {
+      try {
+        stopSpeaking(); // tapping the mic always interrupts Jamindar's voice
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "Microphone needed",
+            "Please allow microphone access so Jamindar can hear you. Enable it under Settings → Apps → Jamin → Permissions and try again."
+          );
+          return false;
+        }
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+        recStartRef.current = Date.now();
+        recordingRef.current = true;
+        setRecording(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        return true;
+      } catch {
+        recordingRef.current = false;
+        setRecording(false);
+        return false;
+      }
+    })();
+    startingRef.current = p;
     try {
-      const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) return;
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setRecording(true);
-      stopSpeaking();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    } catch {
-      setRecording(false);
+      await p;
+    } finally {
+      startingRef.current = null;
     }
   }
 
   async function stopVoice() {
+    // Never stop mid-start: wait for the in-flight start (incl. the permission
+    // dialog) so a quick tap can't kill the recorder before it began.
+    const starting = startingRef.current;
+    if (starting) {
+      const ok = await starting;
+      if (!ok) return;
+    }
+    if (!recordingRef.current) return;
+    // give the recorder a beat so ultra-short taps still carry audio
+    const elapsed = Date.now() - recStartRef.current;
+    if (elapsed < 400) await new Promise((r) => setTimeout(r, 400 - elapsed));
+    recordingRef.current = false;
+    setRecording(false);
+    setBusy(true);
     try {
-      setRecording(false);
       await recorder.stop();
+      // leave recording mode so replies play loud through the speaker
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
       const uri = recorder.uri;
-      if (!uri) return;
-      setBusy(true);
+      if (!uri) {
+        pushAssistant("I couldn't capture any audio. Tap the mic and try again.", false);
+        return;
+      }
       const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const { transcript, language: detected } = await transcribeSpeech(b64);
-      if (detected) setLanguage(detected);
-      if (transcript) await send(transcript);
+      // expo-audio records AAC in an MP4 container — label it correctly for Sarvam
+      const { transcript, language: detected } = await transcribeSpeech(b64, "audio/mp4");
+      const heard = transcript.trim();
+      if (!heard) {
+        pushAssistant("Sorry, I didn't catch that. Tap the mic and speak again — a little closer to the phone helps.", false);
+        return;
+      }
+      // the detected spoken language wins for this turn (chip updates too)
+      if (detected && JAMINDAR_LANGUAGES.some((l) => l.code === detected)) {
+        languageRef.current = detected;
+        setLanguage(detected);
+      }
+      await send(heard);
     } catch {
-      /* ignore */
+      pushAssistant("Sorry, I couldn't process that recording. Please try again.", false);
     } finally {
       setBusy(false);
     }
+  }
+
+  // Press-in starts listening. A quick tap keeps listening (tap again to send);
+  // a long hold works walkie-talkie style — release sends.
+  function onMicPressIn() {
+    if (busy) return;
+    if (recordingRef.current || startingRef.current) {
+      pressStoppedRef.current = true; // this press is the "stop" tap
+      void stopVoice();
+    } else {
+      pressStoppedRef.current = false;
+      void startVoice();
+    }
+  }
+  function onMicPressOut() {
+    if (pressStoppedRef.current) {
+      pressStoppedRef.current = false;
+      return;
+    }
+    if (Date.now() - recStartRef.current >= 600) void stopVoice();
   }
 
   return (
@@ -670,6 +759,38 @@ export function JamindarSheet({
             ) : null}
           </ScrollView>
 
+          {/* voice status strip — Listening / Processing / Speaking */}
+          {recording || busy || speaking ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingHorizontal: 18,
+                paddingVertical: 7,
+                backgroundColor: colors.surface,
+                borderTopWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: recording ? colors.gold : busy ? colors.brand : "#14A05A",
+                }}
+              />
+              <Text style={{ color: colors.inkSoft, fontSize: 12.5, fontWeight: "600" }}>
+                {recording
+                  ? "Listening… tap the mic again when you're done"
+                  : busy
+                    ? "Processing…"
+                    : "Speaking — tap the mic to interrupt"}
+              </Text>
+            </View>
+          ) : null}
+
           {/* input row */}
           <View
             style={{
@@ -710,8 +831,8 @@ export function JamindarSheet({
               </Pressable>
             ) : (
               <Pressable
-                onPressIn={startVoice}
-                onPressOut={stopVoice}
+                onPressIn={onMicPressIn}
+                onPressOut={onMicPressOut}
                 style={{
                   width: 46,
                   height: 46,

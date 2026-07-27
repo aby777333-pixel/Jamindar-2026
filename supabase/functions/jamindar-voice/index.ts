@@ -189,9 +189,15 @@ Deno.serve(async (req) => {
 
     if (action === "stt") {
       const bin = Uint8Array.from(atob(payload.audioBase64), (c) => c.charCodeAt(0));
+      // expo-audio records AAC in an MP4 container. Sarvam rejects the
+      // 'audio/m4a' label — normalize it, and name the file to match the real
+      // container (it was always sent as audio.wav before, hurting accuracy).
+      let mime = String(payload.mime ?? "audio/wav").toLowerCase();
+      if (mime === "audio/m4a" || mime === "audio/x-m4a" || mime === "audio/aac") mime = "audio/mp4";
+      const ext = mime === "audio/mp4" ? "mp4" : mime === "audio/mpeg" ? "mp3" : "wav";
       const form = new FormData();
-      form.append("file", new Blob([bin], { type: payload.mime ?? "audio/wav" }), "audio.wav");
-      form.append("model", "saarika:v2");
+      form.append("file", new Blob([bin], { type: mime }), `audio.${ext}`);
+      form.append("model", "saarika:v2.5");
       const r = await fetch(`${SARVAM}/speech-to-text`, { method: "POST", headers: { "api-subscription-key": key }, body: form });
       return json(await r.json(), r.ok ? 200 : 502);
     }
