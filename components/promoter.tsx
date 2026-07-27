@@ -140,7 +140,7 @@ export function ShortcutTile({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         width: "31%",
         backgroundColor: colors.surface,
         borderRadius: space.md,
@@ -150,8 +150,7 @@ export function ShortcutTile({
         paddingVertical: space.sm,
         gap: 7,
         ...elevation.low,
-        transform: [{ translateY: pressed ? 1 : 0 }],
-      })}
+      }}
     >
       <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: tint, alignItems: "center", justifyContent: "center" }}>
         <Ionicons name={icon as any} size={22} color={accent} />

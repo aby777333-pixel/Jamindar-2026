@@ -70,7 +70,7 @@ export default function EarningTree() {
           ) : null}
           <Pressable
             onPress={() => router.push("/promoter/card" as Href)}
-            style={({ pressed }) => ({ alignSelf: "flex-start", marginTop: space.sm, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: space.sm + 2, paddingVertical: 8, opacity: pressed ? 0.9 : 1 })}
+            style={{ alignSelf: "flex-start", marginTop: space.sm, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: space.sm + 2, paddingVertical: 8 }}
           >
             <Ionicons name="share-social" size={14} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: T.caption.fontSize + 1 }}>Share your link</Text>
@@ -90,7 +90,6 @@ export default function EarningTree() {
                   <Pressable
                     key={l.level}
                     onPress={() => setLevel(l.level)}
-                    style={({ pressed }) => ({ transform: [{ translateY: pressed ? 1 : 0 }] })}
                   >
                     <Card style={{ flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.sm }}>
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>

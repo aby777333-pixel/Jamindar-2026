@@ -91,12 +91,12 @@ export function Card({
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => ({
+        // Plain object, NOT a function: NativeWind's jsxImportSource interop
+        // drops function-form Pressable styles on native (web is unaffected).
+        style={{
           flex, alignSelf, width, minWidth, maxWidth,
           margin, marginTop, marginBottom, marginLeft, marginRight,
-          transform: [{ translateY: pressed ? 1 : 0 }],
-          opacity: pressed ? 0.97 : 1,
-        })}
+        }}
       >
         <View style={[base, elevation.card, visual]}>{children}</View>
       </Pressable>
@@ -171,16 +171,15 @@ export function Button({
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress?.();
       }}
-      style={({ pressed }) => [
+      style={[
         {
           borderRadius: radius,
           opacity: disabled ? 0.5 : 1,
           shadowColor: solid ? bg : "#000",
-          shadowOpacity: solid && !pressed ? 0.3 : 0,
+          shadowOpacity: solid ? 0.3 : 0,
           shadowRadius: 12,
-          shadowOffset: { width: 0, height: pressed ? 2 : 7 },
-          elevation: solid ? (pressed ? 2 : 7) : 0,
-          transform: [{ translateY: pressed ? 2 : 0 }],
+          shadowOffset: { width: 0, height: 7 },
+          elevation: solid ? 7 : 0,
         },
         style,
       ]}

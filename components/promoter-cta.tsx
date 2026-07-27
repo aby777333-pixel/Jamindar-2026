@@ -49,7 +49,7 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
     return (
       <Pressable
         onPress={() => router.push("/become-promoter" as Href)}
-        style={({ pressed }) => ({
+        style={{
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
@@ -57,8 +57,7 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
           borderRadius: space.md,
           paddingHorizontal: space.sm + 2,
           paddingVertical: space.sm + 1,
-          opacity: pressed ? 0.92 : 1,
-        })}
+        }}
       >
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(224,164,35,0.2)", alignItems: "center", justifyContent: "center" }}>
           <Ionicons name="ribbon" size={17} color={colors.gold} />
@@ -77,7 +76,7 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
   }
 
   return (
-    <Pressable onPress={() => router.push("/become-promoter" as Href)} style={({ pressed }) => ({ transform: [{ translateY: pressed ? 1 : 0 }] })}>
+    <Pressable onPress={() => router.push("/become-promoter" as Href)}>
       <LinearGradient
         colors={["#212B47", colors.navy, "#0E1322"]}
         start={{ x: 0, y: 0 }}

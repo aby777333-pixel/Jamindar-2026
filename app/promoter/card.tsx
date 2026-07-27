@@ -127,7 +127,7 @@ export default function PromoterCard() {
         {/* one-tap share */}
         <Pressable
           onPress={shareCard}
-          style={({ pressed }) => ({
+          style={{
             marginTop: space.md,
             flexDirection: "row",
             alignItems: "center",
@@ -136,8 +136,7 @@ export default function PromoterCard() {
             backgroundColor: colors.brand,
             borderRadius: space.sm + 3,
             paddingVertical: space.sm + 2,
-            transform: [{ translateY: pressed ? 1 : 0 }],
-          })}
+          }}
         >
           <Ionicons name="share-social" size={18} color="#fff" />
           <Text style={{ color: "#fff", fontWeight: "700", fontSize: T.body.fontSize }}>Share my card</Text>

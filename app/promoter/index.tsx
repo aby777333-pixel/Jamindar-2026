@@ -143,7 +143,7 @@ export default function PromoterDashboard() {
         </View>
 
         {/* earnings summary — real ledger totals (commission engine, migration 0017) */}
-        <Pressable onPress={() => router.push("/promoter/earnings" as Href)} style={({ pressed }) => ({ marginTop: space.md, opacity: pressed ? 0.95 : 1 })}>
+        <Pressable onPress={() => router.push("/promoter/earnings" as Href)} style={{ marginTop: space.md }}>
           <EarningsCard
             total={formatINR(earn?.total ?? 0)}
             pending={formatINR(earn?.pending ?? 0)}
@@ -155,7 +155,7 @@ export default function PromoterDashboard() {
         {/* Earning Tree — flagship multi-level referral network */}
         <Pressable
           onPress={() => router.push("/promoter/tree" as Href)}
-          style={({ pressed }) => ({
+          style={{
             marginTop: space.md,
             flexDirection: "row",
             alignItems: "center",
@@ -166,8 +166,7 @@ export default function PromoterDashboard() {
             borderColor: colors.border,
             padding: space.sm + 2,
             ...elevation.low,
-            transform: [{ translateY: pressed ? 1 : 0 }],
-          })}
+          }}
         >
           <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.goldSoft, alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="git-network" size={22} color={colors.goldDark} />

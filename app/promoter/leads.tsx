@@ -41,11 +41,10 @@ export default function Leads() {
         {/* submit CTA */}
         <Pressable
           onPress={() => router.push("/promoter/submit" as Href)}
-          style={({ pressed }) => ({
+          style={{
             flexDirection: "row", alignItems: "center", gap: space.sm,
             backgroundColor: colors.navy, borderRadius: space.md, padding: space.md,
-            opacity: pressed ? 0.95 : 1,
-          })}
+          }}
         >
           <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(224,164,35,0.18)", alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="add-circle" size={24} color={colors.goldLight} />

@@ -236,7 +236,8 @@ export function LandHero({
             obvious tap target of the card (bug report: CTA lacked prominence). */}
         <Pressable
           onPress={onPress}
-          style={({ pressed }) => ({
+          // plain object — function styles are dropped on native (NativeWind interop)
+          style={{
             alignSelf: "stretch",
             marginTop: space.md,
             flexDirection: "row",
@@ -250,12 +251,11 @@ export function LandHero({
             paddingHorizontal: 16,
             paddingVertical: 13,
             shadowColor: colors.brand,
-            shadowOpacity: pressed ? 0 : 0.55,
+            shadowOpacity: 0.55,
             shadowRadius: 14,
             shadowOffset: { width: 0, height: 8 },
-            elevation: pressed ? 1 : 8,
-            transform: [{ translateY: pressed ? 1 : 0 }],
-          })}
+            elevation: 8,
+          }}
         >
           <View
             style={{
@@ -292,7 +292,7 @@ export function QuickActionTile({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         flex: 1,
         backgroundColor: colors.surface,
         borderRadius: 20,
@@ -301,8 +301,7 @@ export function QuickActionTile({
         borderWidth: 1,
         borderColor: colors.border,
         ...elevation.low,
-        transform: [{ translateY: pressed ? 1 : 0 }],
-      })}
+      }}
     >
       <View
         style={{
@@ -384,7 +383,7 @@ export function VerifiedListingCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         width,
         backgroundColor: colors.surface,
         borderRadius: 20,
@@ -392,8 +391,7 @@ export function VerifiedListingCard({
         borderWidth: 1,
         borderColor: colors.border,
         ...elevation.card,
-        transform: [{ translateY: pressed ? 1 : 0 }],
-      })}
+      }}
     >
       <View style={{ height: 122 }}>
         {property.images?.[0] ? (
