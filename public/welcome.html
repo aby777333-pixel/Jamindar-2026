@@ -50,6 +50,8 @@
   .steps .n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: var(--gold); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
   .footer { text-align: center; color: var(--faint); font-size: 12px; padding: 8px 20px 34px; letter-spacing: .4px; }
   .footer b { color: var(--ink-soft); }
+  .logo-badge { display: block; width: max-content; margin: 0 auto 12px; background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 10px 18px; box-shadow: 0 6px 18px rgba(21,27,46,.07); }
+  .logo-badge img { display: block; width: 168px; max-width: 56vw; height: auto; }
   .hidden { display: none; }
   .skeleton { padding: 26px 20px; text-align: center; color: var(--faint); font-size: 14px; }
 </style>
@@ -116,7 +118,10 @@
     <div class="card" id="loading"><div class="skeleton">Loading…</div></div>
   </div>
 
-  <div class="footer"><b>JAMIN PROPERTIES</b> · Signature for Fortune<br/>info@jaminproperties.com · +91 93848 18895</div>
+  <div class="footer">
+    <span class="logo-badge"><img src="/logo.png" alt="Jamin Properties — Signature for Fortune" /></span>
+    <b>JAMIN PROPERTIES</b> · Signature for Fortune<br/>info@jaminproperties.com · +91 93848 18895
+  </div>
 
 <script>
 (function () {
