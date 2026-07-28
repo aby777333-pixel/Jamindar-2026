@@ -269,6 +269,7 @@ export default function PropertyDetail() {
     ongoing: { label: "Ongoing", color: colors.goldDark },
     current: { label: "Ready now", color: colors.brand },
     future: { label: "Upcoming", color: colors.success },
+    completed: { label: "Completed", color: colors.goldDark },
   };
   const phase = PHASE_META[property.project_phase] ?? PHASE_META.current;
 
