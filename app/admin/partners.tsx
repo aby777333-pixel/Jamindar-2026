@@ -29,7 +29,7 @@ export default function AdminPartners() {
     },
   });
 
-  async function review(userId: string, decision: "verified" | "rejected") {
+  async function review(userId: string, decision: "verified" | "rejected" | "pending") {
     setBusy(userId + decision);
     try {
       const { error } = await supabase.rpc("admin_review_partner", { p_user: userId, p_decision: decision, p_reason: null });
@@ -41,6 +41,22 @@ export default function AdminPartners() {
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Owner report 28-07: Verified is no longer final — a mistaken decision can
+   *  be corrected. Demotion pauses promoter access until re-verified, so it
+   *  always confirms first; the partner code is kept for continuity. */
+  function confirmStatusChange(p: any, decision: "verified" | "rejected" | "pending") {
+    const label = decision === "pending" ? "move back to Pending" : decision;
+    Alert.alert(
+      "Change partner status?",
+      `${p.full_name ?? "This partner"} will be ${label}.` +
+        (p.partner_status === "verified" ? " Their promoter access pauses until re-verified." : ""),
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Confirm", onPress: () => review(p.id, decision) },
+      ]
+    );
   }
 
   return (
@@ -87,7 +103,25 @@ export default function AdminPartners() {
                     <Button label="Verify" variant="gold" onPress={() => review(p.id, "verified")} loading={busy === p.id + "verified"} />
                   </View>
                 </View>
-              ) : null}
+              ) : filter === "verified" ? (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Set Pending" variant="outline" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Reject" variant="outline" onPress={() => confirmStatusChange(p, "rejected")} loading={busy === p.id + "rejected"} />
+                  </View>
+                </View>
+              ) : (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Set Pending" variant="outline" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Verify" variant="gold" onPress={() => confirmStatusChange(p, "verified")} loading={busy === p.id + "verified"} />
+                  </View>
+                </View>
+              )}
             </Card>
           ))}
         </ScrollView>
