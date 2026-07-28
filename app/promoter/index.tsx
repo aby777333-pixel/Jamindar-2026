@@ -18,6 +18,7 @@ import {
 import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
+import { useFavorites } from "@/lib/favorites";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo, initials } from "@/lib/format";
 import { fetchMyEarnings } from "@/lib/earnings";
@@ -33,6 +34,7 @@ export default function PromoterDashboard() {
   const router = useRouter();
   const { profile } = useAuth();
   const uid = profile?.id;
+  const favorites = useFavorites();
 
   const { data, isLoading } = useQuery({
     queryKey: ["promoter-dash", uid],
@@ -46,7 +48,9 @@ export default function PromoterDashboard() {
         supabase.from("activity_log").select("*").eq("user_id", uid!).order("created_at", { ascending: false }).limit(12),
         supabase.from("notifications").select("id,read_at").eq("user_id", uid!).is("read_at", null),
         supabase.from("properties").select("*").eq("promoter_id", uid!).order("created_at", { ascending: false }).limit(10),
-        supabase.from("favorites").select("*").eq("user_id", uid!).limit(20),
+        // Bug fix 28-07: the column is buyer_id — user_id errored silently,
+        // leaving the Saved-projects rail permanently empty.
+        supabase.from("favorites").select("*").eq("buyer_id", uid!).limit(20),
       ]);
 
       // Saved projects — resolve favorited property ids (defensive on column name).
@@ -241,7 +245,7 @@ export default function PromoterDashboard() {
           {data.assigned.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
               {data.assigned.map((p) => (
-                <VerifiedListingCard key={p.id} property={p} width={210} onPress={() => router.push(`/property/${p.id}` as Href)} />
+                <VerifiedListingCard key={p.id} property={p} width={210} saved={favorites.has(p.id)} onSave={() => favorites.toggle(p.id)} onPress={() => router.push(`/property/${p.id}` as Href)} />
               ))}
             </ScrollView>
           ) : (
@@ -254,7 +258,7 @@ export default function PromoterDashboard() {
           {data.saved.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
               {data.saved.map((p) => (
-                <VerifiedListingCard key={p.id} property={p} width={210} onPress={() => router.push(`/property/${p.id}` as Href)} />
+                <VerifiedListingCard key={p.id} property={p} width={210} saved={favorites.has(p.id)} onSave={() => favorites.toggle(p.id)} onPress={() => router.push(`/property/${p.id}` as Href)} />
               ))}
             </ScrollView>
           ) : (

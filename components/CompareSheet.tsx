@@ -34,6 +34,10 @@ export function CompareSheet({ visible, onClose, currentId }: { visible: boolean
     },
   });
 
+  // The real ceiling (bug report 28-07): never advertise "of 3" when fewer
+  // projects exist to compare. Falls back to the cap while the list loads.
+  const limit = rows ? Math.min(COMPARE_MAX, Math.max(rows.length, 2)) : COMPARE_MAX;
+
   // Start from what's already in the compare basket + the property being viewed.
   useEffect(() => {
     if (!visible) return;
@@ -44,8 +48,8 @@ export function CompareSheet({ visible, onClose, currentId }: { visible: boolean
   function toggleRow(id: string) {
     setChecked((c) => {
       if (c.includes(id)) return c.filter((x) => x !== id);
-      if (c.length >= COMPARE_MAX) {
-        Alert.alert("Compare", `You can compare up to ${COMPARE_MAX} projects. Untick one first.`);
+      if (c.length >= limit) {
+        Alert.alert("Compare", `You can compare up to ${limit} projects. Untick one first.`);
         return c;
       }
       return [...c, id];
@@ -78,12 +82,12 @@ export function CompareSheet({ visible, onClose, currentId }: { visible: boolean
           <Text style={{ flex: 1, fontSize: T.body.fontSize + 2, fontWeight: "800", color: colors.ink }}>Compare projects</Text>
           <View style={{ backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
             <Text style={{ color: colors.brand, fontWeight: "800", fontSize: T.caption.fontSize + 1 }}>
-              {checked.length} / {COMPARE_MAX}
+              {checked.length} / {limit}
             </Text>
           </View>
         </View>
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, marginBottom: space.sm }}>
-          Tick up to {COMPARE_MAX} projects, then compare them side by side.
+          Tick up to {limit} projects, then compare them side by side.
         </Text>
 
         <ScrollView style={{ flexGrow: 0 }} showsVerticalScrollIndicator={false}>

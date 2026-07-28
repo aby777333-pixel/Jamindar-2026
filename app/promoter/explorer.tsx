@@ -10,6 +10,7 @@ import { PromoterSection, SoftEmpty } from "@/components/promoter";
 import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
+import { useFavorites } from "@/lib/favorites";
 import { colors, space, type as T } from "@/lib/theme";
 import { encodeFilters } from "@/lib/property-search";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
@@ -33,6 +34,7 @@ export default function Explorer() {
   const router = useRouter();
   const { profile } = useAuth();
   const uid = profile?.id;
+  const favorites = useFavorites();
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -40,7 +42,9 @@ export default function Explorer() {
     queryFn: async () => {
       const [pool, favs] = await Promise.all([
         supabase.from("properties").select("*").in("status", ["available", "reserved", "sold"]).order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(60),
-        uid ? supabase.from("favorites").select("*").eq("user_id", uid).limit(30) : Promise.resolve({ data: [] as any[] }),
+        // Bug fix 28-07: the column is buyer_id — user_id made this query
+        // error silently, so the Saved-projects rail was always empty.
+        uid ? supabase.from("favorites").select("*").eq("buyer_id", uid).limit(30) : Promise.resolve({ data: [] as any[] }),
       ]);
       const all = (pool.data as Property[]) ?? [];
       const favIds = new Set((favs.data ?? []).map((f: any) => f.property_id ?? f.property).filter(Boolean));
@@ -105,15 +109,18 @@ export default function Explorer() {
         </View>
       </View>
 
-      {/* type chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: space.sm, maxHeight: 44 }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs }}>
+      {/* type chips — flexGrow:0 instead of a fixed maxHeight (bug 28-07: the
+          44px cap clipped chip labels like "Farm Land" once device font
+          scaling grew them); numberOfLines + explicit lineHeight keep each
+          label on one stable line. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: space.sm, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, alignItems: "center" }}>
         {CHIPS.map((c) => (
           <Pressable
             key={c.key}
             onPress={() => openList(c.key === "all" ? undefined : c.key)}
-            style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+            style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
           >
-            <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: T.small.fontSize }}>{c.label}</Text>
+            <Text numberOfLines={1} style={{ color: colors.inkSoft, fontWeight: "600", fontSize: T.small.fontSize, lineHeight: T.small.lineHeight }}>{c.label}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -131,7 +138,7 @@ export default function Explorer() {
           {filtered.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: space.sm }}>
               {filtered.map((p) => (
-                <VerifiedListingCard key={p.id} property={p} width={CARD_W} onPress={() => router.push(`/property/${p.id}` as Href)} />
+                <VerifiedListingCard key={p.id} property={p} width={CARD_W} saved={favorites.has(p.id)} onSave={() => favorites.toggle(p.id)} onPress={() => router.push(`/property/${p.id}` as Href)} />
               ))}
             </View>
           ) : (
@@ -146,7 +153,7 @@ export default function Explorer() {
               <PromoterSection title={r.title} actionLabel="See all" onAction={() => openList(r.type)}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
                   {r.items.map((p) => (
-                    <VerifiedListingCard key={p.id} property={p} width={210} onPress={() => router.push(`/property/${p.id}` as Href)} />
+                    <VerifiedListingCard key={p.id} property={p} width={210} saved={favorites.has(p.id)} onSave={() => favorites.toggle(p.id)} onPress={() => router.push(`/property/${p.id}` as Href)} />
                   ))}
                 </ScrollView>
               </PromoterSection>

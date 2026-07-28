@@ -140,7 +140,14 @@ Deno.serve(async (req) => {
       expose = (ex?.value ?? 'off') === 'on';
     } catch (_) { expose = false; }
     const forceDev = Deno.env.get('OTP_DEV_MODE') === 'true';
-    const resp: Record<string, unknown> = { sent: true, mobile: norm, delivered, channel };
+    // First-time user? The verify screen only shows the referral-code field for
+    // new registrations (bug report 28-07) — existing users go straight to OTP.
+    let newUser = false;
+    try {
+      const { count: pc } = await admin.from('profiles').select('id', { count: 'exact', head: true }).eq('mobile', norm);
+      newUser = (pc ?? 0) === 0;
+    } catch (_) { newUser = false; }
+    const resp: Record<string, unknown> = { sent: true, mobile: norm, delivered, channel, newUser };
     if (forceDev || expose || !delivered) {
       resp.devCode = code;
       console.log(`[JAMINDAR OTP] ${norm} => ${code} (delivered=${delivered} channel=${channel})`);

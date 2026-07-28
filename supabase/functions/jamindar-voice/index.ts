@@ -243,6 +243,15 @@ Deno.serve(async (req) => {
       if (script && !script.test(reply)) {
         const translated = (await translateText(reply, chosen, "auto")).trim();
         if (translated) reply = translated;
+      } else if (chosen.startsWith("en")) {
+        // English had no script check (v12 fix): a reply that carries on in an
+        // Indic script — the model following old conversation history — slipped
+        // through, so the in-chat English selection appeared to be ignored.
+        const INDIC = /[ऀ-ൿ਀-੿]/; // Devanagari…Malayalam + Gurmukhi
+        if (INDIC.test(reply)) {
+          const translated = (await translateText(reply, "en-IN", "auto")).trim();
+          if (translated) reply = translated;
+        }
       }
 
       const lang = payload.language ?? "en-IN";

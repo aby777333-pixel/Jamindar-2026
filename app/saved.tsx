@@ -46,6 +46,8 @@ export default function Saved() {
     // keep the heart on the property detail page in sync
     qc.invalidateQueries({ queryKey: ["saved", profile.id] });
     qc.invalidateQueries({ queryKey: ["favorite"] });
+    qc.invalidateQueries({ queryKey: ["favorite-ids"] });
+    qc.invalidateQueries({ queryKey: ["explorer"] });
   }
 
   function confirmRemove(p: Property) {

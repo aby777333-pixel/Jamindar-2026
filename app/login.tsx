@@ -7,7 +7,6 @@ import { Screen, Button } from "@/components/ui";
 import { JamindarFace } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
-import { captureInviteCode } from "@/lib/acquisition";
 import { colors, space, type as T } from "@/lib/theme";
 
 /** Small reassurance row shown under the form — reinforces the value prop
@@ -21,7 +20,6 @@ const TRUST: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
 export default function Login() {
   const router = useRouter();
   const [mobile, setMobile] = useState("");
-  const [invite, setInvite] = useState("");
   const [loading, setLoading] = useState(false);
 
   const digits = mobile.replace(/[^0-9]/g, "");
@@ -29,13 +27,14 @@ export default function Login() {
 
   async function onSend() {
     if (!valid) return;
-    if (invite.trim()) captureInviteCode(invite);
     setLoading(true);
     try {
       const res = await sendOtp(digits);
+      // Referral entry moved to the verify screen and only for FIRST-TIME
+      // users (bug report 28-07): existing users go straight to the OTP.
       router.push({
         pathname: "/verify",
-        params: { mobile: digits, devCode: res.devCode ?? "" },
+        params: { mobile: digits, devCode: res.devCode ?? "", newUser: res.newUser ? "1" : "" },
       });
     } catch (e: any) {
       Alert.alert("Couldn't send OTP", e?.message ?? "Please try again.");
@@ -93,14 +92,6 @@ export default function Login() {
           placeholder="98765 43210"
           maxLength={13}
           autoFocus
-        />
-
-        <Field
-          label="Invite code (optional)"
-          value={invite}
-          onChangeText={setInvite}
-          placeholder="JA-REF-00001"
-          autoCapitalize="characters"
         />
 
         <Button label="Send OTP" onPress={onSend} loading={loading} disabled={!valid} />

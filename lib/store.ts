@@ -83,7 +83,7 @@ async function fn<T>(name: string, body: unknown): Promise<T> {
 }
 
 export async function sendOtp(mobile: string) {
-  return fn<{ sent: boolean; mobile: string; delivered: boolean; devCode?: string }>(
+  return fn<{ sent: boolean; mobile: string; delivered: boolean; newUser?: boolean; devCode?: string }>(
     "send-otp",
     { mobile }
   );

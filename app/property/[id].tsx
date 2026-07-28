@@ -188,7 +188,12 @@ export default function PropertyDetail() {
       await supabase.from("favorites").insert({ buyer_id: profile.id, property_id: id });
       logActivity("property_saved", { property_id: id });
     }
+    // Keep every heart in sync (bug report 28-07): listing cards, the
+    // wishlist screen and the explorer's Saved rail read these keys.
     qc.invalidateQueries({ queryKey: ["favorite", id, profile.id] });
+    qc.invalidateQueries({ queryKey: ["favorite-ids"] });
+    qc.invalidateQueries({ queryKey: ["saved"] });
+    qc.invalidateQueries({ queryKey: ["explorer"] });
   }
 
   async function onShare() {
@@ -362,18 +367,22 @@ export default function PropertyDetail() {
               ))}
             </View>
           ) : null}
-          <View style={{ position: "absolute", bottom: 12, left: 12, flexDirection: "row", gap: 6 }}>
-            {approvalTag ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
-                <Ionicons name="checkmark-circle" size={12} color={colors.success} />
-                <Text style={{ color: colors.success, fontSize: 11, fontWeight: "700" }}>{approvalTag}</Text>
+          {/* Status badges + 360° button only over PHOTOS — in Videos mode they
+              collided with the player controls and walkthrough chips (bug 28-07). */}
+          {mediaMode === "photos" ? (
+            <View style={{ position: "absolute", bottom: 12, left: 12, flexDirection: "row", gap: 6 }}>
+              {approvalTag ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
+                  <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                  <Text style={{ color: colors.success, fontSize: 11, fontWeight: "700" }}>{approvalTag}</Text>
+                </View>
+              ) : null}
+              <View style={{ backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
+                <Text style={{ color: phase.color, fontSize: 11, fontWeight: "700" }}>{phase.label}</Text>
               </View>
-            ) : null}
-            <View style={{ backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
-              <Text style={{ color: phase.color, fontSize: 11, fontWeight: "700" }}>{phase.label}</Text>
             </View>
-          </View>
-          {property.virtual_tour_url ? (
+          ) : null}
+          {mediaMode === "photos" && property.virtual_tour_url ? (
             <Pressable onPress={() => WebBrowser.openBrowserAsync(property.virtual_tour_url!)} style={{ position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
               <Ionicons name="cube" size={12} color={colors.ink} />
               <Text style={{ color: colors.ink, fontSize: 11, fontWeight: "700" }}>360° Tour</Text>

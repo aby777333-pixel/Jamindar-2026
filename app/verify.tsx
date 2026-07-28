@@ -6,14 +6,19 @@ import { JamindarFace } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { verifyOtp, sendOtp, useAuth } from "@/lib/store";
 import { flushPendingAcquisition } from "@/lib/audit";
+import { captureInviteCode } from "@/lib/acquisition";
+import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
 
 export default function Verify() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mobile: string; devCode?: string }>();
+  const params = useLocalSearchParams<{ mobile: string; devCode?: string; newUser?: string }>();
   const mobile = params.mobile ?? "";
+  // Referral entry shows only for first-time registrations (bug report 28-07).
+  const isNewUser = params.newUser === "1";
   const refreshProfile = useAuth((s) => s.refreshProfile);
   const [code, setCode] = useState(params.devCode ? String(params.devCode) : "");
+  const [invite, setInvite] = useState("");
   const [loading, setLoading] = useState(false);
   const [seconds, setSeconds] = useState(30);
 
@@ -27,6 +32,29 @@ export default function Verify() {
     if (code.length < 4) return;
     setLoading(true);
     try {
+      // Optional referral code — but if one is entered it MUST be a real
+      // member's code and not the user's own (bug report 28-07, HIGH).
+      const inviteCode = invite.trim();
+      if (isNewUser && inviteCode) {
+        const { data: check, error: vErr } = await supabase.rpc("validate_referral_code", {
+          p_code: inviteCode,
+          p_mobile: mobile,
+        });
+        if (!vErr) {
+          const v = check as { valid?: boolean; reason?: string } | null;
+          if (!v?.valid) {
+            Alert.alert(
+              "Invalid referral code",
+              v?.reason === "self"
+                ? "You can't use your own referral code."
+                : "That code doesn't match any Jamin member. Check it, or clear the field to continue without one.",
+            );
+            setLoading(false);
+            return;
+          }
+          captureInviteCode(inviteCode);
+        }
+      }
       const res = await verifyOtp(mobile, code);
       const profile = await refreshProfile();
       await flushPendingAcquisition(mobile); // one-time referral/acquisition attribution
@@ -79,6 +107,17 @@ export default function Verify() {
           autoFocus
           hint={params.devCode ? "Dev mode: code pre-filled" : undefined}
         />
+
+        {isNewUser ? (
+          <Field
+            label="Referral code (optional)"
+            value={invite}
+            onChangeText={setInvite}
+            placeholder="JA-REF-00001"
+            autoCapitalize="characters"
+            hint="Have an invite from a Jamin member? It's checked before you continue."
+          />
+        ) : null}
 
         <Button label="Verify & Continue" onPress={onVerify} loading={loading} disabled={code.length < 4} />
 

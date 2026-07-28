@@ -25,7 +25,7 @@ import { initials, greetingFor } from "@/lib/format";
 import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
 import { encodeFilters, type SearchFilters } from "@/lib/property-search";
-import { useCompare } from "@/lib/compare";
+import { useFavorites } from "@/lib/favorites";
 
 type RoleAction = { label: string; sub: string; icon: string; accent: { bg: string; fg: string }; href: Href };
 
@@ -75,7 +75,9 @@ export default function Home() {
   const { profile } = useAuth();
   const role = useEffectiveRole();
   const { data: featured } = useFeatured();
-  const compare = useCompare();
+  // Bug fix 28-07: the card heart was wired to the COMPARE store, so "saved"
+  // properties never reached the wishlist. It now uses the shared favorites hook.
+  const favorites = useFavorites();
   const { data: suggestions } = useQuery({
     queryKey: ["suggestions", profile?.id, role],
     enabled: !!profile?.id && role === "buyer",
@@ -192,8 +194,8 @@ export default function Home() {
                 <VerifiedListingCard
                   key={p.id}
                   property={p}
-                  saved={compare.has(p.id)}
-                  onSave={() => compare.toggle(p.id)}
+                  saved={favorites.has(p.id)}
+                  onSave={() => favorites.toggle(p.id)}
                   onMap={() => openMap(p)}
                   onPress={() => router.push(`/property/${p.id}`)}
                 />

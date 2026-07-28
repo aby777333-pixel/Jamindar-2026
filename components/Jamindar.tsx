@@ -493,7 +493,11 @@ export function JamindarSheet({
     setBusy(true);
     try {
       const history: ChatMsg[] = [...msgs, { role: "user" as const, content: clean }].slice(-16);
-      const reply = await jamindarChat(history, { language: languageRef.current, conversationId, memory });
+      // The memory blob is loaded once on open — override its language with the
+      // live chip so a stale stored preference can't contradict the selection
+      // in the system prompt (bug 28-07: chip ignored, replies stayed Telugu).
+      const mem = memory ? { ...memory, language: languageRef.current } : memory;
+      const reply = await jamindarChat(history, { language: languageRef.current, conversationId, memory: mem });
       pushAssistant(reply);
     } catch {
       pushAssistant("Sorry, I couldn't reach the assistant just now. Please try again.", false);
