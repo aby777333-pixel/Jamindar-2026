@@ -47,25 +47,35 @@ const open = (url: string) => Linking.openURL(url).catch(() => {});
 
 export type ShareChannel = "whatsapp" | "telegram" | "sms" | "email" | "facebook" | "x" | "instagram" | "copy" | "more";
 
-/** Share the referral invite through a specific channel. Returns a toast-worthy note or null. */
-export async function shareReferral(channel: ShareChannel, code: string): Promise<string | null> {
-  const link = referralLink(code);
-  const text = referralMessage(code);
+/** Share ANY text+link through a specific channel (report 28-07: referral
+ *  sharing supports WhatsApp, Facebook, Telegram, Email, copy…). */
+export async function shareVia(
+  channel: ShareChannel,
+  text: string,
+  link: string,
+  subject = "Join Jamin Properties"
+): Promise<string | null> {
   const e = encodeURIComponent;
   switch (channel) {
     case "whatsapp": open(`https://wa.me/?text=${e(text)}`); return null;
     case "telegram": open(`https://t.me/share/url?url=${e(link)}&text=${e(text)}`); return null;
     case "sms": open(Platform.OS === "ios" ? `sms:&body=${e(text)}` : `sms:?body=${e(text)}`); return null;
-    case "email": open(`mailto:?subject=${e("Join Jamin Properties")}&body=${e(text)}`); return null;
+    case "email": open(`mailto:?subject=${e(subject)}&body=${e(text)}`); return null;
     case "facebook": open(`https://www.facebook.com/sharer/sharer.php?u=${e(link)}`); return null;
     case "x": open(`https://twitter.com/intent/tweet?text=${e(text)}`); return null;
-    case "copy": await Clipboard.setStringAsync(link); return "Invite link copied";
+    case "copy": await Clipboard.setStringAsync(link); return "Link copied";
     case "instagram":
     case "more":
     default:
       await Share.share({ message: text });
       return null;
   }
+}
+
+/** Share the referral invite through a specific channel. Returns a toast-worthy note or null. */
+export async function shareReferral(channel: ShareChannel, code: string): Promise<string | null> {
+  const note = await shareVia(channel, referralMessage(code), referralLink(code));
+  return note === "Link copied" ? "Invite link copied" : note;
 }
 
 /** Deep link to a property, carrying the sharer's referral code when present

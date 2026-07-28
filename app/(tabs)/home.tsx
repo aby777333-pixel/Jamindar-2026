@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { Text, View, Pressable, ScrollView, Alert, Linking, AppState } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Text, View, Pressable, ScrollView, Alert, Linking, AppState, Image, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui";
 import { IconChip } from "@/components/premium";
@@ -21,7 +22,7 @@ import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { initials, greetingFor } from "@/lib/format";
+import { initials, greetingFor, formatINR } from "@/lib/format";
 import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
 import { encodeFilters, type SearchFilters } from "@/lib/property-search";
@@ -132,6 +133,13 @@ export default function Home() {
         <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
           <SearchRow onPress={() => browse()} onFilter={() => browse()} />
         </View>
+
+        {/* hero slider — live projects (report 28-07): auto-plays, swipeable */}
+        {featured && featured.length > 0 ? (
+          <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
+            <HeroSlider items={featured.slice(0, 5)} onOpen={(p) => router.push(`/property/${p.id}`)} />
+          </View>
+        ) : null}
 
         {/* hero — Ask Jamindar (AI advisor) */}
         <View style={{ paddingHorizontal: 20, marginTop: space.sm }}>
@@ -272,5 +280,74 @@ function QuickTool({ icon, label, onPress }: { icon: string; label: string; onPr
         <Text style={{ fontSize: 12, fontWeight: "600", color: colors.ink }} numberOfLines={1}>{label}</Text>
       </Card>
     </Pressable>
+  );
+}
+
+/** Auto-playing, swipeable hero slider over the live projects (report 28-07).
+ *  Each slide: project image, name, price and a View Details CTA. */
+function HeroSlider({ items, onOpen }: { items: Property[]; onOpen: (p: Property) => void }) {
+  const { width: winW } = useWindowDimensions();
+  const W = winW - 40; // matches the screen's 20px side padding
+  const H = 178;
+  const scrollRef = useRef<ScrollView>(null);
+  const [idx, setIdx] = useState(0);
+  const idxRef = useRef(0);
+
+  // auto-play (pauses naturally while the user drags — the interval just
+  // scrolls to the slide after the one last seen)
+  useEffect(() => {
+    if (items.length < 2) return;
+    const id = setInterval(() => {
+      const next = (idxRef.current + 1) % items.length;
+      scrollRef.current?.scrollTo({ x: next * W, animated: true });
+      idxRef.current = next;
+      setIdx(next);
+    }, 4200);
+    return () => clearInterval(id);
+  }, [items.length, W]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <View style={{ borderRadius: 18, overflow: "hidden" }}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => {
+          const i = Math.round(e.nativeEvent.contentOffset.x / W);
+          idxRef.current = i;
+          setIdx(i);
+        }}
+      >
+        {items.map((p) => (
+          <Pressable key={p.id} onPress={() => onOpen(p)} style={{ width: W, height: H, backgroundColor: colors.navy }}>
+            {p.images?.[0] ? (
+              <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            ) : null}
+            <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.72)"]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
+            <View style={{ position: "absolute", left: 14, right: 14, bottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }} numberOfLines={1}>{p.title}</Text>
+                <Text style={{ color: colors.goldLight, fontWeight: "800", fontSize: 13.5, marginTop: 2 }}>
+                  {p.price ? formatINR(p.price) : "Price on request"}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8 }}>
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>View Details</Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {items.length > 1 ? (
+        <View style={{ position: "absolute", top: 10, right: 12, flexDirection: "row", gap: 5 }}>
+          {items.map((_, i) => (
+            <View key={i} style={{ width: i === idx ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: i === idx ? "#fff" : "rgba(255,255,255,0.55)" }} />
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }

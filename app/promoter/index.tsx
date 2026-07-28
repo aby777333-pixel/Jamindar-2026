@@ -19,6 +19,7 @@ import { JamindarFab } from "@/components/Jamindar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { useFavorites } from "@/lib/favorites";
+import { ReferralSharing } from "@/components/ReferralSharing";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo, initials } from "@/lib/format";
 import { fetchMyEarnings } from "@/lib/earnings";
@@ -265,6 +266,11 @@ export default function PromoterDashboard() {
             <SoftEmpty icon="bookmark-outline" text="Save projects you love to keep them handy for sharing." />
           )}
         </PromoterSection>
+
+        {/* referral sharing — Build Your Team + Promote Your Project (28-07) */}
+        <View style={{ marginBottom: space.md }}>
+          <ReferralSharing />
+        </View>
 
         {/* recent leads */}
         <PromoterSection title="Recent leads">

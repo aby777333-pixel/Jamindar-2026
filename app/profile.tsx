@@ -76,6 +76,35 @@ export default function ProfileSetup() {
     ]);
   }
 
+  /** Skip (report 28-07): first-time users may jump straight to Home. Saves
+   *  whatever was typed, marks the profile usable, and skips the optional
+   *  onboarding questionnaire. Details can be completed later from Account. */
+  async function onSkip() {
+    if (!profile || loading) return;
+    setLoading(true);
+    try {
+      const fallbackName = name.trim().length >= 2 ? name.trim() : profile.full_name || "Jamin member";
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fallbackName,
+          email: email.trim() || null,
+          city: city.trim() || null,
+          state: state.trim() || null,
+          is_profile_complete: true,
+        })
+        .eq("id", profile.id);
+      if (error) throw error;
+      if (profile.role === "promoter") await ensurePromoterProfile(profile.id, fallbackName);
+      await refreshProfile();
+      router.replace("/(tabs)/home");
+    } catch (e: any) {
+      Alert.alert("Couldn't skip", e?.message ?? "");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function onFinish() {
     if (!profile) return;
     if (name.trim().length < 2) {
@@ -121,6 +150,12 @@ export default function ProfileSetup() {
   return (
     <Screen>
       <View style={{ paddingTop: 24 }}>
+        {/* Skip — top of the registration section (report 28-07) */}
+        <Pressable onPress={onSkip} disabled={loading} hitSlop={8} style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: colors.surfaceAlt }}>
+          <Text style={{ color: colors.inkSoft, fontWeight: "700", fontSize: 13 }}>Skip</Text>
+          <Ionicons name="arrow-forward" size={14} color={colors.inkSoft} />
+        </Pressable>
+
         {/* profile photo */}
         <View style={{ alignItems: "center", marginBottom: 18 }}>
           <Pressable onPress={onPickAvatar} disabled={avatarBusy}>

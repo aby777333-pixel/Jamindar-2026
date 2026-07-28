@@ -244,13 +244,16 @@ export function StatCard({
   label,
   value,
   accent = colors.brand,
+  onPress,
 }: {
   label: string;
   value: string | number;
   accent?: string;
+  /** Optional — makes the stat card tappable (e.g. Registration Details). */
+  onPress?: () => void;
 }) {
   return (
-    <Card style={{ flex: 1, minWidth: 0, padding: space.sm }}>
+    <Card onPress={onPress} style={{ flex: 1, minWidth: 0, padding: space.sm }}>
       <Text style={{ color: accent, fontSize: T.subhead.fontSize, lineHeight: T.subhead.lineHeight, fontWeight: "800" }}>{value}</Text>
       <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 2, marginTop: 2 }}>{label}</Text>
     </Card>

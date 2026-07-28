@@ -23,7 +23,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const digits = mobile.replace(/[^0-9]/g, "");
-  const valid = digits.length >= 10;
+  // Report 28-07: exactly 10 digits, numbers only — enforced at input level.
+  const valid = digits.length === 10;
 
   async function onSend() {
     if (!valid) return;
@@ -87,10 +88,11 @@ export default function Login() {
         <Field
           label="Mobile number"
           value={mobile}
-          onChangeText={setMobile}
-          keyboardType="phone-pad"
+          onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
+          keyboardType="number-pad"
           placeholder="98765 43210"
-          maxLength={13}
+          maxLength={10}
+          hint="10-digit mobile number"
           autoFocus
         />
 

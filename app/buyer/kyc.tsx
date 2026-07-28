@@ -66,6 +66,15 @@ export default function BuyerKyc() {
   }, [profile?.id]);
 
   const set = (k: keyof Form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // Input-level enforcement (report 28-07): PAN max 10 alphanumerics
+  // (uppercased), Aadhaar digits-only max 12, phone digits-only max 10 —
+  // invalid characters simply cannot be typed.
+  const setPan = (k: keyof Form) => (v: string) =>
+    setForm((f) => ({ ...f, [k]: v.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10) }));
+  const setAadhaar = (k: keyof Form) => (v: string) =>
+    setForm((f) => ({ ...f, [k]: v.replace(/\D/g, "").slice(0, 12) }));
+  const setPhone10 = (k: keyof Form) => (v: string) =>
+    setForm((f) => ({ ...f, [k]: v.replace(/\D/g, "").slice(0, 10) }));
 
   async function pickDoc(kind: keyof Form) {
     if (!profile?.id) return;
@@ -214,8 +223,8 @@ export default function BuyerKyc() {
 
             {/* Identity */}
             <Section title="Identity" subtitle="As per your official documents">
-              <Field label="PAN Number" value={form.pan_number} onChangeText={set("pan_number")} placeholder="ABCDE1234F" autoCapitalize="characters" hint="Format: ABCDE1234F" />
-              <Field label="Aadhaar Number" value={form.aadhaar_number} onChangeText={set("aadhaar_number")} placeholder="1234 5678 9012" keyboardType="number-pad" hint="12-digit UIDAI number" />
+              <Field label="PAN Number" value={form.pan_number} onChangeText={setPan("pan_number")} placeholder="ABCDE1234F" autoCapitalize="characters" maxLength={10} hint="10 characters — format: ABCDE1234F" />
+              <Field label="Aadhaar Number" value={form.aadhaar_number} onChangeText={setAadhaar("aadhaar_number")} placeholder="123456789012" keyboardType="number-pad" maxLength={12} hint="12-digit UIDAI number (numbers only)" />
               <Divider />
               {doc("pan_doc", "PAN card photo")}
               {doc("aadhaar_front", "Aadhaar — front")}
@@ -250,11 +259,11 @@ export default function BuyerKyc() {
             <Section title="Nominee" subtitle="Your appointed nominee">
               <Field label="Nominee Name" value={form.nominee_name} onChangeText={set("nominee_name")} placeholder="Full legal name" />
               <Field label="Relationship" value={form.nominee_relationship} onChangeText={set("nominee_relationship")} placeholder="Spouse / Parent / Child" />
-              <Field label="Phone" value={form.nominee_phone} onChangeText={set("nominee_phone")} placeholder="+91 00000 00000" keyboardType="phone-pad" />
+              <Field label="Phone" value={form.nominee_phone} onChangeText={setPhone10("nominee_phone")} placeholder="9876543210" keyboardType="number-pad" maxLength={10} hint="10 digits, numbers only" />
               <Field label="Email" value={form.nominee_email} onChangeText={set("nominee_email")} placeholder="nominee@example.com" keyboardType="email-address" autoCapitalize="none" />
               <Field label="Address" value={form.nominee_address} onChangeText={set("nominee_address")} placeholder="Complete residential address" multiline />
-              <Field label="Nominee PAN (optional)" value={form.nominee_pan} onChangeText={set("nominee_pan")} placeholder="ABCDE1234F" autoCapitalize="characters" />
-              <Field label="Nominee Aadhaar (optional)" value={form.nominee_aadhaar} onChangeText={set("nominee_aadhaar")} placeholder="1234 5678 9012" keyboardType="number-pad" />
+              <Field label="Nominee PAN (optional)" value={form.nominee_pan} onChangeText={setPan("nominee_pan")} placeholder="ABCDE1234F" autoCapitalize="characters" maxLength={10} />
+              <Field label="Nominee Aadhaar (optional)" value={form.nominee_aadhaar} onChangeText={setAadhaar("nominee_aadhaar")} placeholder="123456789012" keyboardType="number-pad" maxLength={12} />
               <Divider />
               {doc("nominee_pan_doc", "Nominee PAN (optional)")}
               {doc("nominee_aadhaar_front", "Nominee Aadhaar — front (optional)")}

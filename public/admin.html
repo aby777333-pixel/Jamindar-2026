@@ -220,11 +220,11 @@ async function refreshBadges(){
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -235,9 +235,9 @@ async function renderDashboard(){
     c("profiles"),c("profiles",q=>q.eq("role","buyer")),c("profiles",q=>q.eq("role","promoter")),
     c("properties"),c("site_visits"),c("leads"),c("kyc_submissions",q=>q.eq("status","pending")),c("profiles",q=>q.eq("partner_status","pending")),
   ]);
-  const stat=(n,l,col)=>`<div class="stat card"><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`;
+  const stat=(n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}" title="Open ${l}"`:''}><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`;
   $("#view").innerHTML = `<div class="stats">
-    ${stat(users,"Total users")}${stat(buyers,"Buyers","var(--gold-dark)")}${stat(promoters,"Promoters","#4B57C9")}${stat(props,"Properties","var(--success)")}
+    ${stat(users,"Total users",null,"go('registrations')")}${stat(buyers,"Buyers","var(--gold-dark)","go('registrations')")}${stat(promoters,"Promoters","#4B57C9","go('registrations')")}${stat(props,"Properties","var(--success)")}
     ${stat(visits,"Site visits","#2B6FE1")}${stat(leads,"Leads","var(--brand)")}${stat(kyc,"KYC pending","var(--gold-dark)")}${stat(partners,"Partner pending","var(--gold-dark)")}
   </div>
   <div class="card" style="padding:20px;"><b>Welcome back, ${esc(ME.full_name||"Admin")}.</b>
@@ -675,6 +675,59 @@ window.reviewSub = async (id,decision,ask)=>{
   const { error } = await sb.rpc("admin_review_submission",{p_id:id,p_decision:decision,p_reason:reason});
   if(error) return toast(error.message); toast("Submission "+decision.replace("_"," ")); refreshBadges(); renderSubmissions();
 };
+
+// ───────── registration details (dashboard card click) ─────────
+let __regRows=null, __regSort={key:'date',asc:false}, __regPage=0, __regSearch='';
+async function renderRegistrations(){
+  if(!__regRows){
+    const { data, error } = await sb.rpc("admin_registration_details",{p_limit:500});
+    if(error){ $("#view").innerHTML=`<div class="empty card">${esc(error.message)}</div>`; return; }
+    __regRows = data||[];
+  }
+  const q=__regSearch.trim().toLowerCase();
+  let rows=__regRows.filter(r=>!q || (r.name||'').toLowerCase().includes(q) || (r.user_id||'').toLowerCase().includes(q) || (r.mobile||'').includes(q));
+  const dir=__regSort.asc?1:-1;
+  rows=[...rows].sort((a,b)=>{
+    if(__regSort.key==='name') return (a.name||'').localeCompare(b.name||'')*dir;
+    if(__regSort.key==='buy') return ((a.bought?1:0)-(b.bought?1:0))*dir;
+    return (new Date(a.registered_at)-new Date(b.registered_at))*dir;
+  });
+  const PAGE=20, pages=Math.max(1,Math.ceil(rows.length/PAGE));
+  if(__regPage>=pages) __regPage=pages-1;
+  const slice=rows.slice(__regPage*PAGE, __regPage*PAGE+PAGE);
+  const arrow=(k)=>__regSort.key===k?(__regSort.asc?' ↑':' ↓'):'';
+  $("#view").innerHTML = `
+    <div class="toolbar" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input id="reg-search" placeholder="Search name, user ID or mobile…" value="${esc(__regSearch)}"
+        style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font:inherit"/>
+      <span class="muted" style="font-size:12.5px">${rows.length} registered</span>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto"><table>
+      <thead><tr>
+        <th>S.No</th>
+        <th style="cursor:pointer" onclick="regSort('name')">Name${arrow('name')}</th>
+        <th>User ID</th>
+        <th style="cursor:pointer" onclick="regSort('date')">Registration date${arrow('date')}</th>
+        <th style="cursor:pointer" onclick="regSort('buy')">Buy status${arrow('buy')}</th>
+      </tr></thead>
+      <tbody>${slice.length? slice.map((r,i)=>`<tr>
+        <td class="muted">${__regPage*PAGE+i+1}</td>
+        <td><b>${esc(r.name||'Member')}</b><div class="muted" style="font-size:12px">${esc(r.role||'')}${r.mobile?' · +'+esc(r.mobile):''}</div></td>
+        <td>${esc(r.user_id||'—')}</td>
+        <td class="muted">${new Date(r.registered_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</td>
+        <td><span class="pill ${r.bought?'ok':'grey'}">${r.bought?'Yes':'No'}</span></td>
+      </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:18px">No registrations match.</td></tr>`}</tbody>
+    </table></div>
+    ${pages>1?`<div class="toolbar" style="justify-content:center;gap:10px;margin-top:12px">
+      <button class="btn grey sm" ${__regPage===0?'disabled':''} onclick="regPage(-1)">‹ Prev</button>
+      <span class="muted" style="font-size:12.5px">Page ${__regPage+1} of ${pages}</span>
+      <button class="btn grey sm" ${__regPage>=pages-1?'disabled':''} onclick="regPage(1)">Next ›</button>
+    </div>`:''}`;
+  const inp=$("#reg-search");
+  inp.addEventListener("input",()=>{__regSearch=inp.value;__regPage=0;const pos=inp.selectionStart;renderRegistrations().then(()=>{const n=$("#reg-search");n.focus();n.setSelectionRange(pos,pos);});});
+}
+window.regSort=(k)=>{ if(__regSort.key===k)__regSort.asc=!__regSort.asc; else __regSort={key:k,asc:k==='name'}; __regPage=0; renderRegistrations(); };
+window.regPage=(d)=>{ __regPage+=d; renderRegistrations(); };
 
 // ───────── community (posts / contact log / reports) ─────────
 async function renderCommunity(){

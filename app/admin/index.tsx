@@ -68,8 +68,8 @@ export default function AdminConsole() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-            <StatCard label="Total Users" value={stats!.users} />
-            <StatCard label="Buyers" value={stats!.buyers} accent={colors.gold} />
+            <StatCard label="Total Users" value={stats!.users} onPress={() => router.push("/admin/registrations" as Href)} />
+            <StatCard label="Buyers" value={stats!.buyers} accent={colors.gold} onPress={() => router.push("/admin/registrations" as Href)} />
             <StatCard label="Promoters" value={stats!.promoters} accent="#4B57C9" />
           </View>
           <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
