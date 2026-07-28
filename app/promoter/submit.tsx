@@ -7,7 +7,7 @@ import { Card, Button } from "@/components/ui";
 import { Field } from "@/components/Field";
 import { colors, space, type as T } from "@/lib/theme";
 import { PROPERTY_TYPE_LABELS, type PropertyType } from "@/lib/types";
-import { pickAndUploadPhotos, captureLocation, createSubmission, type SubmissionDoc } from "@/lib/submissions";
+import { pickAndUploadMedia, pickAndUploadDocuments, captureLocation, createSubmission, type SubmissionDoc } from "@/lib/submissions";
 
 const TYPES = Object.entries(PROPERTY_TYPE_LABELS) as [PropertyType, string][];
 
@@ -16,7 +16,7 @@ export default function SubmitProperty() {
   const [f, setF] = useState({
     title: "", property_type: "" as PropertyType | "", price: "", area_value: "", area_unit: "sqft",
     address: "", locality: "", city: "", district: "", state: "", pincode: "",
-    gmaps_url: "", street_view_url: "", seller_name: "", seller_phone: "", seller_notes: "", notes: "",
+    gmaps_url: "", street_view_url: "", seller_name: "", seller_phone: "", seller_notes: "", notes: "", comments: "",
   });
   const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }));
 
@@ -29,18 +29,39 @@ export default function SubmitProperty() {
   const [docUrl, setDocUrl] = useState("");
 
   const [uploading, setUploading] = useState(false);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
   const [gps, setGps] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  async function addPhotos() {
+  function warnSkipped(skipped: string[]) {
+    if (skipped.length)
+      Alert.alert("Some files were too large", `Files over 50 MB were skipped:\n${skipped.join("\n")}\n\nTip: trim long videos or upload a shorter clip.`);
+  }
+
+  async function addMedia() {
     setUploading(true);
     try {
-      const urls = await pickAndUploadPhotos();
-      if (urls.length) setImages((p) => [...p, ...urls]);
+      const res = await pickAndUploadMedia();
+      if (res.images.length) setImages((p) => [...p, ...res.images]);
+      if (res.videos.length) setVideos((v) => [...v, ...res.videos]);
+      warnSkipped(res.skipped);
     } catch (e: any) {
-      Alert.alert("Couldn't add photos", e?.message ?? "Please try again.");
+      Alert.alert("Couldn't add media", e?.message ?? "Please try again.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function addDocsFromDevice() {
+    setUploadingDocs(true);
+    try {
+      const res = await pickAndUploadDocuments();
+      if (res.docs.length) setDocuments((d) => [...d, ...res.docs]);
+      warnSkipped(res.skipped);
+    } catch (e: any) {
+      Alert.alert("Couldn't add documents", e?.message ?? "Please try again.");
+    } finally {
+      setUploadingDocs(false);
     }
   }
 
@@ -95,6 +116,7 @@ export default function SubmitProperty() {
         seller_phone: f.seller_phone.trim() || undefined,
         seller_notes: f.seller_notes.trim() || undefined,
         notes: f.notes.trim() || undefined,
+        comments: f.comments.trim() || undefined,
       });
       Alert.alert("Submitted", "Your property has been submitted for review. You can track its status in Lead Capture.", [
         { text: "Done", onPress: () => router.back() },
@@ -165,10 +187,13 @@ export default function SubmitProperty() {
         </Section>
 
         <Section title="Photos & media">
-          <Pressable onPress={addPhotos} disabled={uploading} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed", borderRadius: 12, paddingVertical: 14, marginBottom: space.sm }}>
+          <Pressable onPress={addMedia} disabled={uploading} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed", borderRadius: 12, paddingVertical: 14, marginBottom: space.sm }}>
             {uploading ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="camera" size={18} color={colors.brand} />}
-            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>{uploading ? "Uploading…" : "Add photos"}</Text>
+            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>{uploading ? "Uploading…" : "Add photos & videos"}</Text>
           </Pressable>
+          <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: -6, marginBottom: space.sm, textAlign: "center" }}>
+            Pick multiple photos and videos from your phone (up to 50 MB each).
+          </Text>
           {images.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginBottom: space.sm }}>
               {images.map((uri, i) => (
@@ -182,12 +207,16 @@ export default function SubmitProperty() {
             </View>
           ) : null}
 
-          <LinkAdder placeholder="Paste a video link" value={videoLink} onChange={setVideoLink} onAdd={addVideo} icon="videocam" />
+          <LinkAdder placeholder="Or paste a video link (YouTube…)" value={videoLink} onChange={setVideoLink} onAdd={addVideo} icon="videocam" />
           {videos.map((v, i) => (
-            <Row key={v} icon="videocam" text={v} onRemove={() => setVideos((p) => p.filter((_, j) => j !== i))} />
+            <Row key={v + i} icon="videocam" text={v.includes("/submissions/") ? `Video ${i + 1} · uploaded from phone` : v} onRemove={() => setVideos((p) => p.filter((_, j) => j !== i))} />
           ))}
 
-          <View style={{ height: space.xs }} />
+          <View style={{ height: space.sm }} />
+          <Pressable onPress={addDocsFromDevice} disabled={uploadingDocs} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed", borderRadius: 12, paddingVertical: 14, marginBottom: space.xs }}>
+            {uploadingDocs ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="document-attach" size={18} color={colors.brand} />}
+            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>{uploadingDocs ? "Uploading…" : "Upload documents (PDF, patta, layout…)"}</Text>
+          </Pressable>
           <View style={{ flexDirection: "row", gap: space.xs }}>
             <View style={{ flex: 1 }}>
               <TextInput value={docLabel} onChangeText={setDocLabel} placeholder="Doc label" placeholderTextColor={colors.inkFaint}
@@ -204,13 +233,17 @@ export default function SubmitProperty() {
           {documents.map((d, i) => (
             <Row key={d.url + i} icon="document-text" text={d.label} onRemove={() => setDocuments((p) => p.filter((_, j) => j !== i))} />
           ))}
-          <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 6 }}>Voice notes &amp; direct video upload are coming soon.</Text>
+          <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 6 }}>Voice notes are coming soon.</Text>
         </Section>
 
         <Section title="Seller contact">
           <Field label="Seller name" value={f.seller_name} onChangeText={set("seller_name")} placeholder="Owner / agent name" />
           <Field label="Seller phone" value={f.seller_phone} onChangeText={set("seller_phone")} placeholder="+91 …" keyboardType="phone-pad" />
           <Field label="Seller notes" value={f.seller_notes} onChangeText={set("seller_notes")} placeholder="Best time to call, terms…" multiline />
+        </Section>
+
+        <Section title="Comments for the review team">
+          <Field label="Comments (optional)" value={f.comments} onChangeText={set("comments")} placeholder="Anything the admin team should know about this property or the uploads…" multiline />
         </Section>
 
         <Button label="Submit for review" loading={saving} onPress={onSubmit} />

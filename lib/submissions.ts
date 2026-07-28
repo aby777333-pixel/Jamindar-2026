@@ -1,10 +1,16 @@
-// Promoter Lead Capture — client helpers (migration 0018). Photos upload to the
-// public 'submissions' bucket under the user's own folder; the row enters the
-// admin approval workflow. Uses the base64→bytes upload path (avoids the
-// Storage Blob-mime gotcha).
+// Promoter Lead Capture — client helpers (migration 0018 + 0040). Photos,
+// videos and documents upload to the public 'submissions' bucket under the
+// user's own folder; the row enters the admin approval workflow. Uses the
+// base64→bytes upload path (avoids the Storage Blob-mime gotcha).
+import * as DocumentPicker from "expo-document-picker";
+// SDK 54+: readAsStringAsync/getInfoAsync live only on the legacy entry.
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { supabase } from "./supabase";
+
+/** Project-wide Supabase Storage cap — uploads above this 413 at the gateway. */
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 export type SubmissionStatus = "submitted" | "under_review" | "info_required" | "approved" | "rejected";
 
@@ -17,6 +23,18 @@ export const SUBMISSION_STATUS: Record<SubmissionStatus, { label: string; tone: 
 };
 
 export interface SubmissionDoc { label: string; url: string }
+
+export interface PickedMedia {
+  images: string[];
+  videos: string[];
+  /** Files skipped because they exceed the upload size cap. */
+  skipped: string[];
+}
+
+export interface PickedDocs {
+  docs: SubmissionDoc[];
+  skipped: string[];
+}
 
 export interface Submission {
   id: string;
@@ -44,6 +62,7 @@ export interface Submission {
   seller_phone: string | null;
   seller_notes: string | null;
   notes: string | null;
+  comments: string | null;
   status: SubmissionStatus;
   review_reason: string | null;
   created_at: string;
@@ -74,6 +93,7 @@ export interface SubmissionInput {
   seller_phone?: string;
   seller_notes?: string;
   notes?: string;
+  comments?: string;
 }
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -101,25 +121,102 @@ async function currentUid(): Promise<string> {
   return uid;
 }
 
+/** Read any picker asset URI into bytes (native file:// via legacy FS, web blob:/data: via fetch). */
+async function readUriBytes(uri: string): Promise<Uint8Array> {
+  if (uri.startsWith("file://") || uri.startsWith("content://")) {
+    const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+    return base64ToBytes(b64);
+  }
+  const res = await fetch(uri);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/** Best-effort byte size of a picked asset (undefined when the platform won't say). */
+async function assetSize(uri: string, reported?: number | null): Promise<number | undefined> {
+  if (reported && reported > 0) return reported;
+  try {
+    if (uri.startsWith("file://")) {
+      const info = await FileSystem.getInfoAsync(uri);
+      const size = info.exists ? (info as { size?: number }).size : undefined;
+      if (typeof size === "number") return size;
+    }
+  } catch {
+    /* size stays unknown — the storage gateway is the final guard */
+  }
+  return undefined;
+}
+
+async function uploadToSubmissions(uid: string, tag: string, bytes: Uint8Array, mime: string, ext: string): Promise<string> {
+  const path = `${uid}/${Date.now()}_${tag}.${ext}`;
+  const { error } = await supabase.storage.from("submissions").upload(path, bytes, { contentType: mime, upsert: true });
+  if (error) throw error;
+  return supabase.storage.from("submissions").getPublicUrl(path).data.publicUrl;
+}
+
 /** Pick multiple photos and upload them; returns their public URLs. */
 export async function pickAndUploadPhotos(): Promise<string[]> {
+  const res = await pickAndUploadMedia(["images"]);
+  return res.images;
+}
+
+/**
+ * Pick photos AND videos straight from the phone and upload them (owner
+ * request 2026-07-28 — no more link-only videos). Oversize files are skipped
+ * with their names reported so the caller can tell the user.
+ */
+export async function pickAndUploadMedia(
+  kinds: ("images" | "videos")[] = ["images", "videos"],
+): Promise<PickedMedia> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) throw new Error("Please allow photo access.");
-  const res = await ImagePicker.launchImageLibraryAsync({ allowsMultipleSelection: true, quality: 0.7, base64: true, selectionLimit: 10 });
-  if (res.canceled) return [];
+  if (!perm.granted) throw new Error("Please allow photo & video access.");
+  const res = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: kinds,
+    allowsMultipleSelection: true,
+    quality: 0.7,
+    base64: true,
+    selectionLimit: 10,
+  });
+  if (res.canceled) return { images: [], videos: [], skipped: [] };
   const uid = await currentUid();
-  const urls: string[] = [];
+  const out: PickedMedia = { images: [], videos: [], skipped: [] };
+  let n = 0;
   for (const asset of res.assets) {
-    if (!asset.base64) continue;
-    const bytes = base64ToBytes(asset.base64);
-    const mime = asset.mimeType || "image/jpeg";
-    const ext = (mime.split("/")[1] || "jpg").split("+")[0];
-    const path = `${uid}/${Date.now()}_${urls.length}.${ext}`;
-    const { error } = await supabase.storage.from("submissions").upload(path, bytes, { contentType: mime, upsert: true });
-    if (error) throw error;
-    urls.push(supabase.storage.from("submissions").getPublicUrl(path).data.publicUrl);
+    const isVideo = asset.type === "video";
+    const size = await assetSize(asset.uri, asset.fileSize);
+    if (size && size > MAX_UPLOAD_BYTES) {
+      out.skipped.push(asset.fileName || (isVideo ? "video" : "photo"));
+      continue;
+    }
+    const mime = asset.mimeType || (isVideo ? "video/mp4" : "image/jpeg");
+    const ext = (mime.split("/")[1] || (isVideo ? "mp4" : "jpg")).split("+")[0];
+    const bytes = !isVideo && asset.base64 ? base64ToBytes(asset.base64) : await readUriBytes(asset.uri);
+    const url = await uploadToSubmissions(uid, String(n++), bytes, mime, ext);
+    (isVideo ? out.videos : out.images).push(url);
   }
-  return urls;
+  return out;
+}
+
+/** Pick documents (PDF, images, office files…) and upload them as labelled docs. */
+export async function pickAndUploadDocuments(): Promise<PickedDocs> {
+  const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+  if (res.canceled) return { docs: [], skipped: [] };
+  const uid = await currentUid();
+  const out: PickedDocs = { docs: [], skipped: [] };
+  let n = 0;
+  for (const asset of res.assets) {
+    const size = await assetSize(asset.uri, asset.size);
+    if (size && size > MAX_UPLOAD_BYTES) {
+      out.skipped.push(asset.name || "document");
+      continue;
+    }
+    const mime = asset.mimeType || "application/octet-stream";
+    const name = (asset.name || "document").replace(/[^\w.\-]+/g, "_");
+    const ext = name.includes(".") ? name.split(".").pop()! : (mime.split("/")[1] || "bin").split("+")[0];
+    const bytes = await readUriBytes(asset.uri);
+    const url = await uploadToSubmissions(uid, `doc_${n++}_${name.replace(/\.[^.]*$/, "")}`, bytes, mime, ext);
+    out.docs.push({ label: asset.name || "Document", url });
+  }
+  return out;
 }
 
 /** Capture the device's current GPS coordinates. */
@@ -165,6 +262,7 @@ export async function createSubmission(input: SubmissionInput): Promise<Submissi
       seller_phone: input.seller_phone ?? null,
       seller_notes: input.seller_notes ?? null,
       notes: input.notes ?? null,
+      comments: input.comments ?? null,
     })
     .select("*")
     .single();

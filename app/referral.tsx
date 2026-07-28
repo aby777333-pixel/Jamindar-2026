@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, Pressable, Image, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +33,7 @@ type ReferralRow = { referred_name: string | null; referred_code: string | null;
 
 export default function ReferralCentre() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const code = profile?.referral_code ?? "";
 
@@ -61,7 +62,8 @@ export default function ReferralCentre() {
         <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "600", color: colors.ink, letterSpacing: -0.4 }}>Referral Centre</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      {/* Bottom inset keeps the partner card clear of the Android system nav bar. */}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {profile?.referred_by ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.successSoft, borderRadius: 12, padding: 12, marginBottom: space.md }}>
             <Ionicons name="gift" size={18} color={colors.success} />

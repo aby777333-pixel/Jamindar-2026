@@ -650,11 +650,13 @@ function subCard(s){
       <div class="muted" style="font-size:13px;margin-top:4px">${esc(loc)}${s.price?` · ₹${Number(s.price).toLocaleString("en-IN")}`:""}</div>
       <div class="muted" style="font-size:12px;margin-top:2px">By ${esc(s.promoter?.member_code||"—")} ${esc(s.promoter?.full_name||"")}${s.promoter?.mobile?` · +${esc(s.promoter.mobile)}`:""}</div></div>
     ${imgs?`<div style="display:flex;margin-top:10px;overflow-x:auto">${imgs}</div>`:""}
-    ${s.description?`<div style="font-size:13px;margin-top:8px">${esc(s.description)}</div>`:""}
+    ${(s.description||s.notes)?`<div style="font-size:13px;margin-top:8px">${esc(s.description||s.notes)}</div>`:""}
+    ${(s.videos&&s.videos.length)?`<div style="font-size:12px;margin-top:8px">🎬 ${s.videos.map((v,i)=>`<a href="${esc(v)}" target="_blank" rel="noopener">Video ${i+1}</a>`).join(" · ")}</div>`:""}
+    ${(s.documents&&s.documents.length)?`<div style="font-size:12px;margin-top:6px">📄 ${s.documents.map(d=>`<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.label||"Document")}</a>`).join(" · ")}</div>`:""}
+    ${s.comments?`<div style="font-size:12px;margin-top:8px;background:var(--surface-sunken,#f4f4f2);border-radius:8px;padding:8px 10px">💬 <b>Promoter comments:</b> ${esc(s.comments)}</div>`:""}
     <div class="muted" style="font-size:12px;margin-top:8px">
-      ${s.seller_name?`Seller: ${esc(s.seller_name)} `:""}${s.seller_phone?`· ${esc(s.seller_phone)} `:""}${geo}
-      ${s.gmaps_url?`· <a href="${esc(s.gmaps_url)}" target="_blank" rel="noopener">Map</a> `:""}${s.street_view_url?`· <a href="${esc(s.street_view_url)}" target="_blank" rel="noopener">Street View</a> `:""}
-      ${(s.videos&&s.videos.length)?`· ${s.videos.length} video(s) `:""}${(s.documents&&s.documents.length)?`· ${s.documents.length} doc(s)`:""}</div>
+      ${s.seller_name?`Seller: ${esc(s.seller_name)} `:""}${s.seller_phone?`· ${esc(s.seller_phone)} `:""}${s.seller_notes?`· ${esc(s.seller_notes)} `:""}${geo}
+      ${s.gmaps_url?`· <a href="${esc(s.gmaps_url)}" target="_blank" rel="noopener">Map</a> `:""}${s.street_view_url?`· <a href="${esc(s.street_view_url)}" target="_blank" rel="noopener">Street View</a> `:""}</div>
     ${s.review_reason?`<div style="font-size:12px;color:var(--brand);margin-top:6px">Note to promoter: ${esc(s.review_reason)}</div>`:""}
     <div class="toolbar" style="margin-top:12px;justify-content:flex-end">
       <button class="btn grey sm" onclick="reviewSub('${s.id}','under_review')">Start review</button>
