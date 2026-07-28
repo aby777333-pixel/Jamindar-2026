@@ -110,24 +110,29 @@ export function CommunityPostCard({
   // Admins can remove any post right from the feed (parity with the console).
   const { profile } = useAuth();
   const canDelete = post.mine || profile?.role === "super_admin";
-  // All-languages support: translate any post into the reader's preferred
-  // Jamindar language (same Sarvam path as the property-detail Translate).
+  // All-languages support (owner: every language must be choosable): tapping
+  // Translate opens the full 10-language chip row; the reader's saved
+  // preference is listed first. Same Sarvam path as property-detail Translate.
   const prefLang = usePreferredLanguage();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [translated, setTranslated] = useState<string | null>(null);
+  const [translatedLang, setTranslatedLang] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [translating, setTranslating] = useState(false);
-  const langLabel = JAMINDAR_LANGUAGES.find((l) => l.code === prefLang)?.label ?? "your language";
+  const langOptions = [
+    ...JAMINDAR_LANGUAGES.filter((l) => l.code === prefLang),
+    ...JAMINDAR_LANGUAGES.filter((l) => l.code !== prefLang),
+  ];
+  const translatedLabel = JAMINDAR_LANGUAGES.find((l) => l.code === translatedLang)?.label ?? "translation";
 
-  async function onTranslate() {
-    if (translated) {
-      setShowOriginal((v) => !v);
-      return;
-    }
+  async function doTranslate(code: string) {
     if (!post.body || translating) return;
+    setPickerOpen(false);
     setTranslating(true);
     try {
-      const t = await translate(post.body, prefLang);
+      const t = await translate(post.body, code);
       setTranslated(t);
+      setTranslatedLang(code);
       setShowOriginal(false);
     } catch {
       /* leave the original visible */
@@ -207,12 +212,37 @@ export function CommunityPostCard({
         </Pressable>
       ) : null}
       {post.body ? (
-        <Pressable onPress={onTranslate} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start" }}>
-          <Ionicons name="language" size={13} color={colors.brand} />
-          <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
-            {translating ? "Translating…" : translated ? (showOriginal ? `Show in ${langLabel}` : "Show original") : `Translate to ${langLabel}`}
-          </Text>
-        </Pressable>
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+            <Pressable onPress={() => setPickerOpen((v) => !v)} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Ionicons name="language" size={13} color={colors.brand} />
+              <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
+                {translating ? "Translating…" : translated ? "Another language" : "Translate"}
+              </Text>
+              {!translating ? <Ionicons name={pickerOpen ? "chevron-up" : "chevron-down"} size={12} color={colors.brand} /> : null}
+            </Pressable>
+            {translated ? (
+              <Pressable onPress={() => setShowOriginal((v) => !v)} hitSlop={6}>
+                <Text style={{ color: colors.inkSoft, fontWeight: "700", fontSize: 12 }}>
+                  {showOriginal ? `Show ${translatedLabel}` : "Show original"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {pickerOpen ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {langOptions.map((l) => (
+                <Pressable
+                  key={l.code}
+                  onPress={() => doTranslate(l.code)}
+                  style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: translatedLang === l.code ? colors.brand : colors.surfaceSunken, borderWidth: 1, borderColor: translatedLang === l.code ? colors.brand : colors.border }}
+                >
+                  <Text style={{ color: translatedLang === l.code ? "#fff" : colors.inkSoft, fontWeight: "600", fontSize: 12 }}>{l.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {/* links */}
