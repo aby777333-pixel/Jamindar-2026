@@ -27,8 +27,13 @@ export const useAuth = create<AuthState>((set, get) => ({
   setProfile: (p) => set({ profile: p, userId: p?.id ?? get().userId }),
 
   refreshProfile: async () => {
-    const { data: sessionData } = await supabase.auth.getUser();
-    const uid = sessionData.user?.id;
+    // Returning-user fix (owner report 28-07): getUser() is a NETWORK check
+    // with the current access token — on a cold start hours later that token
+    // is expired, so it reported "no user" before the refresh ran and bounced
+    // signed-in users back to the OTP screen. getSession() restores from
+    // storage and refreshes an expired token first.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const uid = sessionData.session?.user.id;
     if (!uid) {
       set({ profile: null, userId: null });
       return null;

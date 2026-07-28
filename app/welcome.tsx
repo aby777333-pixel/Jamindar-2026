@@ -1,12 +1,18 @@
 import { Image, Text, View, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { Button } from "@/components/ui";
+import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // Returning-user safety net: if a stored session finishes restoring while
+  // this screen is up, skip straight back into the app — no fresh OTP.
+  const profile = useAuth((s) => s.profile);
+  if (profile?.is_profile_complete) return <Redirect href="/(tabs)/home" />;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
