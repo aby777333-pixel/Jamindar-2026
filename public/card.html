@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Jamin Partner · Digital Card — Jamin Properties</title>
+<meta name="description" content="Verified Jamin Properties partner — connect instantly, explore live projects and book a site visit. Signature for Fortune." />
+<meta property="og:title" content="Jamin Partner · Digital Card" />
+<meta property="og:description" content="Verified Jamin Properties partner — connect instantly and explore live plotted developments." />
+<meta property="og:image" content="https://merry-begonia-4c3cd1.netlify.app/logo.png" />
+<meta property="og:type" content="profile" />
+<meta name="theme-color" content="#141A2E" />
+<link rel="icon" href="/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --navy:#141A2E; --navy-soft:#1E2740; --brand:#E11B22; --brand-soft:#FDECEC;
+    --gold:#E0A423; --gold-light:#EAC466; --gold-dark:#9C7D1A; --gold-soft:#FBF1DC;
+    --green:#14A05A; --green-soft:#E4F6EC;
+    --ink:#131722; --ink-soft:#4A5064; --ink-faint:#8A90A4;
+    --surface:#FFFFFF; --surface-alt:#F4F5F8; --sunken:#EAECF2;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-alt);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;min-height:100vh;background:var(--surface-alt)}
+  /* ── hero ── */
+  .hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 70%,#25304F 100%);border-radius:0 0 34px 34px;padding:34px 22px 84px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;top:-70px;right:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(224,164,35,.22),transparent 70%)}
+  .hero::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+  .brandline{display:flex;align-items:center;gap:9px;justify-content:center}
+  .brandline img{width:30px;height:30px;border-radius:8px;background:#fff;object-fit:contain}
+  .brandline span{color:#fff;font-weight:700;font-size:14px;letter-spacing:2.5px;text-transform:uppercase}
+  .brandline small{color:var(--gold-light);font-size:10px;letter-spacing:1.6px;display:block;text-transform:uppercase}
+  /* ── card ── */
+  .card{background:var(--surface);margin:-62px 18px 0;border-radius:26px;box-shadow:0 24px 60px -18px rgba(20,26,46,.35);padding:0 20px 24px;position:relative;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+  .avatar-ring{width:128px;height:128px;margin:-58px auto 0;border-radius:50%;padding:5px;background:linear-gradient(135deg,var(--gold),var(--gold-light) 55%,var(--gold-dark));position:relative;box-shadow:0 14px 34px -10px rgba(224,164,35,.55)}
+  .avatar{width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--navy);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:44px;font-weight:800}
+  .vcheck{position:absolute;bottom:4px;right:4px;width:34px;height:34px;border-radius:50%;background:var(--green);border:3px solid #fff;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 14px rgba(20,160,90,.45)}
+  .vcheck svg{width:17px;height:17px}
+  .who{text-align:center;margin-top:14px}
+  .who h1{font-size:25px;font-weight:800;letter-spacing:-.5px}
+  .who .desig{color:var(--ink-soft);font-weight:600;font-size:14px;margin-top:3px}
+  .who .comp{color:var(--gold-dark);font-weight:700;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;margin-top:5px}
+  .badge{display:none;margin:12px auto 0;align-items:center;gap:6px;background:var(--green-soft);color:var(--green);border:1px solid rgba(20,160,90,.25);font-weight:700;font-size:12.5px;padding:7px 14px;border-radius:999px;cursor:pointer;width:max-content}
+  .ids{display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .ids span{background:var(--sunken);color:var(--ink-soft);font-size:11.5px;font-weight:700;letter-spacing:.6px;padding:5px 11px;border-radius:999px}
+  /* actions */
+  .actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}
+  .act{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:var(--ink-soft);font-size:11.5px;font-weight:600;transition:transform .15s}
+  .act:active{transform:scale(.93)}
+  .act .ic{width:52px;height:52px;border-radius:17px;display:flex;align-items:center;justify-content:center}
+  .act svg{width:23px;height:23px}
+  .cta-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+  .btn{border:none;cursor:pointer;border-radius:14px;padding:14px;font-family:inherit;font-size:14.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,box-shadow .2s;text-decoration:none}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 12px 26px -10px rgba(225,27,34,.55)}
+  .btn-dark{background:var(--navy);color:#fff}
+  .btn svg{width:17px;height:17px}
+  /* sections */
+  .section{margin:22px 18px 0;background:var(--surface);border-radius:22px;padding:20px;box-shadow:0 10px 30px -18px rgba(20,26,46,.18);animation:rise .6s .12s cubic-bezier(.2,.8,.2,1) both}
+  .section h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dark);font-weight:800;display:flex;align-items:center;gap:8px}
+  .section h2::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--gold-soft),transparent)}
+  .about-text{margin-top:12px;color:var(--ink-soft);font-size:14.5px;line-height:1.7}
+  .qr-row{display:flex;gap:18px;align-items:center;margin-top:14px}
+  .qr-row img{width:112px;height:112px;border-radius:14px;border:1px solid var(--sunken);padding:6px;background:#fff}
+  .qr-row .hint{color:var(--ink-soft);font-size:13.5px;line-height:1.6}
+  .qr-row .code{font-weight:800;font-size:17px;letter-spacing:.8px;color:var(--ink);margin-top:4px}
+  /* projects */
+  .projects{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .proj{border-radius:16px;overflow:hidden;background:var(--surface-alt);text-decoration:none;color:var(--ink);border:1px solid var(--sunken);transition:transform .18s,box-shadow .2s;display:block}
+  .proj:hover{transform:translateY(-3px);box-shadow:0 14px 30px -14px rgba(20,26,46,.3)}
+  .proj img{width:100%;height:96px;object-fit:cover;display:block;background:var(--sunken)}
+  .proj .pbody{padding:10px 11px 12px}
+  .proj .pname{font-size:13px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .proj .pcity{color:var(--ink-faint);font-size:11.5px;margin-top:3px}
+  .proj .pphase{display:inline-block;margin-top:7px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--gold-soft);color:var(--gold-dark)}
+  /* form */
+  .field{margin-top:12px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px}
+  .field input,.field textarea{width:100%;border:1.5px solid var(--sunken);border-radius:13px;padding:13px 14px;font-family:inherit;font-size:14.5px;background:var(--surface-alt);color:var(--ink);outline:none;transition:border-color .2s}
+  .field input:focus,.field textarea:focus{border-color:var(--gold)}
+  .field textarea{min-height:88px;resize:vertical}
+  .form-note{font-size:13px;margin-top:10px;display:none}
+  .form-note.ok{color:var(--green);display:block}
+  .form-note.err{color:var(--brand);display:block}
+  /* socials */
+  .socials{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .soc{width:46px;height:46px;border-radius:14px;background:var(--surface-alt);border:1px solid var(--sunken);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);text-decoration:none;transition:transform .15s}
+  .soc:active{transform:scale(.92)}
+  .soc svg{width:20px;height:20px}
+  footer{text-align:center;padding:30px 20px 40px;color:var(--ink-faint);font-size:12px;letter-spacing:.4px;line-height:1.8}
+  footer b{color:var(--gold-dark);letter-spacing:2px;text-transform:uppercase;font-size:11px}
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(20,26,46,.6);display:none;align-items:center;justify-content:center;z-index:50;padding:26px;backdrop-filter:blur(3px)}
+  .modal{background:#fff;border-radius:22px;padding:26px 22px;max-width:340px;text-align:center;animation:rise .35s cubic-bezier(.2,.8,.2,1) both}
+  .modal .mcheck{width:54px;height:54px;border-radius:50%;background:var(--green);margin:0 auto 14px;display:flex;align-items:center;justify-content:center}
+  .modal .mcheck svg{width:26px;height:26px}
+  .modal h3{font-size:17px;font-weight:800}
+  .modal p{color:var(--ink-soft);font-size:13.5px;line-height:1.65;margin-top:8px}
+  .modal button{margin-top:16px;border:none;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 26px;border-radius:12px;cursor:pointer}
+  /* loading / notfound */
+  .center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--ink-faint);padding:30px;text-align:center}
+  .spin{width:34px;height:34px;border:3px solid var(--sunken);border-top-color:var(--gold);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="center"><div class="spin"></div><div>Preparing the card…</div></div>
+  <div id="notfound" class="center" style="display:none">
+    <img src="/logo.png" alt="Jamin Properties" style="width:64px;border-radius:14px" />
+    <div style="font-weight:800;color:var(--ink);font-size:17px">Card not found</div>
+    <div>This digital card link is not active. Please check with the partner who shared it.</div>
+    <a class="btn btn-primary" style="margin-top:6px" href="/welcome">Visit Jamin Properties</a>
+  </div>
+
+  <div id="page" style="display:none">
+    <div class="hero">
+      <div class="brandline">
+        <img src="/logo.png" alt="Jamin" />
+        <span>Jamin Properties<small>Signature for Fortune</small></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="avatar-ring">
+        <img id="avatar" class="avatar" alt="Profile photo" style="display:none" />
+        <div id="avatarFallback" class="avatar" style="display:flex"></div>
+        <div id="vcheck" class="vcheck" title="Verified Jamin Partner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+      </div>
+      <div class="who">
+        <h1 id="name">—</h1>
+        <div class="desig" id="desig"></div>
+        <div class="comp" id="comp"></div>
+      </div>
+      <div id="badge" class="badge">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        Verified Jamin Partner
+      </div>
+      <div class="ids" id="ids"></div>
+
+      <div class="actions" id="actions"></div>
+
+      <div class="cta-row">
+        <button class="btn btn-primary" id="saveContact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save contact
+        </button>
+        <button class="btn btn-dark" id="shareCard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share card
+        </button>
+      </div>
+    </div>
+
+    <div class="section" id="aboutSec">
+      <h2>About</h2>
+      <p class="about-text" id="about"></p>
+      <div class="socials" id="socials" style="display:none"></div>
+    </div>
+
+    <div class="section">
+      <h2>Scan to connect</h2>
+      <div class="qr-row">
+        <img id="qr" alt="QR code" />
+        <div class="hint">Scan to open this card instantly.<div class="code" id="refcode"></div><div style="margin-top:4px;font-size:12px;color:var(--ink-faint)">Referral code — quote it when you register.</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="projSec" style="display:none">
+      <h2>Featured projects</h2>
+      <div class="projects" id="projects"></div>
+    </div>
+
+    <div class="section">
+      <h2>Send an inquiry</h2>
+      <p style="color:var(--ink-soft);font-size:13.5px;margin-top:10px;line-height:1.6">Looking for a plot or a site visit? Leave your details — <span id="fname">the partner</span> will call you back.</p>
+      <div class="field"><label for="inqName">Your name</label><input id="inqName" maxlength="80" placeholder="Full name" autocomplete="name" /></div>
+      <div class="field"><label for="inqMobile">Mobile number</label><input id="inqMobile" maxlength="10" inputmode="numeric" placeholder="10-digit mobile" autocomplete="tel-national" /></div>
+      <div class="field"><label for="inqMsg">Message (optional)</label><textarea id="inqMsg" maxlength="1000" placeholder="I'm interested in…"></textarea></div>
+      <button class="btn btn-primary" id="inqSend" style="width:100%;margin-top:14px">Request a call back</button>
+      <div class="form-note" id="inqNote"></div>
+    </div>
+
+    <div class="section" style="text-align:center">
+      <h2 style="justify-content:center">Get the app</h2>
+      <p style="color:var(--ink-soft);font-size:13.5px;margin-top:10px;line-height:1.6">Explore every Jamin project, book site visits and talk to Jamindar — our multilingual assistant.</p>
+      <a class="btn btn-dark" id="appLink" style="margin-top:14px" href="/welcome">Open Jamin Properties</a>
+    </div>
+
+    <footer>
+      <b>Jamin Properties</b><br />Signature for Fortune<br />
+      <span id="year"></span> · All rights reserved
+    </footer>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="mcheck"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+    <h3>Verified Jamin Partner</h3>
+    <p>This promoter has been verified and approved by the Jamin Promoters administration.</p>
+    <button id="modalClose">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var SB = "https://zmxqozvivdluuxvvcegs.supabase.co";
+  var ANON = "sb_publishable_7Oe-H5Ekn7FaS9c0pVbrVQ_ph9LHHsS";
+  var qs = new URLSearchParams(location.search);
+  var code = (qs.get("c") || qs.get("ref") || qs.get("code") || "").trim();
+
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+
+  function rpc(fn, args) {
+    return fetch(SB + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: ANON, Authorization: "Bearer " + ANON },
+      body: JSON.stringify(args)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function notFound() { $("loading").style.display = "none"; $("notfound").style.display = "flex"; }
+
+  if (!code) { notFound(); return; }
+
+  var ICONS = {
+    call: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.019-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.999-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>',
+    sms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
+    fb: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>',
+    ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>',
+    yt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+    li: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/></svg>'
+  };
+
+  rpc("promoter_card", { p_code: code }).then(function (card) {
+    if (!card || !card.name) { notFound(); return; }
+
+    document.title = card.name + " · Verified Jamin Partner — Jamin Properties";
+    $("loading").style.display = "none";
+    $("page").style.display = "block";
+    $("year").textContent = new Date().getFullYear();
+
+    // hero identity
+    $("name").textContent = card.name;
+    $("desig").textContent = card.designation || "Jamin Partner";
+    $("comp").textContent = card.company || "Jamin Properties";
+    $("fname").textContent = (card.name || "the partner").split(" ")[0];
+    if (card.avatar_url) {
+      $("avatar").src = card.avatar_url;
+      $("avatar").style.display = "block";
+      $("avatarFallback").style.display = "none";
+    } else {
+      var init = (card.name || "J").split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join("").toUpperCase();
+      $("avatarFallback").textContent = init;
+    }
+    if (card.verified) {
+      $("vcheck").style.display = "flex";
+      $("badge").style.display = "flex";
+    }
+    var ids = [];
+    if (card.partner_code) ids.push("ID · " + card.partner_code);
+    if (card.member_code && card.member_code !== card.partner_code) ids.push(card.member_code);
+    $("ids").innerHTML = ids.map(function (i) { return "<span>" + esc(i) + "</span>"; }).join("");
+
+    // one-tap actions
+    var mob = (card.mobile || "").replace(/^\+/, "");
+    var wa = (card.whatsapp || mob || "").replace(/^\+/, "");
+    var acts = [];
+    if (mob) acts.push({ href: "tel:+" + mob, ic: ICONS.call, label: "Call", bg: "var(--brand-soft)", fg: "var(--brand)" });
+    if (wa) acts.push({ href: "https://wa.me/" + wa + "?text=" + encodeURIComponent("Hi " + card.name + ", I found your Jamin Properties card."), ic: ICONS.wa, label: "WhatsApp", bg: "var(--green-soft)", fg: "var(--green)" });
+    if (mob) acts.push({ href: "sms:+" + mob, ic: ICONS.sms, label: "SMS", bg: "#E8F1FE", fg: "#2B6FE1" });
+    if (card.email) acts.push({ href: "mailto:" + card.email, ic: ICONS.mail, label: "Email", bg: "var(--gold-soft)", fg: "var(--gold-dark)" });
+    if (card.location) acts.push({ href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(card.location), ic: ICONS.map, label: "Location", bg: "var(--sunken)", fg: "var(--ink-soft)" });
+    $("actions").innerHTML = acts.map(function (a) {
+      return '<a class="act" href="' + a.href + '" target="_blank" rel="noopener"><span class="ic" style="background:' + a.bg + ";color:" + a.fg + '">' + a.ic + "</span>" + esc(a.label) + "</a>";
+    }).join("");
+    $("actions").style.gridTemplateColumns = "repeat(" + Math.min(acts.length, 5) + ",1fr)";
+
+    // about
+    $("about").textContent = card.bio && card.bio.trim()
+      ? card.bio
+      : (card.name + " is " + (card.verified ? "a verified" : "a") + " Jamin Properties partner helping families secure premium, clear-title plots and land across Tamil Nadu. Reach out for site visits, project details and honest guidance — Signature for Fortune.");
+
+    // socials from vcard jsonb
+    var socMap = { website: ICONS.globe, facebook: ICONS.fb, instagram: ICONS.ig, youtube: ICONS.yt, linkedin: ICONS.li };
+    var socs = [];
+    var raw = card.socials || {};
+    Object.keys(socMap).forEach(function (k) {
+      var v = raw[k];
+      if (typeof v === "string" && /^https?:\/\//i.test(v.trim())) socs.push({ href: v.trim(), ic: socMap[k], label: k });
+    });
+    if (socs.length) {
+      $("socials").style.display = "flex";
+      $("socials").innerHTML = socs.map(function (s) {
+        return '<a class="soc" href="' + esc(s.href) + '" target="_blank" rel="noopener" aria-label="' + esc(s.label) + '">' + s.ic + "</a>";
+      }).join("");
+    }
+
+    // QR + codes + app link (both carry referral attribution)
+    var cardUrl = location.origin + "/card?c=" + encodeURIComponent(card.partner_code || card.referral_code || code);
+    $("qr").src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=" + encodeURIComponent(cardUrl);
+    $("refcode").textContent = card.referral_code || "";
+    if (card.referral_code) $("appLink").href = "/welcome?ref=" + encodeURIComponent(card.referral_code);
+
+    // featured projects
+    var projs = Array.isArray(card.projects) ? card.projects : [];
+    if (projs.length) {
+      $("projSec").style.display = "block";
+      $("projects").innerHTML = projs.map(function (p) {
+        var href = "/welcome?p=" + encodeURIComponent(p.id) + (card.referral_code ? "&ref=" + encodeURIComponent(card.referral_code) : "");
+        var phase = { current: "Ready now", ongoing: "Ongoing", future: "Upcoming", completed: "Completed" }[p.phase] || "Live";
+        return '<a class="proj" href="' + href + '">' +
+          (p.image ? '<img loading="lazy" src="' + esc(p.image) + '" alt="" />' : "") +
+          '<div class="pbody"><div class="pname">' + esc(p.title) + '</div><div class="pcity">' + esc(p.city || "") + '</div><span class="pphase">' + esc(phase) + "</span></div></a>";
+      }).join("");
+    }
+
+    // save contact (VCF)
+    $("saveContact").addEventListener("click", function () {
+      var lines = [
+        "BEGIN:VCARD", "VERSION:3.0",
+        "N:" + card.name + ";;;;",
+        "FN:" + card.name,
+        "ORG:" + (card.company || "Jamin Properties"),
+        "TITLE:" + (card.designation || "Jamin Partner")
+      ];
+      if (mob) lines.push("TEL;TYPE=CELL:+" + mob);
+      if (card.email) lines.push("EMAIL:" + card.email);
+      if (card.location) lines.push("ADR;TYPE=WORK:;;" + card.location + ";;;;India");
+      lines.push("URL:" + cardUrl);
+      if (card.verified) lines.push("NOTE:Verified Jamin Partner · " + (card.partner_code || ""));
+      lines.push("END:VCARD");
+      var blob = new Blob([lines.join("\r\n")], { type: "text/vcard" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = card.name.replace(/[^\w\- ]/g, "").trim().replace(/\s+/g, "-") + ".vcf";
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+
+    // share
+    $("shareCard").addEventListener("click", function () {
+      var text = card.name + " · " + (card.verified ? "Verified Jamin Partner" : "Jamin Partner") + "\n" + cardUrl;
+      if (navigator.share) { navigator.share({ title: card.name + " — Jamin Properties", text: text, url: cardUrl }).catch(function () {}); }
+      else { navigator.clipboard.writeText(cardUrl); alert("Card link copied"); }
+    });
+
+    // verified popup
+    function openModal() { $("modalBg").style.display = "flex"; }
+    $("vcheck").addEventListener("click", openModal);
+    $("badge").addEventListener("click", openModal);
+    $("modalClose").addEventListener("click", function () { $("modalBg").style.display = "none"; });
+    $("modalBg").addEventListener("click", function (e) { if (e.target === $("modalBg")) $("modalBg").style.display = "none"; });
+
+    // inquiry form → lead
+    $("inqSend").addEventListener("click", function () {
+      var note = $("inqNote");
+      note.className = "form-note";
+      var name = $("inqName").value.trim();
+      var mobile = $("inqMobile").value.replace(/\D/g, "");
+      if (name.length < 2) { note.textContent = "Please enter your name."; note.className = "form-note err"; return; }
+      if (!/^[6-9][0-9]{9}$/.test(mobile)) { note.textContent = "Please enter a valid 10-digit mobile number."; note.className = "form-note err"; return; }
+      $("inqSend").disabled = true; $("inqSend").textContent = "Sending…";
+      rpc("card_inquiry", { p_code: code, p_name: name, p_mobile: mobile, p_message: $("inqMsg").value })
+        .then(function (res) {
+          if (res && res.ok) {
+            note.textContent = "Thank you! " + (card.name || "The partner") + " will call you back shortly.";
+            note.className = "form-note ok";
+            $("inqName").value = ""; $("inqMobile").value = ""; $("inqMsg").value = "";
+          } else {
+            note.textContent = (res && res.error) || "Couldn't send right now — please try again.";
+            note.className = "form-note err";
+          }
+        })
+        .catch(function () { note.textContent = "Couldn't send right now — please try again."; note.className = "form-note err"; })
+        .then(function () { $("inqSend").disabled = false; $("inqSend").textContent = "Request a call back"; });
+    });
+
+    // count the visit against the partner's referral clicks
+    if (card.referral_code) rpc("log_referral_click", { p_code: card.referral_code }).catch(function () {});
+  }).catch(notFound);
+})();
+</script>
+</body>
+</html>

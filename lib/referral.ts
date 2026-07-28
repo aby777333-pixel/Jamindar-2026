@@ -19,6 +19,15 @@ export function teamInviteMessage(code: string): string {
   return `I'm building my team on Jamin Properties — join me, become a promoter and earn commissions on verified plots & land. Use my invite code ${code} when you sign up: ${referralLink(code)}`;
 }
 
+/** Public premium V-Card page for a promoter (partner code preferred). */
+export function cardLink(code: string): string {
+  return `https://merry-begonia-4c3cd1.netlify.app/card?c=${encodeURIComponent(code)}`;
+}
+
+export function cardMessage(name: string | null | undefined, code: string): string {
+  return `${name ?? "Your Jamin Partner"} · Jamin Properties\nView my digital card — live projects, one-tap contact and site-visit booking: ${cardLink(code)}`;
+}
+
 export function qrUrl(code: string, size = 220): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(referralLink(code))}`;
 }
