@@ -138,6 +138,29 @@ function pickReply(choice: any): string {
   return content || String(choice?.text ?? "").trim();
 }
 
+// Speech sanitizer (owner request 28-07): the voice must never read formatting
+// characters aloud. Only ASCII markup is touched, so every Indic script passes
+// through untouched — the same rules work in all supported languages.
+function speakable(t: string): string {
+  let s = String(t ?? "");
+  s = s.replace(/```[\s\S]*?```/g, " ");            // fenced code blocks
+  s = s.replace(/`([^`]*)`/g, "$1");                // inline code markers
+  s = s.replace(/!\[[^\]]*\]\(([^)]*)\)/g, " ");     // markdown images
+  s = s.replace(/\[([^\]]+)\]\(([^)]*)\)/g, "$1");   // markdown links -> label
+  s = s.replace(/https?:\/\/\S+/g, " link ");        // bare URLs
+  s = s.replace(/^[#>\-*+•●▪–—\s]+/gm, ""); // headings/bullets/quotes at line start
+  s = s.replace(/(\*\*|__|~~|\*|_)/g, "");           // emphasis markers ** __ * _ ~~
+  s = s.replace(/#+/g, " ");
+  s = s.replace(/(\d)\s*\/\s*(\d)/g, "$1 by $2");    // 30/40 ft -> "30 by 40 ft"
+  s = s.replace(/[\/\\|~^<>{}\[\]=+]/g, " ");         // leftover symbols / \ | ~ ^ <> {} [] = +
+  s = s.replace(/[-–—]{2,}/g, " ");        // --- dividers
+  s = s.replace(/\s[-–—]\s/g, ", ");       // spoken dash becomes a pause
+  s = s.replace(/([!?.,;:])\1+/g, "$1");             // !!! -> !
+  s = s.replace(/[ \t]{2,}/g, " ");
+  s = s.replace(/\n{2,}/g, ". ").replace(/\n/g, ". ");
+  return s.trim();
+}
+
 const PHASE_LABEL: Record<string, string> = {
   current: "Ready to move",
   ongoing: "Ongoing",
@@ -254,7 +277,7 @@ Deno.serve(async (req) => {
       // Natural-voice defaults: preprocessing normalizes numbers/English/punctuation,
       // 22.05 kHz sample rate, slightly slower pace and a touch louder for warmth.
       const body: Record<string, unknown> = {
-        text: String(payload.text ?? "").slice(0, 1500),
+        text: speakable(String(payload.text ?? "")).slice(0, 1500),
         target_language_code: payload.language ?? "en-IN",
         speaker: payload.speaker ?? "anushka",
         model: "bulbul:v2",

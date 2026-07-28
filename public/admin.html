@@ -128,6 +128,7 @@
       <a data-view="visits">🗓 Visits <span class="badge" id="b-visits" style="display:none"></span></a>
       <a data-view="leads">📇 Leads</a>
       <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
+      <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
       <a data-view="users">👥 Users</a>
     </nav>
   </aside>
@@ -201,27 +202,29 @@ async function boot(){
 sb.auth.getSession().then(({data})=>{ if(data.session) boot(); });
 
 async function refreshBadges(){
-  const [{count:k},{count:p},{count:s},{count:vv},{count:iv}] = await Promise.all([
+  const [{count:k},{count:p},{count:s},{count:vv},{count:iv},{count:cr}] = await Promise.all([
     sb.from("kyc_submissions").select("id",{count:"exact",head:true}).eq("status","pending"),
     sb.from("profiles").select("id",{count:"exact",head:true}).eq("partner_status","pending"),
     sb.from("property_submissions").select("id",{count:"exact",head:true}).eq("status","submitted"),
     sb.from("site_visits").select("id",{count:"exact",head:true}).eq("status","requested"),
     sb.from("referral_wa_requests").select("id",{count:"exact",head:true}).eq("status","new").then(r=>r.error?{count:0}:r),
+    sb.from("community_reports").select("id",{count:"exact",head:true}).eq("status","open").then(r=>r.error?{count:0}:r),
   ]);
-  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs"), bv=$("#b-visits"), bi=$("#b-inv");
+  const bk=$("#b-kyc"), bp=$("#b-partner"), bs=$("#b-subs"), bv=$("#b-visits"), bi=$("#b-inv"), bc=$("#b-comm");
   if(k){bk.style.display="inline-block";bk.textContent=k;} else bk.style.display="none";
   if(p){bp.style.display="inline-block";bp.textContent=p;} else bp.style.display="none";
   if(s){bs.style.display="inline-block";bs.textContent=s;} else bs.style.display="none";
   if(vv){bv.style.display="inline-block";bv.textContent=vv;} else bv.style.display="none";
   if(iv){bi.style.display="inline-block";bi.textContent=iv;} else bi.style.display="none";
+  if(cr){bc.style.display="inline-block";bc.textContent=cr;} else bc.style.display="none";
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",users:"Users"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,users:renderUsers}[v])();
 }
 window.go = go;
 
@@ -671,6 +674,78 @@ window.reviewSub = async (id,decision,ask)=>{
   if(ask){ reason=prompt(decision==='rejected'?"Reason for rejection (shown to promoter):":"What information is needed?"); if(reason===null) return; }
   const { error } = await sb.rpc("admin_review_submission",{p_id:id,p_decision:decision,p_reason:reason});
   if(error) return toast(error.message); toast("Submission "+decision.replace("_"," ")); refreshBadges(); renderSubmissions();
+};
+
+// ───────── community (posts / contact log / reports) ─────────
+async function renderCommunity(){
+  const sub = window.__commSub || "posts";
+  const chip=(v,l)=>`<button class="btn ${sub===v?'':'grey'} sm" onclick="commSub('${v}')">${l}</button>`;
+  let html = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip('posts','Posts')}${chip('contacts','Contact log')}${chip('reports','Reports')}</div>`;
+  if(sub==='posts'){
+    const { data } = await sb.from("community_posts")
+      .select("*, author:profiles!community_posts_author_id_fkey(full_name,member_code,mobile)")
+      .order("created_at",{ascending:false}).limit(100);
+    const rows = data||[];
+    html += rows.length ? rows.map(p=>{
+      const st={published:'ok',hidden:'warn',removed:'red'}[p.status]||'grey';
+      const media=(p.media||[]).map((m,i)=>`<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.type)}${m.name?` (${esc(m.name)})`:''}</a>`).join(" · ");
+      const links=(p.links||[]).map(l=>`<a href="${esc(l)}" target="_blank" rel="noopener">${esc(l)}</a>`).join(" · ");
+      return `<div class="card" style="padding:14px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b>${esc(p.author?.full_name||"Member")}</b>
+          <span class="muted" style="font-size:12px">${esc(p.author?.member_code||"")} ${p.author?.mobile?`· +${esc(p.author.mobile)}`:""} · ${new Date(p.created_at).toLocaleString()}</span>
+          <span class="pill ${st}">${esc(p.status)}</span>
+          ${p.masked?`<span class="pill warn">contacts masked</span>`:""}
+        </div>
+        ${p.body?`<div style="font-size:13px;margin-top:8px;white-space:pre-wrap">${esc(p.body)}</div>`:""}
+        ${media?`<div class="muted" style="font-size:12px;margin-top:6px">📎 ${media}</div>`:""}
+        ${links?`<div class="muted" style="font-size:12px;margin-top:4px">🔗 ${links}</div>`:""}
+        <div class="toolbar" style="margin-top:10px;justify-content:flex-end">
+          ${p.status!=='hidden'?`<button class="btn grey sm" onclick="commStatus('${p.id}','hidden')">Hide</button>`:""}
+          ${p.status!=='published'?`<button class="btn sm" onclick="commStatus('${p.id}','published')">Restore</button>`:""}
+          ${p.status!=='removed'?`<button class="btn ghost sm" onclick="commStatus('${p.id}','removed')">Remove</button>`:""}
+        </div></div>`;
+    }).join("") : `<div class="empty card">No community posts yet.</div>`;
+  } else if(sub==='contacts'){
+    const { data } = await sb.from("community_contact_log")
+      .select("*, author:profiles!community_contact_log_author_id_fkey(full_name,member_code,mobile)")
+      .order("created_at",{ascending:false}).limit(300);
+    const rows = data||[];
+    html += `<div class="muted" style="font-size:12px;margin-bottom:8px">Every email / phone number members typed in community posts & comments — shown to the public as “[contact hidden]”, recorded here verbatim.</div>`;
+    html += rows.length ? `<div class="card" style="padding:0">${rows.map(r=>`
+      <div style="display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)">
+        <span class="pill ${r.kind==='email'?'ok':'warn'}">${esc(r.kind)}</span>
+        <b style="font-size:13px">${esc(r.value)}</b>
+        <span class="muted" style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((r.raw_text||"").slice(0,120))}</span>
+        <span class="muted" style="font-size:11.5px;white-space:nowrap">${esc(r.author?.full_name||"")} ${esc(r.author?.member_code||"")} · ${new Date(r.created_at).toLocaleString()}</span>
+      </div>`).join("")}</div>` : `<div class="empty card">No contacts recorded yet.</div>`;
+  } else {
+    const { data } = await sb.from("community_reports")
+      .select("*, reporter:profiles!community_reports_reporter_id_fkey(full_name,member_code), post:community_posts!community_reports_post_id_fkey(body,status)")
+      .order("created_at",{ascending:false}).limit(100);
+    const rows = data||[];
+    html += rows.length ? rows.map(r=>`<div class="card" style="padding:14px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="pill ${r.status==='open'?'warn':'ok'}">${esc(r.status)}</span>
+          <b style="font-size:13px">${esc(r.reason||"report")}</b>
+          <span class="muted" style="font-size:12px">by ${esc(r.reporter?.full_name||"")} · ${new Date(r.created_at).toLocaleString()}</span>
+        </div>
+        ${r.post?.body?`<div class="muted" style="font-size:12.5px;margin-top:6px">Post: ${esc(r.post.body.slice(0,160))} <span class="pill grey">${esc(r.post.status)}</span></div>`:""}
+        <div class="toolbar" style="margin-top:10px;justify-content:flex-end">
+          ${r.post_id?`<button class="btn grey sm" onclick="commStatus('${r.post_id}','hidden')">Hide post</button>`:""}
+          ${r.status==='open'?`<button class="btn sm" onclick="commResolve('${r.id}')">Mark resolved</button>`:""}
+        </div></div>`).join("") : `<div class="empty card">No reports.</div>`;
+  }
+  $("#view").innerHTML = html;
+}
+window.commSub = (v)=>{ window.__commSub=v; renderCommunity(); };
+window.commStatus = async (id,status)=>{
+  const { error } = await sb.rpc("admin_set_community_status",{p_id:id,p_status:status});
+  if(error) return toast(error.message); toast("Post "+status); renderCommunity(); refreshBadges();
+};
+window.commResolve = async (id)=>{
+  const { error } = await sb.from("community_reports").update({status:'resolved'}).eq("id",id);
+  if(error) return toast(error.message); toast("Report resolved"); renderCommunity(); refreshBadges();
 };
 
 // ───────── site visits ─────────

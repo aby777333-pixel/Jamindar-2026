@@ -97,7 +97,7 @@ export interface SubmissionInput {
 }
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-function base64ToBytes(base64: string): Uint8Array {
+export function base64ToBytes(base64: string): Uint8Array {
   const lut = new Uint8Array(256);
   for (let i = 0; i < B64.length; i++) lut[B64.charCodeAt(i)] = i;
   const len = base64.length;
@@ -122,7 +122,7 @@ async function currentUid(): Promise<string> {
 }
 
 /** Read any picker asset URI into bytes (native file:// via legacy FS, web blob:/data: via fetch). */
-async function readUriBytes(uri: string): Promise<Uint8Array> {
+export async function readUriBytes(uri: string): Promise<Uint8Array> {
   if (uri.startsWith("file://") || uri.startsWith("content://")) {
     const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
     return base64ToBytes(b64);
@@ -132,7 +132,7 @@ async function readUriBytes(uri: string): Promise<Uint8Array> {
 }
 
 /** Best-effort byte size of a picked asset (undefined when the platform won't say). */
-async function assetSize(uri: string, reported?: number | null): Promise<number | undefined> {
+export async function assetSize(uri: string, reported?: number | null): Promise<number | undefined> {
   if (reported && reported > 0) return reported;
   try {
     if (uri.startsWith("file://")) {

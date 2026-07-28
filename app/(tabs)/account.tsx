@@ -31,6 +31,7 @@ export default function Account() {
     { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
     { icon: "chatbubbles", label: "Messages", badge: unread, onPress: () => router.push("/messages" as Href) },
     { icon: "heart", label: "My wishlist", onPress: () => router.push("/saved" as Href) },
+    { icon: "chatbubbles", label: "Jamin Community", onPress: () => router.push("/community" as Href) },
     { icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) },
     { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
     { icon: "gift", label: "Referral centre", onPress: () => router.push("/referral" as Href) },

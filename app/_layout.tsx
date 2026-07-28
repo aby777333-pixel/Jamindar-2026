@@ -86,6 +86,10 @@ export default function RootLayout() {
             <Stack.Screen name="manage-visits" />
             <Stack.Screen name="messages/index" />
             <Stack.Screen name="messages/[id]" />
+            <Stack.Screen name="community/index" />
+            <Stack.Screen name="community/new" />
+            <Stack.Screen name="community/[id]" />
+            <Stack.Screen name="community/clips" />
             <Stack.Screen name="interests" />
             <Stack.Screen name="support" />
             <Stack.Screen name="tools/calculators" />
