@@ -67,6 +67,9 @@ export default function Verify() {
       const res = await verifyOtp(mobile, code);
       const profile = await refreshProfile();
       await flushPendingAcquisition(mobile); // one-time referral/acquisition attribution
+      // Bug 28-07 (HIGH): clear the welcome/login/verify screens from the
+      // back stack — after signing in, Back must never return to login.
+      if (router.canGoBack()) router.dismissAll();
       if (profile?.is_profile_complete) {
         router.replace("/(tabs)/home");
       } else if (profile?.role === "super_admin") {

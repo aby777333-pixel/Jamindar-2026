@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import { signedKycUrl } from "@/lib/kyc";
+import { ZoomableImageViewer } from "@/components/ImageViewer";
 import type { KycSubmission } from "@/lib/types";
 
 type Row = KycSubmission & {
@@ -102,6 +103,8 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bug 28-07: document thumbnails must open full-screen for verification.
+  const [viewer, setViewer] = useState<{ uri: string; title: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -178,20 +181,40 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
               {DOC_FIELDS.filter((d) => row[d.key]).map((d) => (
-                <View key={d.key as string} style={{ width: "47%" }}>
+                <Pressable
+                  key={d.key as string}
+                  style={{ width: "47%" }}
+                  disabled={!urls[d.key as string]}
+                  onPress={() => {
+                    const u = urls[d.key as string];
+                    if (u) setViewer({ uri: u, title: d.label });
+                  }}
+                >
                   <View style={{ height: 110, borderRadius: 12, backgroundColor: colors.surfaceSunken, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
                     {urls[d.key as string] ? (
-                      <Image source={{ uri: urls[d.key as string] }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      <>
+                        <Image source={{ uri: urls[d.key as string] }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                        <View style={{ position: "absolute", right: 6, bottom: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 10, padding: 5 }}>
+                          <Ionicons name="expand" size={13} color="#fff" />
+                        </View>
+                      </>
                     ) : (
                       <ActivityIndicator color={colors.inkFaint} />
                     )}
                   </View>
                   <Text style={{ color: colors.inkFaint, fontSize: 11, marginTop: 4 }}>{d.label}</Text>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
         </Card>
+
+        <ZoomableImageViewer
+          visible={!!viewer}
+          uri={viewer?.uri ?? null}
+          title={viewer?.title}
+          onClose={() => setViewer(null)}
+        />
 
         {row.status === "pending" ? (
           <>

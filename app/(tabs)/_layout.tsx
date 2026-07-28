@@ -10,6 +10,9 @@ export default function TabsLayout() {
       <Tabs
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{ headerShown: false }}
+        // Bug 28-07: Back should walk through the tabs actually visited
+        // (Account → Jamindar → Back = Account), not jump straight to Home.
+        backBehavior="history"
       >
         <Tabs.Screen
           name="home"

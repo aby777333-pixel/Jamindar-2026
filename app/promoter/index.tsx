@@ -216,18 +216,18 @@ export default function PromoterDashboard() {
           <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
         </Pressable>
 
-        {/* KPI grid */}
+        {/* KPI grid — each card opens its underlying records (bug 28-07) */}
         <PromoterSection title="Your performance">
           <View style={{ gap: space.sm }}>
             <View style={{ flexDirection: "row", gap: space.sm }}>
-              <KpiTile icon="chatbubbles" label="Enquiries" value={enquiries} tint={colors.brandSoft} accent={colors.brand} />
-              <KpiTile icon="people" label="Total leads" value={leads.length} tint="#ECEEFB" accent="#4B57C9" />
-              <KpiTile icon="flame" label="New" value={newLeads} tint={colors.goldSoft} accent={colors.goldDark} />
+              <KpiTile icon="chatbubbles" label="Enquiries" value={enquiries} tint={colors.brandSoft} accent={colors.brand} onPress={() => router.push("/promoter/leads-list" as Href)} />
+              <KpiTile icon="people" label="Total leads" value={leads.length} tint="#ECEEFB" accent="#4B57C9" onPress={() => router.push("/promoter/leads-list" as Href)} />
+              <KpiTile icon="flame" label="New" value={newLeads} tint={colors.goldSoft} accent={colors.goldDark} onPress={() => router.push({ pathname: "/promoter/leads-list", params: { status: "new" } } as never)} />
             </View>
             <View style={{ flexDirection: "row", gap: space.sm }}>
-              <KpiTile icon="checkmark-done" label="Converted" value={converted} tint={colors.successSoft} accent={colors.success} />
-              <KpiTile icon="person" label="Active buyers" value={activeBuyers} tint="#E8F1FE" accent="#2B6FE1" />
-              <KpiTile icon="calendar" label="Site visits" value={data.visits.length} tint="#F2EBFB" accent="#7C4BC9" />
+              <KpiTile icon="checkmark-done" label="Converted" value={converted} tint={colors.successSoft} accent={colors.success} onPress={() => router.push({ pathname: "/promoter/leads-list", params: { status: "converted" } } as never)} />
+              <KpiTile icon="person" label="Active buyers" value={activeBuyers} tint="#E8F1FE" accent="#2B6FE1" onPress={() => router.push("/promoter/leads-list" as Href)} />
+              <KpiTile icon="calendar" label="Site visits" value={data.visits.length} tint="#F2EBFB" accent="#7C4BC9" onPress={() => router.push("/manage-visits" as Href)} />
             </View>
           </View>
         </PromoterSection>
@@ -254,8 +254,9 @@ export default function PromoterDashboard() {
           )}
         </PromoterSection>
 
-        {/* saved projects */}
-        <PromoterSection title="Saved projects" actionLabel={data.saved.length ? "See all" : undefined} onAction={() => router.push("/saved" as Href)}>
+        {/* saved projects — same wishlist as Account → My Wishlist, so it
+            carries the same name (bug 28-07: no duplicate-looking features) */}
+        <PromoterSection title="My Wishlist" actionLabel={data.saved.length ? "See all" : undefined} onAction={() => router.push("/saved" as Href)}>
           {data.saved.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
               {data.saved.map((p) => (

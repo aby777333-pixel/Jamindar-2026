@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Image, Text, View, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Redirect } from "expo-router";
@@ -8,6 +9,10 @@ import { colors, space, type as T } from "@/lib/theme";
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Bug 28-07: no scrolling when everything already fits the screen.
+  const [contentH, setContentH] = useState(0);
+  const [viewH, setViewH] = useState(0);
+  const scrollNeeded = contentH > viewH + 1;
 
   // Returning-user safety net: if a stored session finishes restoring while
   // this screen is up, skip straight back into the app — no fresh OTP.
@@ -20,6 +25,10 @@ export default function Welcome() {
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        overScrollMode="never"
+        scrollEnabled={scrollNeeded}
+        onContentSizeChange={(_, h) => setContentH(h)}
+        onLayout={(e) => setViewH(e.nativeEvent.layout.height)}
       >
         {/* mascot on white — larger, occupies the golden top section */}
         <SafeAreaView edges={["top"]} style={{ alignItems: "center", paddingTop: space.md }}>

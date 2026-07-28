@@ -34,7 +34,10 @@ export default function ManageVisits() {
   const router = useRouter();
   const { profile } = useAuth();
   const role = useEffectiveRole();
-  const isAdmin = profile?.role === "super_admin";
+  // Bug 28-07: use the EFFECTIVE role — a super admin previewing as Promoter
+  // was still fed the all-visits admin query. (Real promoters were never
+  // exposed: site_visits RLS only returns their own rows.)
+  const isAdmin = role === "super_admin";
   const refresh = useRefreshVisits();
 
   const adminQ = useAllVisits(isAdmin);
@@ -174,10 +177,16 @@ export default function ManageVisits() {
                   ) : null}
                   {open ? <Action icon="calendar-outline" label="Reschedule" onPress={() => setEditing(v)} /> : null}
                   {open ? <Action icon="close-circle-outline" label="Cancel" tint={colors.inkFaint} onPress={() => confirmCancel(v)} /> : null}
-                  {/* Bug fix 28-07: a cancellation is no longer irreversible —
-                      Reopen puts the visit back into the Requested queue. */}
+                  {/* Bug fix 28-07: Completed/Cancelled are no longer final —
+                      accidental updates can be reverted to a valid status. */}
                   {v.status === "cancelled" ? (
-                    <Action icon="refresh-circle" label="Reopen" tint={colors.success} onPress={() => advance(v, "requested")} />
+                    <>
+                      <Action icon="refresh-circle" label="Reopen" tint={colors.success} onPress={() => advance(v, "requested")} />
+                      <Action icon="checkmark-circle" label="Confirm" tint={colors.success} onPress={() => advance(v, "confirmed")} />
+                    </>
+                  ) : null}
+                  {v.status === "completed" ? (
+                    <Action icon="arrow-undo-circle" label="Revert to Confirmed" tint={colors.goldDark} onPress={() => advance(v, "confirmed")} />
                   ) : null}
                 </View>
               </Card>

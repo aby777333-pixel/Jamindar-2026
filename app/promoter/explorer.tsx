@@ -109,11 +109,9 @@ export default function Explorer() {
         </View>
       </View>
 
-      {/* type chips — flexGrow:0 instead of a fixed maxHeight (bug 28-07: the
-          44px cap clipped chip labels like "Farm Land" once device font
-          scaling grew them); numberOfLines + explicit lineHeight keep each
-          label on one stable line. */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: space.sm, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: space.md, gap: space.xs, alignItems: "center" }}>
+      {/* type chips — wrapping rows (bug 28-07: horizontal scrolling left the
+          last chip half-visible; wrapped chips are always fully readable). */}
+      <View style={{ marginTop: space.sm, paddingHorizontal: space.md, flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
         {CHIPS.map((c) => (
           <Pressable
             key={c.key}
@@ -123,7 +121,7 @@ export default function Explorer() {
             <Text numberOfLines={1} style={{ color: colors.inkSoft, fontWeight: "600", fontSize: T.small.fontSize, lineHeight: T.small.lineHeight }}>{c.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {isLoading ? (
         <Loading label="Loading projects…" />

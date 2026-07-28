@@ -327,16 +327,24 @@ export default function PropertyDetail() {
                 <InlineVideo key={allVideos[videoIndex]} uri={allVideos[videoIndex]} height={250} />
               ) : null}
               {allVideos.length > 1 ? (
-                <View style={{ position: "absolute", bottom: 8, alignSelf: "center", flexDirection: "row", gap: 6 }}>
+                // Bug 28-07: these chips sat at the bottom, colliding with the
+                // player's progress bar/controls — they now sit at the top,
+                // under the Photos/Videos toggle, clear of every control.
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ position: "absolute", top: 52, left: 0, right: 0 }}
+                  contentContainerStyle={{ paddingHorizontal: 12, gap: 6 }}
+                >
                   {allVideos.map((_, i) => (
                     <Pressable
                       key={i}
                       onPress={() => setVideoIndex(i)}
                       style={{
                         paddingHorizontal: 10,
-                        paddingVertical: 4,
+                        paddingVertical: 5,
                         borderRadius: 999,
-                        backgroundColor: i === videoIndex ? "#fff" : "rgba(0,0,0,0.45)",
+                        backgroundColor: i === videoIndex ? "#fff" : "rgba(0,0,0,0.55)",
                       }}
                     >
                       <Text style={{ fontSize: 11, fontWeight: "700", color: i === videoIndex ? colors.ink : "#fff" }}>
@@ -344,7 +352,7 @@ export default function PropertyDetail() {
                       </Text>
                     </Pressable>
                   ))}
-                </View>
+                </ScrollView>
               ) : null}
             </View>
           )}
@@ -874,10 +882,15 @@ function InvestmentTab({ property, onCalc }: { property: Property; onCalc: () =>
 const altChip = { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border };
 
 function Stat({ label, value, accent, gold }: { label: string; value: string; accent?: string; gold?: boolean }) {
+  // Bug 28-07: "On request" was clipped to "On reque…" — longer values shrink
+  // slightly and may wrap to a second line instead of truncating.
+  const long = value.length > 9;
   return (
     <Card style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 12, ...(gold ? { backgroundColor: colors.goldSoft, borderColor: colors.goldSoft } : {}) }}>
       <Text style={{ color: gold ? colors.goldDark : colors.inkFaint, fontSize: 11 }}>{label}</Text>
-      <Text style={{ color: accent ?? colors.ink, fontWeight: "600", fontSize: 15, marginTop: 2 }} numberOfLines={1}>{value}</Text>
+      <Text style={{ color: accent ?? colors.ink, fontWeight: "600", fontSize: long ? 13 : 15, lineHeight: long ? 17 : 20, marginTop: 2 }} numberOfLines={2}>
+        {value}
+      </Text>
     </Card>
   );
 }
