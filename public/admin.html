@@ -231,14 +231,15 @@ window.go = go;
 // ───────── dashboard ─────────
 async function renderDashboard(){
   const c = (t,f)=>{let q=sb.from(t).select("id",{count:"exact",head:true}); if(f)q=f(q); return q.then(r=>r.count||0);};
-  const [users,buyers,promoters,props,visits,leads,kyc,partners] = await Promise.all([
+  const [users,buyers,promoters,props,visits,leads,kyc,partners,referred] = await Promise.all([
     c("profiles"),c("profiles",q=>q.eq("role","buyer")),c("profiles",q=>q.eq("role","promoter")),
     c("properties"),c("site_visits"),c("leads"),c("kyc_submissions",q=>q.eq("status","pending")),c("profiles",q=>q.eq("partner_status","pending")),
+    c("profiles",q=>q.not("referred_by","is",null)),
   ]);
   const stat=(n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}" title="Open ${l}"`:''}><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`;
   $("#view").innerHTML = `<div class="stats">
     ${stat(users,"Total users",null,"go('registrations')")}${stat(buyers,"Buyers","var(--gold-dark)","go('registrations')")}${stat(promoters,"Promoters","#4B57C9","go('registrations')")}${stat(props,"Properties","var(--success)")}
-    ${stat(visits,"Site visits","#2B6FE1")}${stat(leads,"Leads","var(--brand)")}${stat(kyc,"KYC pending","var(--gold-dark)")}${stat(partners,"Partner pending","var(--gold-dark)")}
+    ${stat(visits,"Site visits","#2B6FE1")}${stat(leads,"Leads","var(--brand)")}${stat(kyc,"KYC pending","var(--gold-dark)")}${stat(partners,"Partner pending","var(--gold-dark)")}${stat(referred,"Referred signups","var(--success)","go('users')")}
   </div>
   <div class="card" style="padding:20px;"><b>Welcome back, ${esc(ME.full_name||"Admin")}.</b>
   <p class="muted" style="font-size:13px;margin:8px 0 0;">Manage listings from <a onclick="go('properties')">Properties</a>, review <a onclick="go('kyc')">KYC</a> and <a onclick="go('partners')">Partner</a> requests. Everything here shares the live backend with the mobile app — changes sync instantly.</p></div>`;
@@ -538,24 +539,96 @@ window.reviewPartner = async(id,decision)=>{
 };
 
 // ───────── users ─────────
+// User management (report 28-07-2): add users manually, edit details,
+// activate/deactivate, referral links + relationships.
 async function renderUsers(){
-  $("#view").innerHTML = `<div class="toolbar"><input class="grow" id="u-search" placeholder="Search name, ID, mobile…"/>
-    <select id="u-role"><option value="">All roles</option><option>buyer</option><option>promoter</option><option>super_admin</option></select></div><div id="u-list"><div class="empty">Loading…</div></div>`;
-  $("#u-search").oninput=debounce(loadUsers,300); $("#u-role").onchange=loadUsers; loadUsers();
+  $("#view").innerHTML = `<div class="toolbar" style="flex-wrap:wrap"><input class="grow" id="u-search" placeholder="Search name, ID, mobile…"/>
+    <select id="u-role"><option value="">All roles</option><option>buyer</option><option>promoter</option><option>super_admin</option></select>
+    <select id="u-active"><option value="">Active + deactivated</option><option value="1">Active only</option><option value="0">Deactivated only</option></select>
+    <button class="btn" onclick="openUserAdd()">+ Add user</button></div><div id="u-list"><div class="empty">Loading…</div></div>`;
+  $("#u-search").oninput=debounce(loadUsers,300); $("#u-role").onchange=loadUsers; $("#u-active").onchange=loadUsers; loadUsers();
 }
+let USERS_BY_ID={};
 async function loadUsers(){
-  const term=$("#u-search").value.trim().toLowerCase(), role=$("#u-role").value;
-  let q=sb.from("profiles").select("id,full_name,member_code,mobile,role,kyc_status,partner_status,created_at").order("member_code").limit(500);
+  const term=$("#u-search").value.trim().toLowerCase(), role=$("#u-role").value, act=$("#u-active").value;
+  let q=sb.from("profiles").select("id,full_name,member_code,mobile,email,city,role,kyc_status,partner_status,created_at,is_active,referral_code,partner_code,referred_by").order("member_code").limit(500);
   if(role) q=q.eq("role",role);
   const { data } = await q; let rows=data||[];
+  USERS_BY_ID={}; rows.forEach(u=>USERS_BY_ID[u.id]=u);
+  // referral relationships: how many members each user brought in
+  const counts={}; const { data: refRows } = await sb.from("profiles").select("id,referred_by").not("referred_by","is",null);
+  (refRows||[]).forEach(r=>{ counts[r.referred_by]=(counts[r.referred_by]||0)+1; });
+  if(act) rows=rows.filter(u=> act==="1" ? u.is_active!==false : u.is_active===false);
   if(term) rows=rows.filter(u=>[u.full_name,u.member_code,u.mobile].some(x=>(x||"").toLowerCase().includes(term)));
   const kt={approved:"ok",pending:"warn",rejected:"red",not_started:"grey"};
-  $("#u-list").innerHTML = rows.length? `<table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Role</th><th>KYC</th><th>Partner</th></tr></thead><tbody>
-    ${rows.map(u=>`<tr><td class="muted">${esc(u.member_code||"")}</td><td><b>${esc(u.full_name||"—")}</b></td><td class="muted">+${esc(u.mobile||"")}</td>
-    <td><span class="pill grey">${u.role}</span></td><td><span class="pill ${kt[u.kyc_status]||'grey'}">${(u.kyc_status||"").replace("_"," ")}</span></td>
-    <td class="muted">${u.partner_status==="verified"?"<span class='pill ok'>partner</span>":esc(u.partner_status||"")}</td></tr>`).join("")}</tbody></table>`
+  $("#u-list").innerHTML = rows.length? `<table><thead><tr><th>ID</th><th>Name</th><th>Role</th><th>KYC</th><th>Referral</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${rows.map(u=>{
+      const refBy=u.referred_by&&USERS_BY_ID[u.referred_by]?`referred by ${esc(USERS_BY_ID[u.referred_by].full_name||USERS_BY_ID[u.referred_by].member_code||"member")}`:"";
+      const n=counts[u.id]||0;
+      return `<tr${u.is_active===false?' style="opacity:.55"':''}><td class="muted">${esc(u.member_code||"")}</td>
+      <td><b>${esc(u.full_name||"—")}</b><div class="muted" style="font-size:12px">+${esc(u.mobile||"")}${u.city?" · "+esc(u.city):""}</div></td>
+      <td><span class="pill grey">${u.role}</span>${u.partner_status==="verified"?" <span class='pill ok'>partner</span>":""}</td>
+      <td><span class="pill ${kt[u.kyc_status]||'grey'}">${(u.kyc_status||"").replace("_"," ")}</span></td>
+      <td><div style="font-size:12px"><b>${esc(u.referral_code||"—")}</b> ${u.referral_code?`<button class="btn grey sm" style="padding:2px 8px" onclick="copyRefLink('${esc(u.referral_code)}')">Copy link</button>`:""}</div>
+        <div class="muted" style="font-size:11px">${n} referred${refBy?" · "+refBy:""}</div></td>
+      <td>${u.is_active===false?`<span class="pill red">deactivated</span>`:`<span class="pill ok">active</span>`}</td>
+      <td style="white-space:nowrap"><button class="btn grey sm" onclick="openUserEdit('${u.id}')">Edit</button>
+        ${u.role==="super_admin"?"":(u.is_active===false?`<button class="btn sm" onclick="toggleUserActive('${u.id}',true)">Activate</button>`:`<button class="btn ink sm" onclick="toggleUserActive('${u.id}',false)">Deactivate</button>`)}
+      </td></tr>`;}).join("")}</tbody></table>`
     : `<div class="empty card">No users found.</div>`;
 }
+window.copyRefLink=(code)=>{navigator.clipboard.writeText(location.origin+"/welcome?ref="+encodeURIComponent(code)); toast("Referral link copied");};
+window.toggleUserActive=async(id,to)=>{
+  const {error}=await sb.from("profiles").update({is_active:to}).eq("id",id);
+  if(error) return toast(error.message);
+  toast(to?"User activated":"User deactivated"); loadUsers();
+};
+window.openUserEdit=(id)=>{
+  const u=USERS_BY_ID[id]; if(!u) return;
+  $("#drawer").innerHTML=`<div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>Edit user · ${esc(u.member_code||"")}</h3>
+    <button class="btn" onclick="saveUserEdit('${id}')">Save</button></div>
+    <div class="db"><div class="sec"><h4>Details</h4>
+      <div><label>Full name</label><input data-uk="full_name" value="${esc(u.full_name||"")}"/></div>
+      <div><label>Email</label><input data-uk="email" value="${esc(u.email||"")}"/></div>
+      <div><label>City</label><input data-uk="city" value="${esc(u.city||"")}"/></div>
+      <div class="muted" style="font-size:12px;margin-top:10px">Mobile +${esc(u.mobile||"")} · Role ${esc(u.role)} — mobile and role are managed by the platform (roles change via the Partner workflow / super-admin allowlist).</div></div>
+    <div class="sec"><h4>Referral</h4>
+      <div class="muted" style="font-size:13px">Code <b>${esc(u.referral_code||"—")}</b>${u.partner_code?" · Partner ID <b>"+esc(u.partner_code)+"</b>":""}</div>
+      ${u.referral_code?`<button class="btn grey sm" style="margin-top:8px" onclick="copyRefLink('${esc(u.referral_code)}')">Copy referral link</button>`:""}</div></div>`;
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+window.saveUserEdit=async(id)=>{
+  const g=(k)=>$(`#drawer [data-uk="${k}"]`)?.value.trim()||null;
+  const {error}=await sb.from("profiles").update({full_name:g("full_name"),email:g("email"),city:g("city")}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("User updated"); closeDrawer(); loadUsers();
+};
+window.openUserAdd=()=>{
+  $("#drawer").innerHTML=`<div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>Add user</h3>
+    <button class="btn" id="u-add-btn" onclick="submitUserAdd()">Create</button></div>
+    <div class="db"><div class="sec"><h4>New user (buyer)</h4>
+      <div><label>Full name</label><input data-uk="full_name" placeholder="Full name"/></div>
+      <div><label>Mobile (10 digits)</label><input data-uk="mobile" placeholder="9876543210" maxlength="10" inputmode="numeric"/></div>
+      <div><label>Email (optional)</label><input data-uk="email" placeholder="name@example.com"/></div>
+      <div><label>City (optional)</label><input data-uk="city" placeholder="Erode"/></div>
+      <div><label>Referral ID (optional)</label><input data-uk="referral_code" placeholder="JA-REF-00001"/></div>
+      <div class="muted" style="font-size:12px;margin-top:10px">The user signs in with mobile OTP as usual. Member ID and referral code are assigned automatically; a referral ID here records who brought them in.</div></div></div>`;
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+window.submitUserAdd=async()=>{
+  const g=(k)=>$(`#drawer [data-uk="${k}"]`)?.value.trim()||"";
+  const btn=$("#u-add-btn"); btn.disabled=true; btn.textContent="Creating…";
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(`${SUPABASE_URL}/functions/v1/admin-create-user`,{method:"POST",
+      headers:{"Content-Type":"application/json",apikey:ANON,Authorization:"Bearer "+session.access_token},
+      body:JSON.stringify({mobile:g("mobile"),full_name:g("full_name"),email:g("email"),city:g("city"),referral_code:g("referral_code")})});
+    const res=await r.json();
+    if(!r.ok||res.error){ toast(res.error||"Couldn't create the user"); return; }
+    toast(`User created · ${res.member_code||""}`); closeDrawer(); loadUsers();
+  }catch(e){ toast(e.message||"Couldn't create the user"); }
+  finally{ btn.disabled=false; btn.textContent="Create"; }
+};
 
 // ───────── promoter tree (earning tree) ─────────
 async function renderTree(){

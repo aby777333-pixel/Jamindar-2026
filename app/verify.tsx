@@ -12,13 +12,14 @@ import { colors, space, type as T } from "@/lib/theme";
 
 export default function Verify() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mobile: string; devCode?: string; newUser?: string }>();
+  const params = useLocalSearchParams<{ mobile: string; devCode?: string; newUser?: string; ref?: string }>();
   const mobile = params.mobile ?? "";
   // Referral entry shows only for first-time registrations (bug report 28-07).
   const isNewUser = params.newUser === "1";
   const refreshProfile = useAuth((s) => s.refreshProfile);
   const [code, setCode] = useState(params.devCode ? String(params.devCode) : "");
-  const [invite, setInvite] = useState("");
+  // Sign Up passes the referral ID along (report 28-07-2) — prefill it here.
+  const [invite, setInvite] = useState(params.ref ? String(params.ref) : "");
   const [loading, setLoading] = useState(false);
   const [seconds, setSeconds] = useState(30);
 
@@ -33,7 +34,7 @@ export default function Verify() {
   // mobile (or a fresh dev code) always starts with a clean form.
   useEffect(() => {
     setCode(params.devCode ? String(params.devCode) : "");
-    setInvite("");
+    setInvite(params.ref ? String(params.ref) : "");
     setSeconds(30);
   }, [mobile, params.devCode]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
@@ -97,7 +97,17 @@ export default function Login() {
         />
 
         <Button label="Send OTP" onPress={onSend} loading={loading} disabled={!valid} />
-        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.md }}>
+
+        {/* Report 28-07-2: explicit Sign Up path — registration with an
+            optional Referral ID lives on its own page. */}
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 5, marginTop: space.md }}>
+          <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize }}>New to Jamin?</Text>
+          <Text onPress={() => router.push("/signup" as Href)} style={{ color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>
+            Sign Up
+          </Text>
+        </View>
+
+        <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.sm }}>
           By continuing you agree to Jamin's Terms & Privacy Policy.
         </Text>
 

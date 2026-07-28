@@ -174,8 +174,14 @@ export default function BuyerKyc() {
           /* Owner report 27-07: once submitted, details are LOCKED while under
              review — the user gets a read-only preview (docs open full screen)
              instead of editable fields. */
+          <StatusNote tone="warning" icon="lock-closed-outline" title="Under review — locked" body="Your KYC is submitted and locked while our team verifies it. Preview everything you sent below. We'll notify you once it's done." />
+        ) : null}
+
+        {/* Report 28-07-2: approved users can view their submitted KYC too —
+            the same read-only preview serves both the locked (pending) and
+            the verified states. */}
+        {approved || pending ? (
           <>
-            <StatusNote tone="warning" icon="lock-closed-outline" title="Under review — locked" body="Your KYC is submitted and locked while our team verifies it. Preview everything you sent below. We'll notify you once it's done." />
             <Section title="Identity" subtitle="Submitted details">
               <ReadRow label="PAN Number" value={form.pan_number} />
               <ReadRow label="Aadhaar Number" value={form.aadhaar_number} />
@@ -216,7 +222,9 @@ export default function BuyerKyc() {
               </Text>
             </View>
           </>
-        ) : (
+        ) : null}
+
+        {!approved && !pending ? (
           <>
             {rejected ? <StatusNote tone="danger" icon="alert-circle-outline" title="Action needed" body={existing?.review_reason || "Your KYC was rejected. Please review your details and resubmit."} corrections={existing?.review_corrections} /> : null}
             {!existing ? <StatusNote tone="neutral" icon="shield-outline" title="Complete your KYC" body="Verify your identity to unlock agreements, bookings and all Jamin Property services. Your information is encrypted and used only for verification." /> : null}
@@ -294,7 +302,7 @@ export default function BuyerKyc() {
               loading={saving}
             />
           </>
-        )}
+        ) : null}
       </ScrollView>
       <ZoomableImageViewer
         visible={!!viewer}

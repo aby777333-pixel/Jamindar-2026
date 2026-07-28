@@ -27,6 +27,8 @@ import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
 import { encodeFilters, type SearchFilters } from "@/lib/property-search";
 import { useFavorites } from "@/lib/favorites";
+import { fetchCommunityFeed } from "@/lib/community";
+import { timeAgo } from "@/lib/format";
 
 type RoleAction = { label: string; sub: string; icon: string; accent: { bg: string; fg: string }; href: Href };
 
@@ -221,6 +223,9 @@ export default function Home() {
           )}
         </View>
 
+        {/* Jamin Community — prominent home entry (report 28-07-2) */}
+        <CommunityHomeSection onOpen={() => router.push("/community" as Href)} />
+
         {/* for you — buyers */}
         {role === "buyer" && suggestions && suggestions.length > 0 ? (
           <View style={{ paddingHorizontal: 20, marginTop: space.lg }}>
@@ -285,6 +290,73 @@ function QuickTool({ icon, label, onPress }: { icon: string; label: string; onPr
 
 /** Auto-playing, swipeable hero slider over the live projects (report 28-07).
  *  Each slide: project image, name, price and a View Details CTA. */
+/** Jamin Community home section (report 28-07-2): overview, live member and
+ *  activity counts, the latest post as a teaser, and a Join button. Pure
+ *  data-driven — counts come from the community_stats RPC. */
+function CommunityHomeSection({ onOpen }: { onOpen: () => void }) {
+  const { data: stats } = useQuery({
+    queryKey: ["community-stats"],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("community_stats");
+      return (data ?? {}) as { members?: number; posts?: number; comments?: number };
+    },
+  });
+  const { data: latest } = useQuery({
+    queryKey: ["community-latest"],
+    queryFn: async () => {
+      const posts = await fetchCommunityFeed();
+      return posts[0] ?? null;
+    },
+  });
+
+  const stat = (n: number | undefined, label: string) => (
+    <View style={{ flex: 1, alignItems: "center" }}>
+      <Text style={{ color: colors.goldLight, fontWeight: "800", fontSize: 17 }}>{n ?? "—"}</Text>
+      <Text style={{ color: colors.onDarkFaint, fontSize: 11, marginTop: 1 }}>{label}</Text>
+    </View>
+  );
+
+  return (
+    <View style={{ paddingHorizontal: 20, marginTop: space.lg }}>
+      <Pressable onPress={onOpen}>
+        <View style={{ backgroundColor: colors.navy, borderRadius: 20, padding: 18, overflow: "hidden" }}>
+          <View style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: 70, backgroundColor: "rgba(224,164,35,0.14)" }} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="people" size={21} color={colors.goldLight} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16.5, letterSpacing: -0.3 }}>Jamin Community</Text>
+              <Text style={{ color: colors.onDarkFaint, fontSize: 12, marginTop: 1 }}>Plots, site-visit stories, questions & clips</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.onDarkFaint} />
+          </View>
+
+          <View style={{ flexDirection: "row", marginTop: 14, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14, paddingVertical: 10 }}>
+            {stat(stats?.members, "Members")}
+            {stat(stats?.posts, "Posts")}
+            {stat(stats?.comments, "Comments")}
+          </View>
+
+          {latest ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 }}>
+              <Ionicons name="chatbubble-ellipses" size={13} color={colors.goldLight} />
+              <Text numberOfLines={1} style={{ flex: 1, color: "rgba(255,255,255,0.85)", fontSize: 12.5 }}>
+                {latest.author?.name ? `${latest.author.name}: ` : ""}{latest.body || "Shared media"}
+              </Text>
+              <Text style={{ color: colors.onDarkFaint, fontSize: 11 }}>{timeAgo(latest.created_at)}</Text>
+            </View>
+          ) : null}
+
+          <Pressable onPress={onOpen} style={{ marginTop: 14, backgroundColor: colors.brand, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}>
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13.5 }}>Join the Community</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
 function HeroSlider({ items, onOpen }: { items: Property[]; onOpen: (p: Property) => void }) {
   const { width: winW } = useWindowDimensions();
   const W = winW - 40; // matches the screen's 20px side padding
