@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from "react-native";
+import { Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,7 +58,10 @@ export default function CommunityPostScreen() {
       ) : !post ? (
         <Empty title="Post unavailable" subtitle="It may have been removed." />
       ) : (
-        <>
+        // Bug 28-07 (report 7): the composer slid behind the open keyboard —
+        // with edge-to-edge Android the window no longer resizes itself, so
+        // the screen must pad for the keyboard explicitly.
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: 20, gap: space.sm }} showsVerticalScrollIndicator={false}>
             <CommunityPostCard post={post} onChanged={() => { refetch(); qc.invalidateQueries({ queryKey: ["community-feed"] }); }} />
 
@@ -86,12 +89,18 @@ export default function CommunityPostScreen() {
             )}
           </ScrollView>
 
-          {/* comment composer */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: space.md, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) + 6, backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.border }}>
+          {/* comment composer — the privacy note lives on its own line so the
+              placeholder is never truncated (bug 28-07, report 7) */}
+          <View style={{ paddingHorizontal: space.md, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 8) + 6, backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.border }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }}>
+              <Ionicons name="shield-checkmark" size={11} color={colors.success} />
+              <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Phone numbers & emails are hidden automatically.</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TextInput
               value={comment}
               onChangeText={setComment}
-              placeholder="Write a comment… (contacts are hidden automatically)"
+              placeholder="Write a comment…"
               placeholderTextColor={colors.inkFaint}
               style={{ flex: 1, backgroundColor: colors.surfaceSunken, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, color: colors.ink, fontSize: 14 }}
               returnKeyType="send"
@@ -100,8 +109,9 @@ export default function CommunityPostScreen() {
             <Pressable onPress={onSend} disabled={sending || !comment.trim()} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: comment.trim() ? colors.brand : colors.border, alignItems: "center", justifyContent: "center" }}>
               {sending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={17} color="#fff" />}
             </Pressable>
+            </View>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );
