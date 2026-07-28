@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
-import { formatINR, formatArea } from "@/lib/format";
+import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
 import { useCompare } from "@/lib/compare";
@@ -221,7 +221,7 @@ export default function Properties() {
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8, gap: 8 }}>
                     <Text numberOfLines={1} style={{ color: colors.brand, fontWeight: "800", fontSize: 15, flexShrink: 0 }}>
-                      {formatINR(p.price)}
+                      {priceLabel(p.price, p.status)}
                     </Text>
                     <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: 12, flexShrink: 1, textAlign: "right" }}>
                       {formatArea(p.area_value, p.area_unit)}

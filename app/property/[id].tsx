@@ -25,7 +25,7 @@ import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
 import { propertyShareMessage } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
-import { formatINR, formatArea } from "@/lib/format";
+import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
 
 type TabKey =
@@ -58,6 +58,9 @@ export default function PropertyDetail() {
   const [imgIndex, setImgIndex] = useState(0);
   const [tab, setTab] = useState<TabKey>("overview");
   const [mediaMode, setMediaMode] = useState<"photos" | "videos">("photos");
+  // Completed projects with archived pre-development photos get a Before/After
+  // gallery toggle; "After" (the finished project) is always the default.
+  const [showBefore, setShowBefore] = useState(false);
   const [fullscreen, setFullscreen] = useState<number | null>(null);
   const [visitOpen, setVisitOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -206,7 +209,7 @@ export default function PropertyDetail() {
         {
           id: property.id,
           title: property.title,
-          price: property.price != null ? formatINR(property.price) : "Price on request",
+          price: property.status === "sold" ? "Sold out" : property.price != null ? formatINR(property.price) : "Price on request",
           location: [property.locality, property.city, property.state].filter(Boolean).join(", "),
           highlights: (property.amenities ?? []).slice(0, 4),
         },
@@ -262,7 +265,12 @@ export default function PropertyDetail() {
       </SafeAreaView>
     );
 
-  const images = property.images ?? [];
+  const afterImages = property.images ?? [];
+  const beforeImages = property.before_images ?? [];
+  const hasBeforeAfter = property.project_phase === "completed" && beforeImages.length > 0 && afterImages.length > 0;
+  // Every consumer below (hero pager, dots, fullscreen viewer, Photos tab)
+  // reads this one list, so switching sets can never desync an index.
+  const images = hasBeforeAfter && showBefore ? beforeImages : afterImages;
   const allVideos = [...(property.videos ?? []), ...(property.drone_videos ?? [])];
   const approvalTag = topApproval(property.approvals);
   const PHASE_META: Record<string, { label: string; color: string }> = {
@@ -374,6 +382,28 @@ export default function PropertyDetail() {
                   <Text style={{ fontSize: 12, fontWeight: "700", color: mediaMode === m ? colors.ink : "#fff" }}>{m === "photos" ? "Photos" : "Videos"}</Text>
                 </Pressable>
               ))}
+            </View>
+          ) : null}
+          {/* Before/After toggle for completed projects — sits below the
+              Photos/Videos toggle when videos exist, else takes its spot. */}
+          {mediaMode === "photos" && hasBeforeAfter ? (
+            <View style={{ position: "absolute", top: allVideos.length > 0 ? 52 : 12, alignSelf: "center", flexDirection: "row", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, padding: 3 }}>
+              {(["after", "before"] as const).map((m) => {
+                const active = showBefore === (m === "before");
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => {
+                      setShowBefore(m === "before");
+                      setImgIndex(0);
+                      heroRef.current?.scrollTo({ x: 0, animated: false });
+                    }}
+                    style={{ paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, backgroundColor: active ? "#fff" : "transparent" }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: active ? colors.ink : "#fff" }}>{m === "after" ? "After" : "Before"}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null}
           {/* Status badges + 360° button only over PHOTOS — in Videos mode they
@@ -574,7 +604,7 @@ function Overview({ property, voiceBusy, translated, showOriginal, onListen, onT
   return (
     <View>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <Stat label="Price" value={property.price != null ? formatINR(property.price) : "On request"} accent={colors.brand} />
+        <Stat label="Price" value={priceLabel(property.price, property.status)} accent={colors.brand} />
         <Stat label="Area" value={property.area_value ? formatArea(property.area_value, property.area_unit) : "—"} />
         <Stat label={property.plots_available != null ? "Plots left" : "Status"} value={property.plots_available != null ? `${property.plots_available}/${property.plots_total}` : phaseLabel} gold />
       </View>

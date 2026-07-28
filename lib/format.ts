@@ -6,6 +6,12 @@ export function formatINR(value?: number | null): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
+/** Price text that respects stock — a sold-out listing never shows a price ask. */
+export function priceLabel(price?: number | null, status?: string | null): string {
+  if (status === "sold") return "Sold out";
+  return price != null ? formatINR(price) : "On request";
+}
+
 export function formatArea(value?: number | null, unit?: string | null): string {
   if (value == null) return "—";
   const u = unit ?? "sqft";

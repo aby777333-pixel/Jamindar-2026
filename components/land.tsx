@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, space, type as T } from "@/lib/theme";
 import { elevation } from "./ui";
-import { formatINR, formatArea } from "@/lib/format";
+import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
 
 /** "Good Morning, {name}" greeting header with avatar + notification bell. */
@@ -491,7 +491,7 @@ export function VerifiedListingCard({
         </Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.surfaceSunken }}>
           <Text style={{ color: colors.ink, fontWeight: "600", fontSize: T.body.fontSize, letterSpacing: -0.4 }}>
-            {property.price != null ? formatINR(property.price) : "On request"}
+            {priceLabel(property.price, property.status)}
           </Text>
           {property.area_value ? (
             <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1 }}>

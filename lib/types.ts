@@ -154,6 +154,8 @@ export interface Property {
   approvals: Record<string, boolean>;
   vastu_facing: string | null;
   images: string[];
+  /** Pre-development photos for completed projects (migration 0050) — powers the Before/After gallery toggle. */
+  before_images: string[] | null;
   videos: string[];
   virtual_tour_url: string | null;
   brochure_url: string | null;
