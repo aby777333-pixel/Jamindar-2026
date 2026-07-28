@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/store";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import type { AppNotification } from "@/lib/types";
@@ -17,6 +17,7 @@ export default function Notifications() {
   const router = useRouter();
   const qc = useQueryClient();
   const { profile } = useAuth();
+  const role = useEffectiveRole();
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["notifications", profile?.id],
@@ -31,6 +32,12 @@ export default function Notifications() {
       return (data as AppNotification[]) ?? [];
     },
   });
+
+  // Bug 28-07 (#6): the feed follows the ACTIVE view — in Buyer view,
+  // promoter/admin-journey notifications (partner status, submission reviews)
+  // are hidden. Rows are always the signed-in user's own (RLS-scoped).
+  const HIDDEN_FOR_BUYER = ["partner", "submission"];
+  const visible = (items ?? []).filter((n) => role !== "buyer" || !HIDDEN_FOR_BUYER.includes(n.type));
 
   // mark unread as read once the list is seen
   useEffect(() => {
@@ -53,9 +60,9 @@ export default function Notifications() {
 
       {isLoading ? (
         <Loading />
-      ) : items && items.length > 0 ? (
+      ) : visible.length > 0 ? (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {items.map((n) => (
+          {visible.map((n) => (
             <Card key={n.id} style={{ marginBottom: 10, flexDirection: "row", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name={(ICON[n.type] ?? "notifications") as any} size={20} color={colors.brand} />

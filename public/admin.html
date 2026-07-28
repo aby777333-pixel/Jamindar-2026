@@ -488,18 +488,24 @@ window.mVis=async(id,a)=>{ const m=(window._media||[]).find(x=>x.id===id); const
 
 // ───────── KYC ─────────
 async function renderKyc(){
-  const { data } = await sb.from("kyc_submissions").select("*, applicant:profiles!kyc_submissions_user_id_fkey(full_name,member_code,mobile)").eq("status","pending").order("submitted_at",{ascending:false});
+  // Bug 28-07 (#6): approved/rejected KYCs are visible here too and can be
+  // sent back to review (accidental decisions are correctable, audited).
+  const status = window.__kycFilter || "pending";
+  const { data } = await sb.from("kyc_submissions").select("*, applicant:profiles!kyc_submissions_user_id_fkey(full_name,member_code,mobile)").eq("status",status).order("submitted_at",{ascending:false});
   const rows=data||[];
-  $("#view").innerHTML = rows.length? `<table><thead><tr><th>Applicant</th><th>ID</th><th>PAN</th><th>Submitted</th><th></th></tr></thead><tbody>
+  const chip=(v,l)=>`<button class="btn ${status===v?'':'grey'} sm" onclick="kycFilter('${v}')">${l}</button>`;
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">${chip('pending','Pending')}${chip('approved','Approved')}${chip('rejected','Rejected')}</div>` + (rows.length? `<table><thead><tr><th>Applicant</th><th>ID</th><th>PAN</th><th>Submitted</th><th></th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td><b>${esc(r.applicant?.full_name||"—")}</b><div class="muted" style="font-size:11px">+${esc(r.applicant?.mobile||"")}</div></td>
     <td class="muted">${esc(r.applicant?.member_code||"")}</td><td>${esc(r.pan_number||"—")}</td><td class="muted">${new Date(r.submitted_at).toLocaleDateString()}</td>
-    <td style="text-align:right"><button class="btn ghost sm" onclick='reviewKyc("${r.id}","rejected")'>Reject</button> <button class="btn sm" onclick='reviewKyc("${r.id}","approved")'>Approve</button></td></tr>`).join("")}</tbody></table>`
-    : `<div class="empty card">No pending KYC submissions.</div>`;
+    <td style="text-align:right">${status==='pending'?`<button class="btn ghost sm" onclick='reviewKyc("${r.id}","rejected")'>Reject</button> <button class="btn sm" onclick='reviewKyc("${r.id}","approved")'>Approve</button>`:`<button class="btn grey sm" onclick='reviewKyc("${r.id}","pending")'>Send back to review</button>`}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty card">No ${esc(status)} KYC submissions.</div>`);
 }
+window.kycFilter=(v)=>{ window.__kycFilter=v; renderKyc(); };
 window.reviewKyc = async(id,decision)=>{
   let reason=null; if(decision==="rejected"){ reason=prompt("Reason for rejection:"); if(reason===null)return; }
+  if(decision==="pending" && !confirm("Send this KYC back to the Pending queue for a fresh review?")) return;
   const { error } = await sb.rpc("admin_review_kyc",{p_submission:id,p_decision:decision,p_reason:reason,p_corrections:null});
-  if(error) return toast(error.message); toast("KYC "+decision); refreshBadges(); renderKyc();
+  if(error) return toast(error.message); toast(decision==="pending"?"Sent back to review":"KYC "+decision); refreshBadges(); renderKyc();
 };
 
 // ───────── partners ─────────

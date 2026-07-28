@@ -122,7 +122,7 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
     return () => { active = false; };
   }, [row.id]);
 
-  async function review(decision: "approved" | "rejected") {
+  async function review(decision: "approved" | "rejected" | "pending") {
     if (decision === "rejected" && !reason.trim()) {
       Alert.alert("Reason required", "Please enter a reason so the applicant knows what to correct.");
       return;
@@ -136,12 +136,25 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
         p_corrections: null,
       });
       if (error) throw error;
-      Alert.alert(decision === "approved" ? "KYC approved" : "KYC rejected", "The applicant has been notified.", [{ text: "OK", onPress: onReviewed }]);
+      Alert.alert(
+        decision === "approved" ? "KYC approved" : decision === "pending" ? "Sent back to review" : "KYC rejected",
+        "The applicant has been notified.",
+        [{ text: "OK", onPress: onReviewed }]
+      );
     } catch (e: any) {
       Alert.alert("Couldn't update", e?.message ?? "Please try again.");
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Bug 28-07 (#6): an accidental Approve/Reject is correctable — the record
+   *  returns to the Pending queue for a fresh review (audited server-side). */
+  function revertToReview() {
+    Alert.alert("Send back to review?", "This KYC returns to the Pending queue and the applicant's status becomes pending again.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Send back", onPress: () => review("pending") },
+    ]);
   }
 
   return (
@@ -237,11 +250,13 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
             </View>
           </>
         ) : (
-          <Card>
+          <Card style={{ gap: 12 }}>
             <Text style={{ color: colors.inkSoft }}>
               Already {row.status}
               {row.review_reason ? ` — ${row.review_reason}` : ""}.
             </Text>
+            {/* Bug 28-07 (#6): accidental decisions are correctable */}
+            <Button label="Send back to review" variant="outline" onPress={revertToReview} loading={busy} />
           </Card>
         )}
       </ScrollView>
