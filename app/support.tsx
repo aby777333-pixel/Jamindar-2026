@@ -3,10 +3,20 @@ import { Text, View, ScrollView, Pressable, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui";
+import { supabase } from "@/lib/supabase";
+import { openCall, openWhatsApp, openSms, openEmail } from "@/lib/contact";
 import { colors, space, type as T } from "@/lib/theme";
 
 const SUPPORT_EMAIL = "info@jaminproperties.com";
+
+interface DeskContact {
+  label: string | null;
+  mobile: string | null;
+  whatsapp: string | null;
+  email: string | null;
+}
 
 const FAQ = [
   { q: "How do I book a site visit?", a: "Open any property and tap “Schedule Site Visit”. Our team will call you to confirm a convenient date and time." },
@@ -20,6 +30,28 @@ export default function Support() {
   const router = useRouter();
   const [open, setOpen] = useState<number | null>(0);
 
+  // The admin-configured help desk (platform_contacts.jamin_desk) — the same
+  // record the Admin Console edits, so changes are live here immediately.
+  const { data: desk } = useQuery({
+    queryKey: ["desk-contact-public"],
+    queryFn: async (): Promise<DeskContact | null> => {
+      const { data } = await supabase
+        .from("platform_contacts")
+        .select("label, mobile, whatsapp, email")
+        .eq("id", "jamin_desk")
+        .maybeSingle();
+      return (data as DeskContact) ?? null;
+    },
+  });
+
+  const deskEmail = desk?.email || SUPPORT_EMAIL;
+  const deskActions: { icon: keyof typeof Ionicons.glyphMap; label: string; show: boolean; onPress: () => void }[] = [
+    { icon: "call", label: "Call", show: !!desk?.mobile, onPress: () => openCall(desk?.mobile) },
+    { icon: "logo-whatsapp", label: "WhatsApp", show: !!(desk?.whatsapp || desk?.mobile), onPress: () => openWhatsApp(desk?.whatsapp || desk?.mobile, "Hi, I need help with Jamin Properties.") },
+    { icon: "chatbox", label: "SMS", show: !!desk?.mobile, onPress: () => openSms(desk?.mobile, "Hi, I need help with Jamin Properties.") },
+    { icon: "mail", label: "Email", show: !!deskEmail, onPress: () => openEmail(deskEmail, "Jamin Properties — Support") },
+  ];
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12 }}>
@@ -28,25 +60,39 @@ export default function Support() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* contact */}
-        <View style={{ flexDirection: "row", gap: 12, marginBottom: space.md }}>
-          <Pressable onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Jamin Properties — Support")}`).catch(() => {})} style={{ flex: 1 }}>
-            <Card style={{ alignItems: "center", paddingVertical: 18 }}>
-              <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-                <Ionicons name="mail" size={20} color={colors.brand} />
-              </View>
-              <Text style={{ fontWeight: "600", color: colors.ink, fontSize: 13 }}>Email us</Text>
-            </Card>
-          </Pressable>
-          <Pressable onPress={() => router.navigate("/(tabs)/assistant" as Href)} style={{ flex: 1 }}>
-            <Card style={{ alignItems: "center", paddingVertical: 18 }}>
-              <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-                <Ionicons name="sparkles" size={20} color={colors.brand} />
-              </View>
-              <Text style={{ fontWeight: "600", color: colors.ink, fontSize: 13 }}>Ask Jamindar</Text>
-            </Card>
-          </Pressable>
-        </View>
+        {/* help desk — every channel opens the native app (dialer/WhatsApp/SMS/mail) */}
+        <Card style={{ marginBottom: space.md, gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="headset" size={20} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>{desk?.label || "Jamin Properties Help Desk"}</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 1 }}>We usually respond within working hours.</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {deskActions.filter((a) => a.show).map((a) => (
+              <Pressable key={a.label} onPress={a.onPress} style={{ flex: 1, alignItems: "center", gap: 5, backgroundColor: colors.brandSoft, borderRadius: 12, paddingVertical: 12 }}>
+                <Ionicons name={a.icon} size={18} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 11.5 }}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Card>
+
+        <Pressable onPress={() => router.navigate("/(tabs)/assistant" as Href)}>
+          <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: space.md }}>
+            <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="sparkles" size={20} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "600", color: colors.ink, fontSize: 14 }}>Ask Jamindar</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 1 }}>Instant answers by voice or text, in your language</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+          </Card>
+        </Pressable>
 
         {/* FAQ */}
         <Text style={{ fontWeight: "600", fontSize: 15, color: colors.ink, marginBottom: space.sm }}>Frequently asked</Text>
@@ -63,9 +109,11 @@ export default function Support() {
           );
         })}
 
-        <Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 20 }}>
-          We're here to help · {SUPPORT_EMAIL}
-        </Text>
+        <Pressable onPress={() => openEmail(deskEmail, "Jamin Properties — Support")}>
+          <Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 20 }}>
+            We're here to help · <Text style={{ color: colors.brand }}>{deskEmail}</Text>
+          </Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );

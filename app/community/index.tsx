@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { Card, Loading, Empty } from "@/components/ui";
+import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import {
@@ -13,9 +14,11 @@ import {
   toggleCommunityLike,
   removeCommunityPost,
   reportCommunityPost,
+  usePreferredLanguage,
   type CommunityPost,
   type CommunityMedia,
 } from "@/lib/community";
+import { translate, JAMINDAR_LANGUAGES } from "@/lib/jamindar";
 
 /** Jamin Community — an open wall for every member: text, links, photos,
  *  videos, PDFs, files and voice notes. Phone numbers & emails in the text are
@@ -104,6 +107,34 @@ export function CommunityPostCard({
 }) {
   const [liked, setLiked] = useState(post.liked);
   const [likes, setLikes] = useState(post.likes);
+  // Admins can remove any post right from the feed (parity with the console).
+  const { profile } = useAuth();
+  const canDelete = post.mine || profile?.role === "super_admin";
+  // All-languages support: translate any post into the reader's preferred
+  // Jamindar language (same Sarvam path as the property-detail Translate).
+  const prefLang = usePreferredLanguage();
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const langLabel = JAMINDAR_LANGUAGES.find((l) => l.code === prefLang)?.label ?? "your language";
+
+  async function onTranslate() {
+    if (translated) {
+      setShowOriginal((v) => !v);
+      return;
+    }
+    if (!post.body || translating) return;
+    setTranslating(true);
+    try {
+      const t = await translate(post.body, prefLang);
+      setTranslated(t);
+      setShowOriginal(false);
+    } catch {
+      /* leave the original visible */
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   async function onLike() {
     // optimistic — server state refreshes with the next feed load
@@ -167,10 +198,20 @@ export function CommunityPostCard({
         ) : null}
       </View>
 
-      {/* body */}
+      {/* body — original or the reader's-language translation */}
       {post.body ? (
         <Pressable onPress={onOpen} disabled={!onOpen}>
-          <Text style={{ color: colors.ink, fontSize: 14.5, lineHeight: 21 }}>{post.body}</Text>
+          <Text style={{ color: colors.ink, fontSize: 14.5, lineHeight: 21 }}>
+            {translated && !showOriginal ? translated : post.body}
+          </Text>
+        </Pressable>
+      ) : null}
+      {post.body ? (
+        <Pressable onPress={onTranslate} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start" }}>
+          <Ionicons name="language" size={13} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>
+            {translating ? "Translating…" : translated ? (showOriginal ? `Show in ${langLabel}` : "Show original") : `Translate to ${langLabel}`}
+          </Text>
         </Pressable>
       ) : null}
 
@@ -202,15 +243,16 @@ export function CommunityPostCard({
             </Pressable>
           ) : null}
           <View style={{ flex: 1 }} />
-          {post.mine ? (
-            <Pressable onPress={onDelete} hitSlop={8}>
-              <Ionicons name="trash-outline" size={17} color={colors.inkFaint} />
-            </Pressable>
-          ) : (
+          {!post.mine ? (
             <Pressable onPress={onReport} hitSlop={8}>
               <Ionicons name="flag-outline" size={16} color={colors.inkFaint} />
             </Pressable>
-          )}
+          ) : null}
+          {canDelete ? (
+            <Pressable onPress={onDelete} hitSlop={8}>
+              <Ionicons name="trash-outline" size={17} color={colors.inkFaint} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </Card>

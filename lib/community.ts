@@ -6,8 +6,25 @@
 // writes community_posts/community_comments directly (no grant).
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 import { base64ToBytes, readUriBytes, assetSize } from "./submissions";
+import { loadMemory } from "./jamindar";
+import { useAuth } from "./store";
+
+/** The reader's preferred Jamindar language (the chip/settings choice) —
+ *  drives the per-post Translate button. Cached once per session. */
+export function usePreferredLanguage(): string {
+  const { profile } = useAuth();
+  const uid = profile?.id;
+  const { data } = useQuery({
+    queryKey: ["jamindar-lang", uid],
+    enabled: !!uid,
+    staleTime: 5 * 60_000,
+    queryFn: async () => (await loadMemory(uid!))?.language ?? "en-IN",
+  });
+  return data ?? "en-IN";
+}
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 

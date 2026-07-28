@@ -128,6 +128,7 @@ export default function AdminConsole() {
               { icon: "calendar", label: "Site Visits", note: "Confirm, reschedule, cancel bookings", href: "/manage-visits" as Href },
               { icon: "chatbubbles", label: "Messages", note: "Conversations, moderation & audit", href: "/messages" as Href },
               { icon: "headset", label: "Help Desk Contact", note: "Phone, WhatsApp & email shown to users", href: "/admin/desk-contact" as Href },
+              { icon: "people-circle", label: "Community", note: "Moderate posts, contact log & reports", href: "/admin/community" as Href },
               { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts", href: null },
               { icon: "bar-chart", label: "Analytics & Reports", note: "Trends, funnels, exports", href: null },
             ].map((r, i) => {
