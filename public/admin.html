@@ -293,6 +293,7 @@ function chips(label,key,opts){return `<label>${label}</label><div class="chips"
 function renderEditor(){
   const legal=CUR.legal||{}, inv=CUR.investment||{}, seo=CUR.seo||{};
   const plotLines=(CUR.plot_layout||[]).map(r=>[r.plot??r.plot_no??"",r.size_sqft??"",r.facing??"",r.status??"available"].join("|")).join("\n");
+  const beforeLines=(CUR.before_images||[]).join("\n");
   const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${CUR.id?"Edit property":"New property"}</h3>
@@ -348,7 +349,8 @@ function renderEditor(){
       <div class="switch">Loan eligible <div class="tgl ${CUR.loan_eligible?'on':''}" data-tgl="loan_eligible"><b></b></div></div></div>
     <div class="sec"><h4>Plot schedule & nearby places</h4>
       <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea></div>
-      <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div></div>
+      <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div>
+      <div><label>Before-development photos (completed projects — one image URL per line, powers the app's Before/After toggle)</label><textarea data-k="_before_images" placeholder="https://…/before-1.jpg">${esc(beforeLines)}</textarea></div></div>
     <div class="sec"><h4>Investment</h4><div class="grid3">
       <div><label>Est. ROI</label><input data-inv="roi" value="${esc(inv.roi||"")}"/></div>
       <div><label>Rental yield</label><input data-inv="rental_yield" value="${esc(inv.rental_yield||"")}"/></div>
@@ -407,6 +409,7 @@ window.saveProperty = async ()=>{
     loan_eligible:$(`#drawer [data-tgl="loan_eligible"]`).classList.contains("on"), loan_details:g("loan_details").trim()||null, encumbrance_status:g("encumbrance_status").trim()||null,
     plot_layout:g("_plot_layout").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[plot,size,facing,status]=l.split("|").map(x=>x.trim());const r={plot,status:status||"available"};if(size)r.size_sqft=Number(size)||null;if(facing)r.facing=facing;return r;}).filter(r=>r.plot),
     nearby_places:g("_nearby").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[name,distance,duration,category]=l.split("|").map(x=>x.trim());const r={name};if(distance)r.distance=distance;if(duration)r.duration=duration;if(category)r.category=category;return r;}).filter(r=>r.name),
+    before_images:g("_before_images").split("\n").map(l=>l.trim()).filter(Boolean),
   };
   if(!payload.title){ toast("Title is required"); return; }
   try{
@@ -852,7 +855,7 @@ async function renderLeads(){
   $("#view").innerHTML=`<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('new','New')}${chip('contacted','Contacted')}${chip('qualified','Qualified')}${chip('converted','Converted')}${chip('lost','Lost')}</div>
     ${rows.length? `<table><thead><tr><th>Buyer</th><th>Source</th><th>Property</th><th>Promoter</th><th>Status</th><th>Set</th></tr></thead><tbody>
       ${rows.map(l=>{const st={new:'warn',contacted:'',qualified:'',converted:'ok',lost:'red'}[l.status]||'grey';
-      return `<tr><td><b>${esc(l.buyer?.full_name||'—')}</b><div class="muted" style="font-size:12px">${esc(l.buyer?.member_code||'')}${l.buyer?.mobile?' · +'+esc(l.buyer.mobile):''}</div></td>
+      return `<tr><td><b>${esc(l.buyer?.full_name||(l.source==='vcard'?'V-Card visitor':'—'))}</b><div class="muted" style="font-size:12px">${esc(l.buyer?.member_code||'')}${l.buyer?.mobile?' · +'+esc(l.buyer.mobile):''}</div>${l.notes?`<div class="muted" style="font-size:11px;max-width:280px;white-space:pre-wrap">${esc(l.notes)}</div>`:''}</td>
       <td class="muted">${esc((l.source||'').replace(/_/g,' '))}</td>
       <td class="muted">${esc(l.property?.title||'—')}</td>
       <td class="muted">${esc(l.promoter?.member_code||'—')}</td>

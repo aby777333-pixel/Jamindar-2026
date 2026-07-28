@@ -94,7 +94,7 @@ export default function PromoterLeadsList() {
               <Card style={{ gap: 6 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Text style={{ flex: 1, fontWeight: "800", color: colors.ink, fontSize: 14 }} numberOfLines={1}>
-                    {l.buyer?.full_name ?? "Buyer"}
+                    {l.buyer?.full_name ?? (l.source === "vcard" ? "V-Card inquiry" : "Buyer")}
                   </Text>
                   <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
                     <Text style={{ color: tone.fg, fontSize: 11, fontWeight: "700", textTransform: "capitalize" }}>{l.status}</Text>
