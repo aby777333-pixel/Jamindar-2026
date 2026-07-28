@@ -174,6 +174,11 @@ export default function ManageVisits() {
                   ) : null}
                   {open ? <Action icon="calendar-outline" label="Reschedule" onPress={() => setEditing(v)} /> : null}
                   {open ? <Action icon="close-circle-outline" label="Cancel" tint={colors.inkFaint} onPress={() => confirmCancel(v)} /> : null}
+                  {/* Bug fix 28-07: a cancellation is no longer irreversible —
+                      Reopen puts the visit back into the Requested queue. */}
+                  {v.status === "cancelled" ? (
+                    <Action icon="refresh-circle" label="Reopen" tint={colors.success} onPress={() => advance(v, "requested")} />
+                  ) : null}
                 </View>
               </Card>
             );

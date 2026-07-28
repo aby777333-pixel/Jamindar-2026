@@ -762,11 +762,15 @@ async function renderVisits(){
       <td>${esc(v.buyer?.full_name||'—')}<div class="muted" style="font-size:12px">${esc(v.buyer?.member_code||'')}${v.buyer?.mobile?' · +'+esc(v.buyer.mobile):''}</div></td>
       <td class="muted">${v.preferred_date?esc(v.preferred_date):'—'}</td>
       <td><span class="pill ${st}">${esc(v.status)}</span></td>
-      <td style="text-align:right">${(v.status!=='confirmed'&&v.status!=='completed'&&v.status!=='cancelled')?`<button class="btn sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button> `:''}${v.status!=='completed'&&v.status!=='cancelled'?`<button class="btn gold sm" onclick="setVisit('${v.id}','completed')">Complete</button> `:''}${v.status!=='cancelled'?`<button class="btn ghost sm" onclick="setVisit('${v.id}','cancelled')">Cancel</button>`:''}</td></tr>`;}).join('')}</tbody></table>`
+      <td style="text-align:right">${(v.status!=='confirmed'&&v.status!=='completed'&&v.status!=='cancelled')?`<button class="btn sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button> `:''}${v.status!=='completed'&&v.status!=='cancelled'?`<button class="btn gold sm" onclick="setVisit('${v.id}','completed')">Complete</button> `:''}${v.status!=='cancelled'?`<button class="btn ghost sm" onclick="setVisit('${v.id}','cancelled')">Cancel</button>`:''}${v.status==='cancelled'?`<button class="btn sm" onclick="setVisit('${v.id}','requested')">Reopen</button> <button class="btn gold sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button>`:''}</td></tr>`;}).join('')}</tbody></table>`
       : `<div class="empty card">No site visits.</div>`}`;
 }
 window.visitFilter=(v)=>{window.__visitFilter=v;renderVisits();};
-window.setVisit=async(id,status)=>{const {error}=await sb.from('site_visits').update({status}).eq('id',id); if(error) return toast(error.message); toast('Visit '+status); refreshBadges(); renderVisits();};
+window.setVisit=async(id,status)=>{
+  // a visit leaving 'cancelled' sheds its old cancellation note (bug 28-07)
+  const patch={status}; if(status!=='cancelled') patch.cancel_reason=null;
+  const {error}=await sb.from('site_visits').update(patch).eq('id',id);
+  if(error) return toast(error.message); toast('Visit '+status); refreshBadges(); renderVisits();};
 
 // ───────── leads ─────────
 async function renderLeads(){

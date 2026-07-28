@@ -28,6 +28,15 @@ export default function Verify() {
     return () => clearTimeout(t);
   }, [seconds]);
 
+  // Bug fix 28-07: changing the mobile number reuses this screen instance, so
+  // the OTP typed for the PREVIOUS number stayed in the field. A different
+  // mobile (or a fresh dev code) always starts with a clean form.
+  useEffect(() => {
+    setCode(params.devCode ? String(params.devCode) : "");
+    setInvite("");
+    setSeconds(30);
+  }, [mobile, params.devCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function onVerify() {
     if (code.length < 4) return;
     setLoading(true);
