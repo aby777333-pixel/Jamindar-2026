@@ -53,8 +53,15 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+export interface JamindarChatResult {
+  reply: string;
+  /** Property ids of live projects the reply mentions (sales module v13) —
+   *  matched server-side pre-translation so it works in every language. */
+  mentioned?: string[];
+}
+
 /** Multi-turn conversation with Jamindar. Transcripts are logged server-side. */
-export async function jamindarChat(
+export async function jamindarChatEx(
   messages: ChatMsg[],
   opts: {
     language?: string;
@@ -63,9 +70,9 @@ export async function jamindarChat(
     memory?: JamindarMemory | null;
     propertyContext?: string;
   } = {}
-): Promise<string> {
+): Promise<JamindarChatResult> {
   const userText = [...messages].reverse().find((m) => m.role === "user")?.content;
-  const res = await invoke<{ reply: string }>({
+  const res = await invoke<JamindarChatResult>({
     action: "chat",
     messages,
     userText,
@@ -75,7 +82,15 @@ export async function jamindarChat(
     memory: opts.memory ?? undefined,
     propertyContext: opts.propertyContext,
   });
-  return res.reply;
+  return res;
+}
+
+/** Back-compat wrapper — reply text only. */
+export async function jamindarChat(
+  messages: ChatMsg[],
+  opts: Parameters<typeof jamindarChatEx>[1] = {}
+): Promise<string> {
+  return (await jamindarChatEx(messages, opts)).reply;
 }
 
 // ---------- memory ----------

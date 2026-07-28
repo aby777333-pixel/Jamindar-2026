@@ -10,6 +10,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Linking,
   Platform,
   useWindowDimensions,
 } from "react-native";
@@ -32,13 +33,14 @@ import { colors, space } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import {
-  jamindarChat,
+  jamindarChatEx,
   synthesizeSpeech,
   transcribeSpeech,
   loadMemory,
   saveMemory,
   getOrCreateConversation,
   loadConversationMessages,
+  translate,
   JAMINDAR_LANGUAGES,
   DEFAULT_VOICE_PREFS,
   type VoicePrefs,
@@ -56,10 +58,18 @@ import {
 } from "@/lib/property-search";
 import { formatINR } from "@/lib/format";
 import { computeSuggestions } from "@/lib/suggestions";
+import { fetchLiveInventory, rankAlternatives, matchMentionedProjects, phaseLabel } from "@/lib/jamindar-sales";
+import { openChannel, type ResolvedContact } from "@/lib/comms";
 import type { Property } from "@/lib/types";
 import { JamindarFace } from "./Brand";
 
-type UIMsg = ChatMsg & { results?: Property[]; filters?: SearchFilters; options?: { label: string; value: string }[] };
+type UIMsg = ChatMsg & {
+  results?: Property[];
+  filters?: SearchFilters;
+  options?: { label: string; value: string }[];
+  /** Rich sales-consultant cards — always real, live projects (never fabricated). */
+  recommendations?: Property[];
+};
 
 // Guided profile intake — Jamindar asks these once and remembers the answers.
 type IntakeStep = {
@@ -162,6 +172,9 @@ export function JamindarSheet({
   // began and leave the button stuck on "recording".
   const startingRef = useRef<Promise<boolean> | null>(null);
   const recordingRef = useRef(false);
+  // Live sellable inventory — powers the sales-consultant cards. Refreshed on
+  // every open so an unavailable project is never recommended again.
+  const inventoryRef = useRef<Property[]>([]);
   const recStartRef = useRef(0);
   const pressStoppedRef = useRef(false);
   // language for in-flight async work (state reads inside closures go stale
@@ -197,6 +210,9 @@ export function JamindarSheet({
   useEffect(() => {
     if (!visible || !profile?.id) return;
     let cancelled = false;
+    fetchLiveInventory().then((inv) => {
+      if (!cancelled) inventoryRef.current = inv;
+    }).catch(() => {});
     (async () => {
       const mem = await loadMemory(profile.id).catch(() => null);
       if (cancelled) return;
@@ -334,7 +350,22 @@ export function JamindarSheet({
       const results = await searchProperties(filters);
       const desc = describeFilters(filters);
       if (results.length === 0) {
-        pushAssistant(`I couldn't find ${desc} right now. Try widening the budget or location, and I'll look again.`);
+        // Intelligent cross-sell (owner spec 28-07): never end at "no results".
+        // Acknowledge honestly, then present the closest LIVE alternatives.
+        const pool = inventoryRef.current.length ? inventoryRef.current : await fetchLiveInventory().catch(() => [] as Property[]);
+        const alts = rankAlternatives(pool, filters).slice(0, 3);
+        if (alts.length > 0) {
+          let msg =
+            `I couldn't find an exact match for ${desc} right now — the moment matching inventory arrives I'll help you find it. ` +
+            `Meanwhile, here are live Jamin opportunities closest to what you're looking for. ` +
+            `Are you buying for investment or self-use?`;
+          if (!languageRef.current.startsWith("en")) {
+            msg = await translate(msg, languageRef.current).catch(() => msg);
+          }
+          pushAssistant(msg, true, { recommendations: alts });
+        } else {
+          pushAssistant(`I couldn't find ${desc} right now. Try widening the budget or location, and I'll look again.`);
+        }
       } else {
         pushAssistant(
           `I found ${results.length} ${results.length === 1 ? "match" : "matches"} for ${desc}. Here are the top ones — tap any to see details.`,
@@ -497,8 +528,16 @@ export function JamindarSheet({
       // live chip so a stale stored preference can't contradict the selection
       // in the system prompt (bug 28-07: chip ignored, replies stayed Telugu).
       const mem = memory ? { ...memory, language: languageRef.current } : memory;
-      const reply = await jamindarChat(history, { language: languageRef.current, conversationId, memory: mem });
-      pushAssistant(reply);
+      const res = await jamindarChatEx(history, { language: languageRef.current, conversationId, memory: mem });
+      const reply = res.reply;
+      // Sales module: when the reply names live projects (the brain only knows
+      // real inventory), attach rich tappable cards under the bubble. The
+      // server sends ids matched pre-translation (works in every language);
+      // client-side text matching stays as the fallback.
+      const pool = inventoryRef.current;
+      let recs = res.mentioned?.length ? pool.filter((p) => res.mentioned!.includes(p.id)) : [];
+      if (recs.length === 0) recs = matchMentionedProjects(reply, pool);
+      pushAssistant(reply, true, recs.length ? { recommendations: recs.slice(0, 3) } : undefined);
     } catch {
       pushAssistant("Sorry, I couldn't reach the assistant just now. Please try again.", false);
     } finally {
@@ -740,6 +779,22 @@ export function JamindarSheet({
                   </View>
                 ) : null}
 
+                {/* sales-consultant cards — real live projects the reply mentioned */}
+                {m.recommendations?.length ? (
+                  <View style={{ gap: 10 }}>
+                    {m.recommendations.map((p) => (
+                      <RecommendationCard
+                        key={p.id}
+                        property={p}
+                        onOpen={() => {
+                          onClose();
+                          router.push(`/property/${p.id}`);
+                        }}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+
                 {/* quick-reply chips (e.g. profile intake) — only on the latest message */}
                 {m.options?.length && i === msgs.length - 1 && !busy ? (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -853,5 +908,70 @@ export function JamindarSheet({
         </View>
       </View>
     </Modal>
+  );
+}
+
+/** Resolve who this user may contact for a property (Jamin routing rules) and
+ *  open the channel natively. Best-effort; the attempt is logged server-side. */
+async function contactForProperty(p: Property, channel: "whatsapp_message" | "phone") {
+  try {
+    const { data } = await supabase.rpc("resolve_contact", { p_property_id: p.id, p_counterpart: null });
+    const c = data as ResolvedContact | null;
+    if (!c) return;
+    await openChannel(channel, c, {
+      propertyId: p.id,
+      message: `Hi, I'm interested in ${p.title} (via Jamindar).`,
+    });
+  } catch {
+    /* contact is best-effort — never crash the chat */
+  }
+}
+
+/** Rich sales card shown under an assistant reply — always a real live project
+ *  (photo, price, status) with honest actions: view, brochure, WhatsApp, call. */
+function RecommendationCard({ property: p, onOpen }: { property: Property; onOpen: () => void }) {
+  const actions: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }[] = [
+    { icon: "open-outline", label: "View & book visit", onPress: onOpen },
+  ];
+  if (p.brochure_url) {
+    actions.push({ icon: "document-text-outline", label: "Brochure", onPress: () => Linking.openURL(p.brochure_url!).catch(() => {}) });
+  }
+  actions.push({ icon: "logo-whatsapp", label: "WhatsApp", onPress: () => contactForProperty(p, "whatsapp_message") });
+  actions.push({ icon: "call-outline", label: "Call", onPress: () => contactForProperty(p, "phone") });
+
+  return (
+    <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, overflow: "hidden" }}>
+      <Pressable onPress={onOpen}>
+        {p.images?.[0] ? (
+          <View>
+            <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: 120 }} />
+            <View style={{ position: "absolute", top: 8, left: 8, backgroundColor: "rgba(255,255,255,0.93)", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.ink }}>{phaseLabel(p)}</Text>
+            </View>
+          </View>
+        ) : null}
+        <View style={{ padding: 12 }}>
+          <Text style={{ fontWeight: "800", color: colors.ink, fontSize: 15 }} numberOfLines={1}>{p.title}</Text>
+          <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+            {[p.locality, p.city, p.district].filter(Boolean).join(", ")}
+          </Text>
+          <Text style={{ color: colors.brand, fontWeight: "800", fontSize: 14, marginTop: 4 }}>
+            {p.price ? formatINR(p.price) : "Price on request"}
+          </Text>
+        </View>
+      </Pressable>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingBottom: 12 }}>
+        {actions.map((a) => (
+          <Pressable
+            key={a.label}
+            onPress={a.onPress}
+            style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}
+          >
+            <Ionicons name={a.icon} size={14} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>{a.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
   );
 }
