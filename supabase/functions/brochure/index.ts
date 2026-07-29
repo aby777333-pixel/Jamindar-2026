@@ -4,10 +4,10 @@
 // A fresh personalized PDF is generated from the LATEST database profile at
 // request time — the original brochure pages are never modified; only ONE
 // branded contact page is appended:
-//   • super-admin ref         → the official corporate contact page.
 //   • verified promoter ref   → their live photo, badge, IDs, contacts, dual QR.
-//   • any other member's ref  → their own name / phone / email (v3: every
-//     logged-in user shares a brochure carrying THEIR contact details).
+//   • any other member's ref  → their own name / phone / email — EVERY logged-in
+//     person (super admins included, owner 29-07: "that particular logged in
+//     user/promoter/whoever") shares a brochure carrying THEIR OWN details.
 //   • no ref / unknown ref    → the original brochure untouched.
 // Freshness: the cache key hashes every personalized field, so ANY profile
 // change produces a new PDF immediately; stale copies can never be served.
@@ -131,9 +131,10 @@ Deno.serve(async (req) => {
       return redirect(original);
     }
 
-    const isCorporate = person.role === 'super_admin';
+    // v4 (owner 29-07): NO corporate branch — every logged-in person, super
+    // admins included, gets their OWN contact page. cfg.corporate stays in
+    // site_config should the official page ever be wanted again.
     const isVerified = !!person.verified;
-    const corporate = cfg.corporate ?? {};
     const code = (person.partner_code ?? person.referral_code ?? person.member_code) as string;
     const refCode = (person.referral_code ?? code) as string;
     const shareLink = `${siteBase}/s/${propertyId}?ref=${encodeURIComponent(refCode)}`;
@@ -141,12 +142,10 @@ Deno.serve(async (req) => {
     const referralLink = `${siteBase}/welcome?ref=${encodeURIComponent(refCode)}`;
 
     const ver = await hashKey(
-      isCorporate
-        ? ['corp3', original, JSON.stringify(corporate), brand].join('|')
-        : ['v3', original, person.name, person.mobile, person.whatsapp, person.email, person.avatar_url,
-           person.designation, person.area, badge, brand, String(isVerified)].join('|'),
+      ['v4', original, person.name, person.mobile, person.whatsapp, person.email, person.avatar_url,
+       person.designation, person.area, badge, brand, String(isVerified)].join('|'),
     );
-    const keyBase = isCorporate ? 'JB-CORP' : (isVerified ? code : `JB-M-${code}`);
+    const keyBase = isVerified ? code : `JB-M-${code}`;
     const cachePath = `personalized/${propertyId}/${String(keyBase).replace(/[^A-Za-z0-9-]/g, '')}-${ver}.pdf`;
 
     // Cache hit (key includes every personalized field, so this is always fresh data).
@@ -154,7 +153,7 @@ Deno.serve(async (req) => {
     const base = cachePath.substring(cachePath.lastIndexOf('/') + 1);
     const { data: listing } = await svc.storage.from('property-media').list(dir, { search: base });
     if ((listing ?? []).some((f: any) => f.name === base)) {
-      await logDownload(isCorporate ? null : person.id);
+      await logDownload(person.id);
       return redirect(STORAGE_PUBLIC + cachePath);
     }
 
@@ -211,23 +210,7 @@ Deno.serve(async (req) => {
       return y - qrSize - 34;
     }
 
-    if (isCorporate) {
-      // ── official corporate contact page ──
-      page.drawText('CONTACT JAMIN BAZAAR', { x: L, y: topY, size: 12.5, font: bold, color: RED });
-      page.drawText(String(corporate.company ?? 'Jamin Property Developers 1 Pvt Ltd'), { x: L, y: topY - 26, size: 17, font: bold, color: INK });
-      page.drawRectangle({ x: L, y: topY - 36, width: 44, height: 3, color: GOLD });
-
-      rowY = topY - 66;
-      const rows: [string, string][] = ([
-        ['Address', String(corporate.address ?? '')],
-        ['Phone', String(corporate.phones ?? cfg.desk_phone ?? '')],
-        ['Email', String(corporate.email ?? '')],
-        ['Website', String(corporate.website ?? '')],
-      ] as [string, string][]).filter(([, v]) => v);
-      for (const [label, value] of rows) drawRow(label, value);
-
-      qrBlock(`${siteBase}/s/${propertyId}`, 'Scan to view this project', topY - 8);
-    } else {
+    {
       // ── personal contact page (verified partner OR any member) ──
       page.drawText(isVerified ? 'YOUR PERSONAL PROPERTY PARTNER' : 'SHARED WITH YOU BY', { x: L, y: topY, size: 12.5, font: bold, color: RED });
 
@@ -293,9 +276,7 @@ Deno.serve(async (req) => {
     page.drawRectangle({ x: 0, y: 0, width: W, height: 42, color: CHARCOAL });
     page.drawText(`${brand} · Helpdesk ${cfg.desk_phone ?? '+91 93848 18895'}`, { x: L, y: 25, size: 9.5, font: bold, color: rgb(1, 1, 1) });
     page.drawText(
-      isCorporate
-        ? `Official ${brand} brochure — generated fresh from live data.`
-        : `This brochure was shared by ${person.name ?? 'a Jamin Bazaar member'} (${code}) via the ${brand} app.`,
+      `This brochure was shared by ${person.name ?? 'a Jamin Bazaar member'} (${code}) via the ${brand} app.`,
       { x: L, y: 12, size: 7.5, font: helv, color: rgb(0.7, 0.7, 0.7) },
     );
 
@@ -303,7 +284,7 @@ Deno.serve(async (req) => {
     const up = await svc.storage.from('property-media').upload(cachePath, out, { contentType: 'application/pdf', upsert: true });
     if (up.error) return redirect(original);
 
-    await logDownload(isCorporate ? null : person.id);
+    await logDownload(person.id);
     return redirect(STORAGE_PUBLIC + cachePath);
   } catch (_e) {
     // Never break a brochure download.
