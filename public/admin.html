@@ -168,6 +168,7 @@
       <div class="navlab">Growth</div>
       <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
       <a data-view="share">📣 Share & Brochures</a>
+      <a data-view="quiz">🧭 Questionnaire</a>
     </nav>
   </aside>
   <main>
@@ -265,12 +266,12 @@ async function refreshBadges(){
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz}[v])();
 }
 window.go = go;
 
@@ -1604,6 +1605,132 @@ window.wdAct=async(id,action)=>{
   if(data && data.ok===false) return toast(data.error||"Action failed");
   toast(action==="paid"?"Marked paid — wallet updated & promoter notified":action==="approve"?"Approved — promoter notified":"Declined — promoter notified");
   refreshBadges(); renderWallet();
+};
+
+// ───────── buyer questionnaire management (0063) ─────────
+// Questions are data: whatever is saved here renders instantly in the app and
+// on the web — no release needed. Answer types match the app's renderer.
+const Q_TYPES=["single_select","multi_select","dropdown","radio","checkbox","text","textarea","number","slider","date","file"];
+const Q_MAPS=["","property_types","purpose","budget_min","budget_max","area_min","area_max","area_unit","city","district","state","locality","timeframe","financing","amenities"];
+let QUIZ=[];
+async function renderQuiz(){
+  const [{data:qs,error},{count:answered}] = await Promise.all([
+    sb.from("questionnaire_questions").select("*").order("sort_order"),
+    sb.from("questionnaire_answers").select("id",{count:"exact",head:true}).then(r=>r.error?{count:0}:r),
+  ]);
+  if(error){ $("#view").innerHTML=`<div class='empty'>${esc(error.message)}</div>`; return; }
+  QUIZ=qs||[];
+  const active=QUIZ.filter(q=>q.active).length;
+  $("#view").innerHTML=`
+  <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat card"><div class="n">${QUIZ.length}</div><div class="l">Questions</div></div>
+    <div class="stat card"><div class="n" style="color:var(--success)">${active}</div><div class="l">Active in app</div></div>
+    <div class="stat card"><div class="n" style="color:var(--gold-dark)">${answered||0}</div><div class="l">Answers collected</div></div>
+  </div>
+  <div class="card" style="padding:16px 18px;margin-bottom:16px">
+    <b style="font-size:14.5px">Buyer discovery questionnaire</b>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Buyers answer these before browsing. Every edit here is live on the app and website immediately — no update needed. Answers feed property matching and Jamindar AI.</p>
+    <button class="btn sm" style="margin-top:12px" onclick="quizEdit()">＋ Add question</button>
+  </div>
+  ${QUIZ.length?`<table><thead><tr><th>#</th><th>Question</th><th>Type</th><th>Maps to</th><th>Required</th><th>Status</th><th style="min-width:210px"></th></tr></thead><tbody>
+    ${QUIZ.map((q,i)=>`<tr${q.active?"":' style="opacity:.5"'}>
+      <td class="muted">${q.sort_order}</td>
+      <td><b>${esc(q.question)}</b><div class="muted" style="font-size:11px">${esc(q.key)}${q.options&&q.options.length?` · ${q.options.length} options`:""}</div></td>
+      <td><span class="pill grey">${esc(q.answer_type.replace(/_/g," "))}</span></td>
+      <td class="muted" style="font-size:12px">${esc(q.maps_to||"—")}</td>
+      <td>${q.required?'<span class="pill red">required</span>':'<span class="pill grey">optional</span>'}</td>
+      <td>${q.active?'<span class="pill ok">active</span>':'<span class="pill grey">hidden</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn grey sm" onclick="quizMove('${q.id}',-1)" ${i===0?"disabled":""}>↑</button>
+        <button class="btn grey sm" onclick="quizMove('${q.id}',1)" ${i===QUIZ.length-1?"disabled":""}>↓</button>
+        <button class="btn ghost sm" onclick="quizToggle('${q.id}')">${q.active?"Hide":"Show"}</button>
+        <button class="btn sm" onclick="quizEdit('${q.id}')">✎ Edit</button>
+      </td></tr>`).join("")}</tbody></table>`
+  :`<div class="empty card">No questions yet — add the first one.</div>`}`;
+}
+window.quizToggle=async(id)=>{
+  const q=QUIZ.find(x=>x.id===id); if(!q) return;
+  const {error}=await sb.from("questionnaire_questions").update({active:!q.active,updated_at:new Date().toISOString()}).eq("id",id);
+  if(error) return toast(error.message);
+  toast(q.active?"Hidden from the app":"Now live in the app"); renderQuiz();
+};
+window.quizMove=async(id,dir)=>{
+  const i=QUIZ.findIndex(x=>x.id===id), j=i+dir;
+  if(i<0||j<0||j>=QUIZ.length) return;
+  const a=QUIZ[i], b=QUIZ[j];
+  await sb.from("questionnaire_questions").update({sort_order:b.sort_order}).eq("id",a.id);
+  await sb.from("questionnaire_questions").update({sort_order:a.sort_order}).eq("id",b.id);
+  renderQuiz();
+};
+window.quizEdit=(id)=>{
+  const q=QUIZ.find(x=>x.id===id)||{key:"",question:"",help:"",answer_type:"single_select",options:[],maps_to:"",required:false,active:true,sort_order:(QUIZ.reduce((m,x)=>Math.max(m,x.sort_order),0)+10),audience:"buyer",unit:"",translations:{}};
+  const optLines=(q.options||[]).map(o=>`${o.value}|${o.label}`).join("\n");
+  const tr=q.translations||{};
+  $("#drawer").innerHTML=`<div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button>
+    <h3>${id?"Edit question":"New question"}</h3>
+    <button class="btn" onclick="quizSave('${id||""}')">Save</button></div>
+  <div class="db">
+    <div class="sec"><h4>Question</h4>
+      <div><label>Question text (English)</label><input data-qk="question" value="${esc(q.question)}"/></div>
+      <div><label>Helper text (optional)</label><input data-qk="help" value="${esc(q.help||"")}"/></div>
+      <div class="grid2">
+        <div><label>Key (unique, no spaces)</label><input data-qk="key" value="${esc(q.key)}" ${id?"disabled":""} placeholder="budget_max"/></div>
+        <div><label>Order</label><input data-qk="sort_order" type="number" value="${q.sort_order}"/></div>
+      </div>
+      <div class="grid2">
+        <div><label>Answer type</label><select data-qk="answer_type">${Q_TYPES.map(t=>`<option value="${t}"${q.answer_type===t?" selected":""}>${t.replace(/_/g," ")}</option>`).join("")}</select></div>
+        <div><label>Saves to preference field</label><select data-qk="maps_to">${Q_MAPS.map(m=>`<option value="${m}"${(q.maps_to||"")===m?" selected":""}>${m||"— not mapped —"}</option>`).join("")}</select></div>
+      </div>
+      <div class="grid2">
+        <div><label>Audience</label><select data-qk="audience">${["buyer","promoter","all"].map(a=>`<option value="${a}"${q.audience===a?" selected":""}>${a}</option>`).join("")}</select></div>
+        <div><label>Unit (₹, sq.ft…)</label><input data-qk="unit" value="${esc(q.unit||"")}"/></div>
+      </div>
+      <div class="switch">Required <div class="tgl ${q.required?"on":""}" data-qtgl="required"><b></b></div></div>
+      <div class="switch">Active (visible in app) <div class="tgl ${q.active?"on":""}" data-qtgl="active"><b></b></div></div>
+    </div>
+    <div class="sec"><h4>Answer choices</h4>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">One per line as <b>value|Label</b>. Leave empty for text/number/date questions.</div>
+      <textarea data-qk="_options" rows="7" placeholder="investment|Investment">${esc(optLines)}</textarea></div>
+    <div class="sec"><h4>Conditional display (optional)</h4>
+      <div class="grid2">
+        <div><label>Only show if this question…</label><input data-qk="_cond_key" value="${esc(q.show_if?.key||"")}" placeholder="purpose"/></div>
+        <div><label>…has any of these values (comma separated)</label><input data-qk="_cond_vals" value="${esc((q.show_if?.any||[]).join(", "))}" placeholder="Investment, Rental income"/></div>
+      </div></div>
+    <div class="sec"><h4>Translations (optional)</h4>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Tamil / Hindi versions shown when the user picks that language.</div>
+      <div><label>Tamil question</label><input data-qk="_ta" value="${esc(tr.ta?.question||"")}"/></div>
+      <div><label>Hindi question</label><input data-qk="_hi" value="${esc(tr.hi?.question||"")}"/></div></div>
+  </div>`;
+  $("#drawer").querySelectorAll("[data-qtgl]").forEach(t=>t.onclick=()=>t.classList.toggle("on"));
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+window.quizSave=async(id)=>{
+  const g=(k)=>$(`#drawer [data-qk="${k}"]`)?.value?.trim()??"";
+  const tg=(k)=>$(`#drawer [data-qtgl="${k}"]`)?.classList.contains("on")||false;
+  const key=g("key").toLowerCase().replace(/[^a-z0-9_]/g,"_");
+  if(!key||!g("question")) return toast("Key and question text are required");
+  const options=g("_options").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const [value,...rest]=l.split("|"); const label=rest.join("|").trim();
+    return {value:value.trim(),label:label||value.trim()};
+  }).filter(o=>o.value);
+  const condKey=g("_cond_key"), condVals=g("_cond_vals").split(",").map(s=>s.trim()).filter(Boolean);
+  const prev=QUIZ.find(x=>x.id===id)?.translations||{};
+  const translations={...prev};
+  if(g("_ta")) translations.ta={...(translations.ta||{}),question:g("_ta")}; else delete translations.ta;
+  if(g("_hi")) translations.hi={...(translations.hi||{}),question:g("_hi")}; else delete translations.hi;
+  const payload={
+    key, question:g("question"), help:g("help")||null,
+    answer_type:g("answer_type"), options, maps_to:g("maps_to")||null,
+    required:tg("required"), active:tg("active"),
+    sort_order:Number(g("sort_order"))||100, audience:g("audience")||"buyer",
+    unit:g("unit")||null, show_if:condKey?{key:condKey,any:condVals}:null,
+    translations, updated_at:new Date().toISOString(),
+  };
+  const {error} = id
+    ? await sb.from("questionnaire_questions").update(payload).eq("id",id)
+    : await sb.from("questionnaire_questions").insert(payload);
+  if(error) return toast(error.message);
+  toast("Saved — live in the app immediately"); closeDrawer(); renderQuiz();
 };
 
 window.saveShareCfg=async()=>{

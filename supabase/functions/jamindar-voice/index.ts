@@ -121,6 +121,7 @@ const LEAK_MARKERS = [
   "style (important for voice)",
   "confidentiality (absolute)",
   "what you know about this user",
+  "stated requirements (from the buyer",
   "admin-provided property facts",
   "live project inventory",
   "sales consultant (v13)",
@@ -256,6 +257,41 @@ async function serverMemory(admin: any, userId: string | null): Promise<Record<s
     return data ?? null;
   } catch (_) {
     return null;
+  }
+}
+
+// Buyer Discovery Questionnaire (0063): the buyer's own stated requirements
+// are the strongest personalization signal we have — they lead the context so
+// Jamindar never re-asks what the questionnaire already answered.
+async function preferenceNote(admin: any, userId: string | null): Promise<string> {
+  if (!userId) return "";
+  try {
+    const [pref, qa] = await Promise.all([
+      admin.from("buyer_preferences").select("property_types,budget_min,budget_max,city,district,state,locality,area_min,area_max,area_unit,purpose,timeframe,financing,amenities").eq("buyer_id", userId).maybeSingle(),
+      admin.from("questionnaire_answers").select("question_key,value").eq("user_id", userId).limit(30),
+    ]);
+    const p = (pref as any)?.data;
+    const extras = ((qa as any)?.data ?? [])
+      .filter((r: any) => ["notes", "contact_pref", "visit_pref", "nearby_ok"].includes(r.question_key))
+      .map((r: any) => `${r.question_key}: ${typeof r.value === "string" ? r.value : JSON.stringify(r.value)}`);
+    if (!p && extras.length === 0) return "";
+    const bits: string[] = [];
+    if (p) {
+      const arr = (v: any) => (Array.isArray(v) && v.length ? v.join(", ") : null);
+      if (arr(p.property_types)) bits.push(`looking for: ${arr(p.property_types)}`);
+      if (p.budget_min || p.budget_max) bits.push(`budget: ${p.budget_min ?? "any"}–${p.budget_max ?? "any"}`);
+      if (p.city || p.district || p.state) bits.push(`preferred area: ${[p.locality, p.city, p.district, p.state].filter(Boolean).join(", ")}`);
+      if (p.area_min || p.area_max) bits.push(`size: ${p.area_min ?? "any"}–${p.area_max ?? "any"} ${p.area_unit ?? ""}`.trim());
+      if (arr(p.purpose)) bits.push(`purpose: ${arr(p.purpose)}`);
+      if (p.timeframe) bits.push(`timeline: ${p.timeframe}`);
+      if (p.financing) bits.push(`financing: ${p.financing}`);
+      if (arr(p.amenities)) bits.push(`must-haves: ${arr(p.amenities)}`);
+    }
+    const all = [...bits, ...extras].join(" | ");
+    if (!all) return "";
+    return `\n\nSTATED REQUIREMENTS (from the buyer's own discovery questionnaire — treat as their brief; never re-ask these, and use them to rank what you recommend): ${all.slice(0, 900)}`;
+  } catch (_) {
+    return "";
   }
 }
 
@@ -420,6 +456,7 @@ Deno.serve(async (req) => {
       const dbMemory = await serverMemory(admin, userId);
       const mergedMemory = dbMemory || payload.memory ? { ...(payload.memory ?? {}), ...(dbMemory ?? {}) } : null;
       const memoryNote = mergedMemory ? `\n\nWHAT YOU KNOW ABOUT THIS USER (do not re-ask): ${JSON.stringify(mergedMemory).slice(0, 1000)}` : "";
+      const prefsNote = await preferenceNote(admin, userId);
       const activity = await activityNote(admin, userId);
       const factsNote = payload.propertyContext ? `\n\nADMIN-PROVIDED PROPERTY FACTS you may use: ${String(payload.propertyContext).slice(0, 1200)}` : "";
       // The user's chosen language wins over whatever language they happened to
@@ -435,7 +472,7 @@ Deno.serve(async (req) => {
         `Only switch language if the user explicitly asks you to.`;
       const invRows = await liveInventory(admin);
       const inventoryNote = inventoryBlock(invRows);
-      const messages = [{ role: "system", content: SYSTEM_PROMPT + langNote + memoryNote + activity + factsNote + inventoryNote }, ...(payload.messages ?? [])];
+      const messages = [{ role: "system", content: SYSTEM_PROMPT + langNote + memoryNote + prefsNote + activity + factsNote + inventoryNote }, ...(payload.messages ?? [])];
       const callChat = async (maxTokens: number) => {
         const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: maxTokens, reasoning_effort: "low" }) });
         return { ok: r.ok, d: await r.json() };
