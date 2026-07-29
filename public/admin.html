@@ -421,7 +421,7 @@ async function loadProps(){
       <td><b>${esc(p.title)}</b></td><td class="muted">${esc([p.locality,p.city].filter(Boolean).join(", "))}</td>
       <td class="muted">${esc(p.property_type)}</td><td>${inr(p.price)}</td>
       <td><span class="pill ${tone[p.status]||'grey'}">${p.status}</span></td>
-      <td class="muted">›</td></tr>`).join("")}</tbody></table>`
+      <td style="text-align:right"><button class="btn ghost sm" onclick="event.stopPropagation();openProperty('${p.id}')">✎ Edit</button></td></tr>`).join("")}</tbody></table>`
     : `<div class="empty card">No properties yet. Click “New property”.</div>`;
 }
 
@@ -439,6 +439,30 @@ window.openProperty = async (id)=>{
 window.closeDrawer = ()=>{ $("#drawer").classList.remove("open"); $("#drawer-bg").classList.remove("open"); };
 
 function fld(label,key,ph="",type="text"){return `<div><label>${label}</label><input data-k="${key}" type="${type}" value="${esc(CUR[key]??"")}" placeholder="${ph}"/></div>`;}
+// URL field + one-click upload (owner 29-07): pick a file, it lands in storage
+// and the URL fills in automatically. Paste-a-URL still works exactly as before.
+function fldUp(label,key,accept){return `<div><label>${label}</label>
+  <div style="display:flex;gap:6px;align-items:center">
+    <input data-k="${key}" value="${esc(CUR[key]??"")}" placeholder="Paste URL or upload →" style="flex:1;min-width:0"/>
+    <button class="btn grey sm" type="button" style="flex:none" onclick="upToField('${key}','${accept}')">⬆ Upload</button>
+  </div></div>`;}
+window.upToField=(key,accept)=>{
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=accept;
+  inp.onchange=async()=>{
+    const raw=inp.files&&inp.files[0]; if(!raw) return;
+    toast("Uploading…");
+    const f = accept.startsWith("image") ? await compressImage(raw) : raw;
+    const folder = CUR.id || "drafts";
+    const path=`${folder}/links/${Date.now()}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
+    const {error}=await sb.storage.from("property-media").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:true});
+    if(error){ toast(error.message); return; }
+    const url=sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+    const field=document.querySelector(`#drawer [data-k="${key}"]`);
+    if(field) field.value=url;
+    toast("Uploaded — now press Save to apply");
+  };
+  inp.click();
+};
 function txt(label,key){return `<div><label>${label}</label><textarea data-k="${key}">${esc(CUR[key]??"")}</textarea></div>`;}
 function chips(label,key,opts){return `<label>${label}</label><div class="chips" data-chips="${key}">${opts.map(o=>`<div class="chip ${CUR[key]===o?'on':''}" data-v="${o}">${o.replace(/_/g," ")}</div>`).join("")}</div>`;}
 
@@ -495,9 +519,10 @@ function renderEditor(){
       <div><label>Ownership</label><input data-legal="ownership" value="${esc(legal.ownership||"")}"/></div>
       <div><label>Encumbrance</label><input data-legal="encumbrance" value="${esc(legal.encumbrance||"")}"/></div></div></div>
     <div class="sec"><h4>Media links & loan</h4><div class="grid2">
-      ${fld("Brochure URL","brochure_url")}${fld("Master plan image URL","master_plan_url")}
-      ${fld("360° tour URL","virtual_tour_url")}${fld("Loan details","loan_details","80-90% bank loan arranged")}
+      ${fldUp("Brochure (PDF)","brochure_url","application/pdf")}${fldUp("Master plan image","master_plan_url","image/*")}
+      ${fldUp("360° tour (video or link)","virtual_tour_url","video/*")}${fld("Loan details","loan_details","80-90% bank loan arranged")}
       ${fld("Encumbrance status","encumbrance_status","Nil")}</div>
+      <div class="muted" style="font-size:11.5px;margin:4px 0 8px">Upload a file or paste a URL — either works. Shared brochures automatically carry the sharer's own contact page.</div>
       <div class="switch">Loan eligible <div class="tgl ${CUR.loan_eligible?'on':''}" data-tgl="loan_eligible"><b></b></div></div></div>
     <div class="sec"><h4>Plot schedule & nearby places</h4>
       <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea></div>
