@@ -90,6 +90,7 @@ export default function PromoterDashboard() {
   const firstName = (profile?.full_name ?? "").trim().split(/\s+/)[0] || "Partner";
 
   const shortcuts: { icon: string; label: string; to: Href; tint?: string; accent?: string }[] = [
+    { icon: "cash", label: "Sales Income", to: "/promoter/income" as Href, tint: colors.successSoft, accent: colors.success },
     { icon: "id-card", label: "Digital Card", to: "/promoter/card" as Href, tint: colors.goldSoft, accent: colors.goldDark },
     { icon: "calendar", label: "Site visits", to: "/manage-visits" as Href, tint: "#F2EBFB", accent: "#7C4BC9" },
     { icon: "chatbubbles", label: "Messages", to: "/messages" as Href, tint: "#ECEEFB", accent: "#4B57C9" },

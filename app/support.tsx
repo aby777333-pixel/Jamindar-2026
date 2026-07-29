@@ -47,9 +47,9 @@ export default function Support() {
   const deskEmail = desk?.email || SUPPORT_EMAIL;
   const deskActions: { icon: keyof typeof Ionicons.glyphMap; label: string; show: boolean; onPress: () => void }[] = [
     { icon: "call", label: "Call", show: !!desk?.mobile, onPress: () => openCall(desk?.mobile) },
-    { icon: "logo-whatsapp", label: "WhatsApp", show: !!(desk?.whatsapp || desk?.mobile), onPress: () => openWhatsApp(desk?.whatsapp || desk?.mobile, "Hi, I need help with Jamin Properties.") },
-    { icon: "chatbox", label: "SMS", show: !!desk?.mobile, onPress: () => openSms(desk?.mobile, "Hi, I need help with Jamin Properties.") },
-    { icon: "mail", label: "Email", show: !!deskEmail, onPress: () => openEmail(deskEmail, "Jamin Properties — Support") },
+    { icon: "logo-whatsapp", label: "WhatsApp", show: !!(desk?.whatsapp || desk?.mobile), onPress: () => openWhatsApp(desk?.whatsapp || desk?.mobile, "Hi, I need help with Jamin Bazaar.") },
+    { icon: "chatbox", label: "SMS", show: !!desk?.mobile, onPress: () => openSms(desk?.mobile, "Hi, I need help with Jamin Bazaar.") },
+    { icon: "mail", label: "Email", show: !!deskEmail, onPress: () => openEmail(deskEmail, "Jamin Bazaar — Support") },
   ];
 
   return (
@@ -67,7 +67,7 @@ export default function Support() {
               <Ionicons name="headset" size={20} color={colors.brand} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>{desk?.label || "Jamin Properties Help Desk"}</Text>
+              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>{desk?.label || "Jamin Bazaar Help Desk"}</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 1 }}>We usually respond within working hours.</Text>
             </View>
           </View>
@@ -109,7 +109,7 @@ export default function Support() {
           );
         })}
 
-        <Pressable onPress={() => openEmail(deskEmail, "Jamin Properties — Support")}>
+        <Pressable onPress={() => openEmail(deskEmail, "Jamin Bazaar — Support")}>
           <Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 20 }}>
             We're here to help · <Text style={{ color: colors.brand }}>{deskEmail}</Text>
           </Text>

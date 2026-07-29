@@ -89,7 +89,7 @@ export default function Welcome() {
             adjustsFontSizeToFit
             style={{ fontSize: T.title.fontSize, lineHeight: T.title.lineHeight, fontWeight: "800", color: colors.ink, marginTop: space.xs, alignSelf: "stretch", textAlign: "center" }}
           >
-            Welcome to Jamin Properties
+            Welcome to Jamin Bazaar
           </Text>
           <Text style={{ color: colors.inkFaint, marginTop: space.sm, textAlign: "center", fontSize: T.body.fontSize, lineHeight: T.body.lineHeight, paddingHorizontal: space.xs }}>
             I'm Jamindar, your AI property advisor. I'll help you find the right plot, villa, farm land or home —

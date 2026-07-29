@@ -76,7 +76,7 @@ export default function Properties() {
       <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink }}>Jamin Properties</Text>
+            <Text style={{ fontSize: 24, fontWeight: "800", color: colors.ink }}>Jamin Bazaar</Text>
             <Text style={{ color: colors.inkFaint, marginTop: 2 }}>Company-owned lands & plots</Text>
           </View>
           {compareCount > 0 ? (

@@ -63,7 +63,7 @@ export default function DeskContact() {
       const { error } = await supabase
         .from("platform_contacts")
         .update({
-          label: label.trim() || "Jamin Properties Help Desk",
+          label: label.trim() || "Jamin Bazaar Help Desk",
           mobile: mobile.trim() || null,
           whatsapp: whatsapp.trim() || mobile.trim() || null,
           email: email.trim() || null,
@@ -107,7 +107,7 @@ export default function DeskContact() {
           </Text>
         </Card>
 
-        <Field label="Desk name" value={label} onChangeText={setLabel} placeholder="Jamin Properties Help Desk" />
+        <Field label="Desk name" value={label} onChangeText={setLabel} placeholder="Jamin Bazaar Help Desk" />
         <Field
           label="Phone (calls)"
           value={mobile}

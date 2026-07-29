@@ -166,7 +166,7 @@ export default function PromoterCard() {
             </View>
 
             <Text style={{ color: colors.onDarkFaint, fontSize: T.caption.fontSize, textAlign: "center", marginTop: space.md, letterSpacing: 0.5 }}>
-              Jamin Properties · Signature for Fortune
+              Jamin Bazaar · Signature for Fortune
             </Text>
           </View>
         </View>
@@ -234,7 +234,7 @@ export default function PromoterCard() {
               key={c.label}
               disabled={!shareable}
               onPress={async () => {
-                await shareVia(c.ch, cardMessage(profile?.full_name, code), link, "My Jamin Properties card");
+                await shareVia(c.ch, cardMessage(profile?.full_name, code), link, "My Jamin Bazaar card");
               }}
               style={{ alignItems: "center", gap: 6, flex: 1, opacity: shareable ? 1 : 0.45 }}
             >

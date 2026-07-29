@@ -145,7 +145,7 @@ export async function openChannel(
       ok =
         !!contact.email &&
         (await open(
-          `mailto:${contact.email}?subject=${encodeURIComponent("Enquiry via Jamin Properties")}${
+          `mailto:${contact.email}?subject=${encodeURIComponent("Enquiry via Jamin Bazaar")}${
             text ? `&body=${encodeURIComponent(text)}` : ""
           }`
         ));

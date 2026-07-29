@@ -510,7 +510,7 @@ export default function PropertyDetail() {
           {/* Contact your Jamin partner — routing resolved server-side */}
           <PartnerContactCard
             propertyId={String(id)}
-            context={`Hi, I'm interested in ${property.title} (${formatINR(property.price)}) on Jamin Properties.`}
+            context={`Hi, I'm interested in ${property.title} (${formatINR(property.price)}) on Jamin Bazaar.`}
           />
 
           {/* buyers can upgrade & earn by sharing listings like this one */}
@@ -586,7 +586,7 @@ export default function PropertyDetail() {
         visible={contactOpen}
         onClose={() => setContactOpen(false)}
         propertyId={String(id)}
-        context={`Hi, I'm interested in ${property.title} on Jamin Properties.`}
+        context={`Hi, I'm interested in ${property.title} on Jamin Bazaar.`}
       />
       <CompareSheet visible={compareOpen} onClose={() => setCompareOpen(false)} currentId={String(id)} />
       {/* clears the persistent action bar at the foot of this screen */}

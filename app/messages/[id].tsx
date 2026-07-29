@@ -200,7 +200,7 @@ export default function Thread() {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }} numberOfLines={1}>
-            {thread?.counterpart_name ?? "Jamin Properties"}
+            {thread?.counterpart_name ?? "Jamin Bazaar"}
           </Text>
           <Text style={{ color: colors.inkFaint, fontSize: 11.5 }} numberOfLines={1}>
             {thread?.subject ?? "Secure Jamin conversation"}

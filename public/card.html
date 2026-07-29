@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Jamin Partner · Digital Card — Jamin Properties</title>
-<meta name="description" content="Verified Jamin Properties partner — connect instantly, explore live projects and book a site visit. Signature for Fortune." />
+<title>Jamin Partner · Digital Card — Jamin Bazaar</title>
+<meta name="description" content="Verified Jamin Bazaar partner — connect instantly, explore live projects and book a site visit. Signature for Fortune." />
 <meta property="og:title" content="Jamin Partner · Digital Card" />
-<meta property="og:description" content="Verified Jamin Properties partner — connect instantly and explore live plotted developments." />
+<meta property="og:description" content="Verified Jamin Bazaar partner — connect instantly and explore live plotted developments." />
 <meta property="og:image" content="https://merry-begonia-4c3cd1.netlify.app/logo.png" />
 <meta property="og:type" content="profile" />
 <meta name="theme-color" content="#141A2E" />
@@ -112,17 +112,17 @@
 <div class="wrap">
   <div id="loading" class="center"><div class="spin"></div><div>Preparing the card…</div></div>
   <div id="notfound" class="center" style="display:none">
-    <img src="/logo.png" alt="Jamin Properties" style="width:64px;border-radius:14px" />
+    <img src="/logo.png" alt="Jamin Bazaar" style="width:64px;border-radius:14px" />
     <div style="font-weight:800;color:var(--ink);font-size:17px">Card not found</div>
     <div>This digital card link is not active. Please check with the partner who shared it.</div>
-    <a class="btn btn-primary" style="margin-top:6px" href="/welcome">Visit Jamin Properties</a>
+    <a class="btn btn-primary" style="margin-top:6px" href="/welcome">Visit Jamin Bazaar</a>
   </div>
 
   <div id="page" style="display:none">
     <div class="hero">
       <div class="brandline">
         <img src="/logo.png" alt="Jamin" />
-        <span>Jamin Properties<small>Signature for Fortune</small></span>
+        <span>Jamin Bazaar<small>Signature for Fortune</small></span>
       </div>
     </div>
 
@@ -191,11 +191,11 @@
     <div class="section" style="text-align:center">
       <h2 style="justify-content:center">Get the app</h2>
       <p style="color:var(--ink-soft);font-size:13.5px;margin-top:10px;line-height:1.6">Explore every Jamin project, book site visits and talk to Jamindar — our multilingual assistant.</p>
-      <a class="btn btn-dark" id="appLink" style="margin-top:14px" href="/welcome">Open Jamin Properties</a>
+      <a class="btn btn-dark" id="appLink" style="margin-top:14px" href="/welcome">Open Jamin Bazaar</a>
     </div>
 
     <footer>
-      <b>Jamin Properties</b><br />Signature for Fortune<br />
+      <b>Jamin Bazaar</b><br />Signature for Fortune<br />
       <span id="year"></span> · All rights reserved
     </footer>
   </div>
@@ -248,7 +248,7 @@
   rpc("promoter_card", { p_code: code }).then(function (card) {
     if (!card || !card.name) { notFound(); return; }
 
-    document.title = card.name + " · Verified Jamin Bazaar Partner — Jamin Properties";
+    document.title = card.name + " · Verified Jamin Bazaar Partner — Jamin Bazaar";
     $("loading").style.display = "none";
     $("page").style.display = "block";
     $("year").textContent = new Date().getFullYear();
@@ -256,7 +256,7 @@
     // hero identity
     $("name").textContent = card.name;
     $("desig").textContent = card.designation || "Jamin Partner";
-    $("comp").textContent = card.company || "Jamin Properties";
+    $("comp").textContent = card.company || "Jamin Bazaar";
     $("fname").textContent = (card.name || "the partner").split(" ")[0];
     if (card.avatar_url) {
       $("avatar").src = card.avatar_url;
@@ -280,7 +280,7 @@
     var wa = (card.whatsapp || mob || "").replace(/^\+/, "");
     var acts = [];
     if (mob) acts.push({ href: "tel:+" + mob, ic: ICONS.call, label: "Call", bg: "var(--brand-soft)", fg: "var(--brand)" });
-    if (wa) acts.push({ href: "https://wa.me/" + wa + "?text=" + encodeURIComponent("Hi " + card.name + ", I found your Jamin Properties card."), ic: ICONS.wa, label: "WhatsApp", bg: "var(--green-soft)", fg: "var(--green)" });
+    if (wa) acts.push({ href: "https://wa.me/" + wa + "?text=" + encodeURIComponent("Hi " + card.name + ", I found your Jamin Bazaar card."), ic: ICONS.wa, label: "WhatsApp", bg: "var(--green-soft)", fg: "var(--green)" });
     if (mob) acts.push({ href: "sms:+" + mob, ic: ICONS.sms, label: "SMS", bg: "#E8F1FE", fg: "#2B6FE1" });
     if (card.email) acts.push({ href: "mailto:" + card.email, ic: ICONS.mail, label: "Email", bg: "var(--gold-soft)", fg: "var(--gold-dark)" });
     if (card.location) acts.push({ href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(card.location), ic: ICONS.map, label: "Location", bg: "var(--sunken)", fg: "var(--ink-soft)" });
@@ -292,7 +292,7 @@
     // about
     $("about").textContent = card.bio && card.bio.trim()
       ? card.bio
-      : (card.name + " is " + (card.verified ? "a verified" : "a") + " Jamin Properties partner helping families secure premium, clear-title plots and land across Tamil Nadu. Reach out for site visits, project details and honest guidance — Signature for Fortune.");
+      : (card.name + " is " + (card.verified ? "a verified" : "a") + " Jamin Bazaar partner helping families secure premium, clear-title plots and land across Tamil Nadu. Reach out for site visits, project details and honest guidance — Signature for Fortune.");
 
     // socials from vcard jsonb
     var socMap = { website: ICONS.globe, facebook: ICONS.fb, instagram: ICONS.ig, youtube: ICONS.yt, linkedin: ICONS.li };
@@ -335,7 +335,7 @@
         "BEGIN:VCARD", "VERSION:3.0",
         "N:" + card.name + ";;;;",
         "FN:" + card.name,
-        "ORG:" + (card.company || "Jamin Properties"),
+        "ORG:" + (card.company || "Jamin Bazaar"),
         "TITLE:" + (card.designation || "Jamin Partner")
       ];
       if (mob) lines.push("TEL;TYPE=CELL:+" + mob);
@@ -354,7 +354,7 @@
     // share
     $("shareCard").addEventListener("click", function () {
       var text = card.name + " · " + (card.verified ? "Verified Jamin Bazaar Partner" : "Jamin Partner") + "\n" + cardUrl;
-      if (navigator.share) { navigator.share({ title: card.name + " — Jamin Properties", text: text, url: cardUrl }).catch(function () {}); }
+      if (navigator.share) { navigator.share({ title: card.name + " — Jamin Bazaar", text: text, url: cardUrl }).catch(function () {}); }
       else { navigator.clipboard.writeText(cardUrl); alert("Card link copied"); }
     });
 

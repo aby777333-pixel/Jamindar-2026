@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jamin Properties — Signature for Fortune</title>
+<title>Jamin Bazaar — Signature for Fortune</title>
 <meta name="description" content="Verified plots, farm land, villas & homes across Tamil Nadu. Meet Jamindar, your multilingual AI property advisor." />
-<meta property="og:site_name" content="Jamin Properties" />
+<meta property="og:site_name" content="Jamin Bazaar" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Jamin Properties · Signature for Fortune" />
+<meta property="og:title" content="Jamin Bazaar · Signature for Fortune" />
 <meta property="og:description" content="Verified plots & land with clear titles across Tamil Nadu. Open this link to view the project with your personal Jamin partner." />
 <meta property="og:image" content="https://merry-begonia-4c3cd1.netlify.app/jamindar.jpg" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Jamin Properties · Signature for Fortune" />
+<meta name="twitter:title" content="Jamin Bazaar · Signature for Fortune" />
 <meta name="twitter:image" content="https://merry-begonia-4c3cd1.netlify.app/jamindar.jpg" />
 <link rel="icon" type="image/jpeg" href="/jamindar.jpg" />
 <script>
@@ -78,8 +78,8 @@
 <body>
   <div class="hero">
     <img class="mascot" src="/jamindar.jpg" alt="Jamindar — your AI property advisor" />
-    <div class="kicker">Namaste 🙏 · Jamin Properties</div>
-    <h1 id="hero-title">Welcome to <span class="g">Jamin</span> Properties</h1>
+    <div class="kicker">Namaste 🙏 · Jamin Bazaar</div>
+    <h1 id="hero-title">Welcome to <span class="g">Jamin</span> Bazaar</h1>
     <p class="sub" id="hero-sub">Verified plots, farm land, villas &amp; homes — with Jamindar, your multilingual AI advisor, by your side.</p>
   </div>
 
@@ -94,7 +94,7 @@
         <div class="loc" id="prop-loc"></div>
         <ul class="hl" id="prop-hl"></ul>
         <p class="desc hidden" id="prop-desc"></p>
-        <a class="btn red" id="open-app" href="#">📱 Open in the Jamin app</a>
+        <a class="btn red" id="open-app" href="#">📱 Open in the Jamin Bazaar app</a>
         <a class="btn wa" id="wa-btn" href="#">💬 WhatsApp the Jamin Desk</a>
         <a class="btn ghost" href="tel:+919384818895">📞 Call +91 93848 18895</a>
         <p class="note">Don't have the app yet? Reply on WhatsApp and our desk will send you the download link right away.</p>
@@ -105,11 +105,11 @@
     <div class="card hidden" id="invite-card">
       <div class="pad">
         <span class="pill">Personal Invitation</span>
-        <h2 class="title">You've been invited to Jamin Properties</h2>
+        <h2 class="title">You've been invited to Jamin Bazaar</h2>
         <p class="desc">Join free and discover verified plots &amp; land with clear titles — guided in your own language by Jamindar, our AI property advisor.</p>
         <div class="invite-code"><div><div style="font-size:11px;color:#8a6d14;font-weight:700;letter-spacing:.8px">YOUR INVITE CODE</div><b id="ref-code"></b></div><button class="copy" id="copy-btn">Copy</button></div>
         <ul class="steps">
-          <li><span class="n">1</span><span>Get the Jamin Properties app — message our desk on WhatsApp for the download link.</span></li>
+          <li><span class="n">1</span><span>Get the Jamin Bazaar app — message our desk on WhatsApp for the download link.</span></li>
           <li><span class="n">2</span><span>Sign in with just your mobile number — no passwords, ever.</span></li>
           <li><span class="n">3</span><span>Your invite code is applied so your friend gets the credit. Start exploring!</span></li>
         </ul>
@@ -138,8 +138,8 @@
   </div>
 
   <div class="footer">
-    <span class="logo-badge"><img src="/logo.png" alt="Jamin Properties — Signature for Fortune" /></span>
-    <b>JAMIN PROPERTIES</b> · Signature for Fortune<br/>info@jaminproperties.com · +91 93848 18895
+    <span class="logo-badge"><img src="/logo.png" alt="Jamin Bazaar — Signature for Fortune" /></span>
+    <b>JAMIN BAZAAR</b> · Signature for Fortune<br/>info@jaminproperties.com · +91 93848 18895
   </div>
 
 <script>
@@ -203,10 +203,10 @@
     hl.slice(0, 6).forEach(function (t) { var li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
     if (p.description) { var d = $("prop-desc"); d.textContent = String(p.description).slice(0, 260); d.classList.remove("hidden"); }
     $("open-app").href = "jamindar://property/" + encodeURIComponent(p.id);
-    var waText = "Hi, I'm interested in " + (p.title || "a property") + " on Jamin Properties." + (ref ? " (Ref: " + ref + ")" : "");
+    var waText = "Hi, I'm interested in " + (p.title || "a property") + " on Jamin Bazaar." + (ref ? " (Ref: " + ref + ")" : "");
     $("wa-btn").href = "https://wa.me/919384818895?text=" + encodeURIComponent(waText);
     $("wa-btn").addEventListener("click", function () { logWaRequest("property", p.id); });
-    document.title = (p.title || "Property") + " — Jamin Properties";
+    document.title = (p.title || "Property") + " — Jamin Bazaar";
     $("hero-sub").textContent = "A property was shared with you. Here are the details — verified by Jamin.";
     hideLoading();
     show("property-card");
@@ -214,7 +214,7 @@
 
   function renderInvite() {
     $("ref-code").textContent = ref;
-    $("ref-wa").href = "https://wa.me/919384818895?text=" + encodeURIComponent("Hi, I was invited to Jamin Properties with code " + ref + ". Please send me the app download link.");
+    $("ref-wa").href = "https://wa.me/919384818895?text=" + encodeURIComponent("Hi, I was invited to Jamin Bazaar with code " + ref + ". Please send me the app download link.");
     $("ref-wa").addEventListener("click", function () { logWaRequest("invite", null); });
     $("copy-btn").onclick = function () {
       (navigator.clipboard ? navigator.clipboard.writeText(ref) : Promise.reject()).then(function () {

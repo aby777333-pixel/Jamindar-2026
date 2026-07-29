@@ -292,7 +292,7 @@ export default function BuyerKyc() {
                 {declared ? <Ionicons name="checkmark" size={15} color="#fff" /> : null}
               </View>
               <Text style={{ flex: 1, color: colors.inkSoft, fontSize: T.small.fontSize, lineHeight: 19 }}>
-                I confirm the information provided is true and correct, and I authorise Jamin Properties to verify it for KYC purposes.
+                I confirm the information provided is true and correct, and I authorise Jamin Bazaar to verify it for KYC purposes.
               </Text>
             </Pressable>
 

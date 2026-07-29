@@ -103,7 +103,7 @@ export default function Messages() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={{ flex: 1, fontWeight: "700", color: colors.ink, fontSize: 15 }} numberOfLines={1}>
-                      {t.counterpart_name ?? "Jamin Properties"}
+                      {t.counterpart_name ?? "Jamin Bazaar"}
                     </Text>
                     <Text style={{ color: colors.inkFaint, fontSize: 11 }}>{timeAgo(t.last_message_at)}</Text>
                   </View>

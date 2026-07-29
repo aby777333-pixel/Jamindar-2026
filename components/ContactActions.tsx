@@ -30,7 +30,7 @@ export function ContactActions({ contact, context }: { contact: PromoterContact;
     { icon: "call", label: "Call", on: !!contact.mobile, run: () => openCall(contact.mobile), tint: colors.brandSoft, fg: colors.brand },
     { icon: "logo-whatsapp", label: "WhatsApp", on: !!waNumber, run: () => openWhatsApp(waNumber, context), tint: colors.successSoft, fg: "#25D366" },
     { icon: "chatbubble-ellipses", label: "SMS", on: !!contact.mobile, run: () => openSms(contact.mobile, context), tint: "#E8F1FE", fg: "#2B6FE1" },
-    { icon: "mail", label: "Email", on: !!contact.email, run: () => openEmail(contact.email, "Enquiry via Jamin Properties", context), tint: colors.goldSoft, fg: colors.goldDark },
+    { icon: "mail", label: "Email", on: !!contact.email, run: () => openEmail(contact.email, "Enquiry via Jamin Bazaar", context), tint: colors.goldSoft, fg: colors.goldDark },
   ];
   const enabled = channels.filter((c) => c.on);
   const future = [

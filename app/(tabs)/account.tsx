@@ -177,7 +177,7 @@ export default function Account() {
         </Pressable>
 
         <Text style={{ textAlign: "center", color: colors.inkFaint, fontSize: 12, marginTop: 24 }}>
-          Jamin Properties · Signature for Fortune
+          Jamin Bazaar · Signature for Fortune
         </Text>
       </ScrollView>
     </SafeAreaView>

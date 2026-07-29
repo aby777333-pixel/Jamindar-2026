@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jamin Properties — Admin Console</title>
+<title>Jamin Bazaar — Admin Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -98,7 +98,7 @@
 <div id="login">
   <div class="box card">
     <div class="logo">J</div>
-    <h1>Jamin Admin Console</h1>
+    <h1>Jamin Bazaar Admin Console</h1>
     <p class="muted">Sign in with your registered mobile number.</p>
     <div id="step-mobile">
       <input id="mobile" type="tel" placeholder="Mobile number" autocomplete="tel" style="text-align:center;font-size:16px;" />
@@ -116,7 +116,7 @@
 <!-- ───────── APP ───────── -->
 <div id="app">
   <aside>
-    <div class="brand"><div class="l">J</div><div><b>Jamin Admin</b><span>Property console</span></div></div>
+    <div class="brand"><div class="l">J</div><div><b>Jamin Bazaar</b><span>Admin console</span></div></div>
     <nav id="nav">
       <a data-view="dashboard" class="on">◱ Dashboard</a>
       <a data-view="properties">▤ Properties</a>
@@ -131,6 +131,7 @@
       <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
       <a data-view="users">👥 Users</a>
       <a data-view="share">📣 Share & Brochures</a>
+      <a data-view="bazaar">💼 Sales Income</a>
     </nav>
   </aside>
   <main>
@@ -222,11 +223,11 @@ async function refreshBadges(){
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome}[v])();
 }
 window.go = go;
 
@@ -987,7 +988,7 @@ async function renderShareSettings(){
     <b>Share settings</b>
     <p class="muted" style="font-size:13px;margin:6px 0 0;">These texts appear on every branded share page (/s/…) and on each promoter-personalized brochure (/b/…). Change them here — no code deploy needed.</p>
     ${f('sc-badge','Verified partner badge label',cfg.badge_label,'Verified Jamin Bazaar Partner')}
-    ${f('sc-brand','Brand name',cfg.brand_name,'Jamin Properties')}
+    ${f('sc-brand','Brand name',cfg.brand_name,'Jamin Bazaar')}
     ${f('sc-tag','Tagline',cfg.tagline,'Signature for Fortune')}
     ${f('sc-desk','Helpdesk phone',cfg.desk_phone,'+919384818895')}
     <div style="margin-top:12px"><button class="btn" onclick="saveShareCfg()">Save settings</button></div>
@@ -1011,10 +1012,193 @@ async function renderShareSettings(){
   </div>`;
 }
 window.copyTxt=async(t)=>{ try{ await navigator.clipboard.writeText(t); toast('Copied'); }catch(e){ prompt('Copy:',t); } };
+// ───────── Sales Income (migration 0056: DSI/RSI/ASI, ranks, launch offers) ─────────
+async function renderBazaarIncome(){
+  const [{data:cfgRow},{data:levels},{data:offers},ranks,{data:ledger},{data:achv}] = await Promise.all([
+    sb.from('site_config').select('value').eq('key','bazaar_income').maybeSingle(),
+    sb.from('bazaar_award_levels').select('*').order('level'),
+    sb.from('bazaar_launch_offers').select('*').order('created_at',{ascending:false}),
+    sb.rpc('bazaar_admin_overview'),
+    sb.from('bazaar_income_ledger').select('*, user:profiles!bazaar_income_ledger_user_id_fkey(full_name,member_code)').order('created_at',{ascending:false}).limit(50),
+    sb.from('bazaar_offer_awards').select('*, user:profiles!bazaar_offer_awards_user_id_fkey(full_name,member_code), offer:bazaar_launch_offers!bazaar_offer_awards_offer_id_fkey(title)').order('achieved_at',{ascending:false}).limit(50),
+  ]);
+  if(ranks.error){ $("#view").innerHTML=`<div class="empty card">${esc(ranks.error.message)}</div>`; return; }
+  const cfg=(cfgRow&&cfgRow.value)||{};
+  const lvls=levels||[]; const offs=offers||[]; const rows=ranks.data||[]; const led=ledger||[]; const ach=achv||[];
+  const when=(t)=>new Date(t).toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+  const lvlOpts='<option value="0">— none —</option>'+lvls.map(l=>`<option value="${l.level}">L${l.level} · ${esc(l.designation)}</option>`).join('');
+
+  $("#view").innerHTML=`
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Income settings</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 10px;">Direct Sales Income pays the SELLING promoter this % of every recorded sale (upline referral %s stay in <a onclick="go('earnings')">Earnings</a> → commission rates). 0 = off. Referral income stays locked until the promoter's first direct sale when the toggle is on.</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <label style="font-size:13px;color:var(--ink-soft)">DSI % <input id="bz-dsi" type="number" step="0.1" value="${Number(cfg.dsi_percent||0)}" style="width:90px"></label>
+      <label style="font-size:13px;color:var(--ink-soft)">Min direct referrals <input id="bz-minref" type="number" value="${Number(cfg.min_direct_referrals||3)}" style="width:70px"></label>
+      <label style="font-size:13px;color:var(--ink-soft)"><input id="bz-lock" type="checkbox" ${cfg.rsi_requires_direct_sale===false?'':'checked'}> Lock RSI until first direct sale</label>
+      <button class="btn" onclick="bzSaveCfg()">Save</button>
+      <button class="btn ghost" onclick="bzEvalAll(this)">↻ Re-evaluate ranks</button>
+      <button class="btn ghost" onclick="bzMonthly(this)">₹ Credit monthly awards</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Promoter ranks</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 10px;">Ranks upgrade automatically on every recorded sale — every direct referral's team must cross the level target. Use Override to pin a designation ("— none —" + Set resumes auto-progression).</p>
+    ${rows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Promoter</th><th>Direct sales</th><th>Refs</th><th>Team sales</th><th>Weakest team</th><th>Designation</th><th>Pending ₹</th><th>Paid ₹</th><th>Override</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr data-uid="${r.user_id}">
+        <td><b>${esc(r.full_name||'—')}</b><div class="muted" style="font-size:11px">${esc(r.member_code||'')}${r.rsi_unlocked?' · RSI ✓':' · RSI locked'}${r.admin_override?' · pinned':''}</div></td>
+        <td>${r.direct_sales_count}</td><td>${r.direct_referrals_count}</td>
+        <td>₹${Number(r.team_sales).toLocaleString('en-IN')}</td><td>₹${Number(r.min_referral_team_sales).toLocaleString('en-IN')}</td>
+        <td>${r.current_level>0?`<span class="pill ok">L${r.current_level}</span> `:''}${esc(r.designation||'—')}</td>
+        <td>₹${Number(r.pending_income).toLocaleString('en-IN')}</td><td>₹${Number(r.paid_income).toLocaleString('en-IN')}</td>
+        <td style="white-space:nowrap"><select class="bz-lvl" style="width:150px">${lvlOpts}</select> <button class="btn ghost sm" onclick="bzSetLvl(this,'${r.user_id}')">Set</button></td>
+      </tr>`).join('')}</tbody></table></div>`:`<div class="empty">No promoters yet.</div>`}
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Award levels (rank ladder)</b>
+    <div style="overflow-x:auto"><table><thead><tr><th>Level</th><th>Designation</th><th>Team sales / referral ₹</th><th>Monthly award ₹</th><th>Months</th><th>Min refs</th><th>On</th><th></th></tr></thead><tbody>
+      ${lvls.map(l=>`<tr data-lid="${l.id}">
+        <td><b>L${l.level}</b></td>
+        <td><input class="lv-d" value="${esc(l.designation)}" style="width:210px"></td>
+        <td><input class="lv-t" type="number" value="${Number(l.per_referral_team_sales)}" style="width:120px"></td>
+        <td><input class="lv-a" type="number" value="${Number(l.monthly_award)}" style="width:100px"></td>
+        <td><input class="lv-m" type="number" value="${l.validity_months}" style="width:64px"></td>
+        <td><input class="lv-r" type="number" value="${l.min_direct_referrals}" style="width:56px"></td>
+        <td><input class="lv-on" type="checkbox" ${l.active?'checked':''}></td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="bzLvlSave(this)">Save</button> <button class="btn ghost sm" onclick="bzLvlDel(this)">✕</button></td>
+      </tr>`).join('')}</tbody></table></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <input id="lv-nl" type="number" placeholder="Level" style="width:70px"><input id="lv-nd" placeholder="Designation" style="width:200px">
+      <input id="lv-nt" type="number" placeholder="Team ₹" style="width:120px"><input id="lv-na" type="number" placeholder="Monthly ₹" style="width:110px">
+      <input id="lv-nm" type="number" placeholder="Months" style="width:80px"><button class="btn" onclick="bzLvlAdd()">Add level</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Launch offers</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 10px;">Promoters completing the required direct sales inside the window earn the reward automatically — cash rewards credit their income; physical rewards appear below for you to issue.</p>
+    ${offs.length?`<table><thead><tr><th>Offer</th><th>Sales needed</th><th>Window</th><th>Status</th><th></th></tr></thead><tbody>
+      ${offs.map(o=>`<tr data-oid="${o.id}">
+        <td><b>${esc(o.title)}</b><div class="muted" style="font-size:11px">${esc(o.reward_label||o.reward_type)}${Number(o.reward_amount)>0?' · ₹'+Number(o.reward_amount).toLocaleString('en-IN'):''}</div></td>
+        <td>${o.required_direct_sales}</td>
+        <td class="muted" style="font-size:12px">${when(o.starts_at)} → ${when(o.ends_at)}</td>
+        <td><span class="pill ${o.active?'ok':'grey'}" style="cursor:pointer" onclick="bzOfferToggle('${o.id}',${o.active})">${o.active?'active':'off'}</span></td>
+        <td><button class="btn ghost sm" onclick="bzOfferDel('${o.id}')">✕</button></td>
+      </tr>`).join('')}</tbody></table>`:`<div class="empty">No launch offers yet.</div>`}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <input id="of-t" placeholder="Title" style="width:170px"><input id="of-d" placeholder="Description" style="width:210px">
+      <input id="of-n" type="number" value="3" title="Direct sales needed" style="width:64px">
+      <select id="of-ty"><option value="cashback">Cashback</option><option value="shopping_voucher">Voucher</option><option value="domestic_tour">Domestic tour</option><option value="international_tour">Intl tour</option><option value="gift">Gift</option><option value="custom">Custom</option></select>
+      <input id="of-l" placeholder="Reward label" style="width:150px"><input id="of-a" type="number" value="0" title="Cash ₹ (0 = none)" style="width:100px">
+      <input id="of-s" type="date"><input id="of-e" type="date"><button class="btn" onclick="bzOfferAdd()">Create</button>
+    </div>
+    ${ach.length?`<div style="margin-top:14px"><b style="font-size:13px">Achievements</b><table style="margin-top:8px"><thead><tr><th>Promoter</th><th>Offer</th><th>Sales</th><th>Status</th><th></th></tr></thead><tbody>
+      ${ach.map(a=>`<tr><td>${esc(a.user?.full_name||'—')} <span class="muted">${esc(a.user?.member_code||'')}</span></td><td>${esc(a.offer?.title||'—')}</td><td>${a.direct_sales_count}</td>
+        <td><span class="pill ${a.status==='reward_issued'?'ok':'warn'}">${esc(a.status)}</span></td>
+        <td>${a.status==='achieved'?`<button class="btn sm" onclick="bzIssue('${a.id}')">Issue reward</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}
+  </div>
+
+  <div class="card" style="padding:18px;">
+    <b>Awards & adjustments ledger</b>
+    <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
+      <select id="adj-u" style="max-width:230px">${rows.map(r=>`<option value="${r.user_id}">${esc(r.full_name||r.member_code||r.user_id)}</option>`).join('')}</select>
+      <input id="adj-a" type="number" placeholder="Amount ₹" style="width:110px"><input id="adj-n" placeholder="Reason (shown to promoter)" style="width:240px">
+      <button class="btn" onclick="bzAdjust()">Credit adjustment</button>
+    </div>
+    ${led.length?`<div style="overflow-x:auto"><table><thead><tr><th>Promoter</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>
+      ${led.map(r=>`<tr>
+        <td>${esc(r.user?.full_name||'—')} <span class="muted">${esc(r.user?.member_code||'')}</span></td>
+        <td>${esc(r.income_type.toUpperCase())}</td>
+        <td>${esc(r.description||'')}<div class="muted" style="font-size:11px">${esc(r.reference_no)} · ${when(r.created_at)}</div></td>
+        <td>₹${Number(r.amount).toLocaleString('en-IN')}</td>
+        <td><span class="pill ${r.status==='paid'?'ok':r.status==='rejected'?'grey':'warn'}">${esc(r.status)}</span></td>
+        <td style="white-space:nowrap">${r.status!=='paid'?`<button class="btn ghost sm" onclick="bzLedger('${r.id}','paid')">Mark paid</button>`:''}
+          ${r.status==='pending'?` <button class="btn ghost sm" onclick="bzLedger('${r.id}','approved')">Approve</button>`:''}
+          ${r.status!=='rejected'&&r.status!=='paid'?` <button class="btn ghost sm" onclick="bzLedger('${r.id}','rejected')">Reject</button>`:''}</td>
+      </tr>`).join('')}</tbody></table></div>`:`<div class="empty">No award / adjustment entries yet. DSI &amp; referral payouts live in <a onclick="go('earnings')">Earnings</a>.</div>`}
+  </div>`;
+}
+window.bzSaveCfg=async()=>{
+  const value={dsi_percent:Number($("#bz-dsi").value)||0,min_direct_referrals:Number($("#bz-minref").value)||3,rsi_requires_direct_sale:$("#bz-lock").checked};
+  const {error}=await sb.from('site_config').upsert({key:'bazaar_income',value,updated_at:new Date().toISOString()});
+  if(error) return toast(error.message);
+  toast('Income settings saved — live immediately'); renderBazaarIncome();
+};
+window.bzEvalAll=async(btn)=>{ btn.disabled=true; const {data,error}=await sb.rpc('bazaar_admin_evaluate_all'); btn.disabled=false;
+  if(error) return toast(error.message); toast(`Re-evaluated ${data} promoters`); renderBazaarIncome(); };
+window.bzMonthly=async(btn)=>{ btn.disabled=true; const {data,error}=await sb.rpc('bazaar_credit_monthly_awards'); btn.disabled=false;
+  if(error) return toast(error.message); toast(`Credited ${data} monthly award${data===1?'':'s'}`); renderBazaarIncome(); };
+window.bzSetLvl=async(btn,uid)=>{
+  const lvl=Number(btn.closest('tr').querySelector('.bz-lvl').value);
+  const {error}=await sb.rpc('bazaar_admin_set_designation',{p_user:uid,p_level:lvl,p_override:lvl!==0});
+  if(error) return toast(error.message); toast(lvl===0?'Auto-progression resumed':'Designation set'); renderBazaarIncome();
+};
+window.bzLvlSave=async(btn)=>{
+  const tr=btn.closest('tr');
+  const {error}=await sb.from('bazaar_award_levels').update({
+    designation:tr.querySelector('.lv-d').value.trim(),
+    per_referral_team_sales:Number(tr.querySelector('.lv-t').value)||0,
+    monthly_award:Number(tr.querySelector('.lv-a').value)||0,
+    validity_months:Number(tr.querySelector('.lv-m').value)||12,
+    min_direct_referrals:Number(tr.querySelector('.lv-r').value)||3,
+    active:tr.querySelector('.lv-on').checked,
+    updated_at:new Date().toISOString()}).eq('id',tr.dataset.lid);
+  if(error) return toast(error.message); toast('Level saved'); renderBazaarIncome();
+};
+window.bzLvlDel=async(btn)=>{
+  if(!confirm('Delete this award level? Promoters keep designations already earned.')) return;
+  const {error}=await sb.from('bazaar_award_levels').delete().eq('id',btn.closest('tr').dataset.lid);
+  if(error) return toast(error.message); renderBazaarIncome();
+};
+window.bzLvlAdd=async()=>{
+  const level=Number($("#lv-nl").value), designation=$("#lv-nd").value.trim();
+  if(!level||!designation) return toast('Level number and designation are required');
+  const {error}=await sb.from('bazaar_award_levels').insert({level,designation,
+    per_referral_team_sales:Number($("#lv-nt").value)||0,monthly_award:Number($("#lv-na").value)||0,
+    validity_months:Number($("#lv-nm").value)||12});
+  if(error) return toast(error.message); toast('Level added'); renderBazaarIncome();
+};
+window.bzOfferToggle=async(id,active)=>{
+  const {error}=await sb.from('bazaar_launch_offers').update({active:!active,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error) return toast(error.message); renderBazaarIncome();
+};
+window.bzOfferDel=async(id)=>{
+  if(!confirm('Delete this launch offer? Earned achievements are kept.')) return;
+  const {error}=await sb.from('bazaar_launch_offers').delete().eq('id',id);
+  if(error) return toast(error.message); renderBazaarIncome();
+};
+window.bzOfferAdd=async()=>{
+  const t=$("#of-t").value.trim(), s=$("#of-s").value, e=$("#of-e").value;
+  if(!t||!s||!e) return toast('Title, start and end dates are required');
+  const {error}=await sb.from('bazaar_launch_offers').insert({title:t,description:$("#of-d").value.trim()||null,
+    required_direct_sales:Number($("#of-n").value)||3,reward_type:$("#of-ty").value,
+    reward_label:$("#of-l").value.trim()||null,reward_amount:Number($("#of-a").value)||0,
+    starts_at:s+'T00:00:00+05:30',ends_at:e+'T23:59:59+05:30',active:true});
+  if(error) return toast(error.message); toast('Offer created'); renderBazaarIncome();
+};
+window.bzIssue=async(id)=>{
+  const note=prompt('Optional note to the promoter (voucher code, tour details…):')||null;
+  const {error}=await sb.rpc('bazaar_admin_issue_offer_reward',{p_id:id,p_note:note});
+  if(error) return toast(error.message); toast('Reward issued'); renderBazaarIncome();
+};
+window.bzAdjust=async()=>{
+  const amt=Number($("#adj-a").value);
+  if(!amt||amt<=0) return toast('Enter a positive amount');
+  if(!confirm(`Credit ₹${amt.toLocaleString('en-IN')} to this promoter?`)) return;
+  const {error}=await sb.rpc('bazaar_admin_adjust',{p_user:$("#adj-u").value,p_amount:amt,p_description:$("#adj-n").value.trim()||null});
+  if(error) return toast(error.message); toast('Adjustment credited'); renderBazaarIncome();
+};
+window.bzLedger=async(id,status)=>{
+  const {error}=await sb.rpc('bazaar_admin_set_income_status',{p_id:id,p_status:status});
+  if(error) return toast(error.message); renderBazaarIncome();
+};
+
 window.saveShareCfg=async()=>{
   const value={
     badge_label:$("#sc-badge").value.trim()||'Verified Jamin Bazaar Partner',
-    brand_name:$("#sc-brand").value.trim()||'Jamin Properties',
+    brand_name:$("#sc-brand").value.trim()||'Jamin Bazaar',
     tagline:$("#sc-tag").value.trim()||'Signature for Fortune',
     desk_phone:$("#sc-desk").value.trim()||'+919384818895',
     site_base:'https://merry-begonia-4c3cd1.netlify.app',

@@ -225,7 +225,7 @@ export function ContactHubSheet({
                       }}
                       numberOfLines={1}
                     >
-                      {verified ? "Verified Jamin Partner" : contact.designation || "Jamin Properties"}
+                      {verified ? "Verified Jamin Partner" : contact.designation || "Jamin Bazaar"}
                     </Text>
                   </View>
                 </View>
@@ -380,7 +380,7 @@ export function PartnerContactCard({ propertyId, context }: { propertyId?: strin
                 }}
                 numberOfLines={1}
               >
-                {verified ? "Verified Jamin Partner" : contact.designation || "Jamin Properties"}
+                {verified ? "Verified Jamin Partner" : contact.designation || "Jamin Bazaar"}
               </Text>
             </View>
           </View>

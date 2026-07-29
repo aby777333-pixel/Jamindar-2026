@@ -11,12 +11,12 @@ export function referralLink(code: string): string {
 }
 
 export function referralMessage(code: string): string {
-  return `Join me on Jamin Properties — discover verified plots & land with confidence. Use my invite code ${code}: ${referralLink(code)}`;
+  return `Join me on Jamin Bazaar — discover verified plots & land with confidence. Use my invite code ${code}: ${referralLink(code)}`;
 }
 
 /** Promoter "Build your team" invite — recruit teammates, not just buyers. */
 export function teamInviteMessage(code: string): string {
-  return `I'm building my team on Jamin Properties — join me, become a promoter and earn commissions on verified plots & land. Use my invite code ${code} when you sign up: ${referralLink(code)}`;
+  return `I'm building my team on Jamin Bazaar — join me, become a promoter and earn commissions on verified plots & land. Use my invite code ${code} when you sign up: ${referralLink(code)}`;
 }
 
 /** Public premium V-Card page for a promoter (partner code preferred). */
@@ -25,7 +25,7 @@ export function cardLink(code: string): string {
 }
 
 export function cardMessage(name: string | null | undefined, code: string): string {
-  return `${name ?? "Your Jamin Partner"} · Jamin Properties\nView my digital card — live projects, one-tap contact and site-visit booking: ${cardLink(code)}`;
+  return `${name ?? "Your Jamin Partner"} · Jamin Bazaar\nView my digital card — live projects, one-tap contact and site-visit booking: ${cardLink(code)}`;
 }
 
 export function qrUrl(code: string, size = 220): string {
@@ -62,7 +62,7 @@ export async function shareVia(
   channel: ShareChannel,
   text: string,
   link: string,
-  subject = "Join Jamin Properties"
+  subject = "Join Jamin Bazaar"
 ): Promise<string | null> {
   const e = encodeURIComponent;
   switch (channel) {
@@ -143,6 +143,6 @@ export function propertyShareMessage(
     if (ref) lines.push(`Ref: ${ref}`);
   }
 
-  lines.push("", "JAMIN PROPERTIES · Signature for Fortune");
+  lines.push("", "JAMIN BAZAAR · Signature for Fortune");
   return lines.join("\n");
 }
