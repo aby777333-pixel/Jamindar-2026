@@ -348,11 +348,17 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const action = payload.action as string;
 
-    async function translateText(text: string, target: string, source = "auto"): Promise<string> {
+    // Buyer report 29-07 ("speech should be human"): user-facing replies are
+    // translated in "modern-colloquial" mode — natural, everyday spoken
+    // language instead of stiff bookish output (the Telugu tester read the
+    // formal rendering as plain wrong). Internal English transcripts stay
+    // formal. Any API rejection falls back to the original text, so this can
+    // never make a reply worse than before.
+    async function translateText(text: string, target: string, source = "auto", mode = "formal"): Promise<string> {
       try {
         // Sarvam translate rejects very long inputs — a silent no-op here let an
         // untranslated 5k-char reply through. Replies are short by design.
-        const r = await fetch(`${SARVAM}/translate`, { method: "POST", headers: sh, body: JSON.stringify({ input: text.slice(0, 1800), source_language_code: source, target_language_code: target, mode: "formal" }) });
+        const r = await fetch(`${SARVAM}/translate`, { method: "POST", headers: sh, body: JSON.stringify({ input: text.slice(0, 1800), source_language_code: source, target_language_code: target, mode }) });
         const d = await r.json();
         return d?.translated_text ?? text;
       } catch {
@@ -417,6 +423,8 @@ Deno.serve(async (req) => {
       const langNote =
         `\n\nACTIVE LANGUAGE: The user has selected ${chosenName} (${chosen}). Write EVERY reply in ${chosenName}, ` +
         `in that language's own script, even when the user writes to you in English or another language. ` +
+        `Write the way a real local advisor SPEAKS: natural, everyday conversational ${chosenName} with simple ` +
+        `common words and short sentences — never stiff, literary or machine-translated style. ` +
         `Keep property names, place names and legal document names in their usual form. ` +
         `Only switch language if the user explicitly asks you to.`;
       const invRows = await liveInventory(admin);
@@ -467,7 +475,7 @@ Deno.serve(async (req) => {
       // Enforce the chosen language rather than hoping the model obeyed.
       const script = SCRIPTS[chosen];
       if (script && !script.test(reply)) {
-        const translated = (await translateText(reply, chosen, "auto")).trim();
+        const translated = (await translateText(reply, chosen, "auto", "modern-colloquial")).trim();
         if (translated) reply = translated;
       } else if (chosen.startsWith("en")) {
         // English had no script check (v12 fix): a reply that carries on in an
