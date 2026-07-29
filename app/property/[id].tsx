@@ -108,20 +108,63 @@ export default function PropertyDetail() {
     if (profile?.id) loadMemory(profile.id).then((m) => m?.language && setLang(m.language));
   }, [profile?.id]);
 
+  // Listen is a strict toggle (bug report #10): one narration at a time, the
+  // button flips to Stop while playing, and Stop halts playback instantly.
+  const [listening, setListening] = useState(false);
+  const listenSeq = useRef(0);
+  const listenPlayerRef = useRef<any>(null);
+
+  function stopListen() {
+    listenSeq.current += 1; // invalidate any in-flight synthesis/playback loop
+    try { listenPlayerRef.current?.remove(); } catch { /* ignore */ }
+    listenPlayerRef.current = null;
+    setListening(false);
+  }
+  useEffect(() => stopListen, []); // never keep narrating after leaving the page
+
+  function playChunkToEnd(uri: string): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const player = createAudioPlayer({ uri });
+      listenPlayerRef.current = player;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try { sub?.remove(); } catch { /* ignore */ }
+        resolve();
+      };
+      const sub = player.addListener("playbackStatusUpdate", (st: any) => {
+        if (st?.didJustFinish) finish();
+      });
+      try { player.play(); } catch { finish(); return; }
+      // safety fallback: resolve a little after the reported duration
+      setTimeout(() => {
+        const secs = player.duration && isFinite(player.duration) ? player.duration : 12;
+        setTimeout(finish, secs * 1000 + 600);
+      }, 300);
+    });
+  }
+
   async function speakText(text: string) {
+    if (listening || voiceBusy) { stopListen(); setVoiceBusy(false); return; } // Stop tap
     if (!text) return;
+    stopListen();
+    const mySeq = listenSeq.current;
     setVoiceBusy(true);
     try {
       const chunks = await synthesizeSpeech(text.slice(0, 1400), lang);
+      if (listenSeq.current !== mySeq || chunks.length === 0) return; // stopped meanwhile
+      setVoiceBusy(false);
+      setListening(true);
       for (const b64 of chunks) {
-        const player = createAudioPlayer({ uri: `data:audio/wav;base64,${b64}` });
-        player.play();
-        await new Promise((r) => setTimeout(r, 300));
+        if (listenSeq.current !== mySeq) return; // stopped mid-narration
+        await playChunkToEnd(`data:audio/wav;base64,${b64}`);
       }
     } catch {
       /* voice optional */
     } finally {
       setVoiceBusy(false);
+      if (listenSeq.current === mySeq) setListening(false);
     }
   }
 
@@ -471,7 +514,7 @@ export default function PropertyDetail() {
 
           <View style={{ marginTop: 18 }}>
             {activeTab === "overview" && (
-              <Overview property={property} voiceBusy={voiceBusy} translated={translated} showOriginal={showOriginal} onListen={() => speakText(translated && !showOriginal ? translated : property.description!)} onTranslate={() => onTranslate(property.description!)} onToggleOriginal={() => setShowOriginal((v) => !v)} phaseLabel={phase.label} />
+              <Overview property={property} voiceBusy={voiceBusy} listening={listening} translated={translated} showOriginal={showOriginal} onListen={() => speakText(translated && !showOriginal ? translated : property.description!)} onTranslate={() => onTranslate(property.description!)} onToggleOriginal={() => setShowOriginal((v) => !v)} phaseLabel={phase.label} />
             )}
             {activeTab === "photos" && <PhotosTab images={images} active={imgIndex} onSelect={selectImage} onOpen={setFullscreen} />}
             {activeTab === "videos" && <VideosTab videos={property.videos ?? []} drone={property.drone_videos ?? []} />}
@@ -606,8 +649,8 @@ export default function PropertyDetail() {
 
 // ─────────────────────────── tab bodies ───────────────────────────
 
-function Overview({ property, voiceBusy, translated, showOriginal, onListen, onTranslate, onToggleOriginal, phaseLabel }: {
-  property: Property; voiceBusy: boolean; translated: string | null; showOriginal: boolean;
+function Overview({ property, voiceBusy, listening, translated, showOriginal, onListen, onTranslate, onToggleOriginal, phaseLabel }: {
+  property: Property; voiceBusy: boolean; listening: boolean; translated: string | null; showOriginal: boolean;
   onListen: () => void; onTranslate: () => void; onToggleOriginal: () => void; phaseLabel: string;
 }) {
   return (
@@ -633,8 +676,8 @@ function Overview({ property, voiceBusy, translated, showOriginal, onListen, onT
             <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
               {voiceBusy ? <ActivityIndicator color={colors.brand} /> : null}
               <Pressable onPress={onListen} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Ionicons name="volume-high" size={18} color={colors.brand} />
-                <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 13 }}>Listen</Text>
+                <Ionicons name={listening ? "stop-circle" : "volume-high"} size={18} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 13 }}>{listening ? "Stop" : "Listen"}</Text>
               </Pressable>
               <Pressable onPress={onTranslate} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 <Ionicons name="language" size={18} color={colors.brand} />

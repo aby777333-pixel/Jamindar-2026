@@ -628,13 +628,25 @@ export function JamindarSheet({
 
   // Press-in starts listening. A quick tap keeps listening (tap again to send);
   // a long hold works walkie-talkie style — release sends.
+  // Bug report #10: while Jamindar is SPEAKING, the mic acts as an instant STOP
+  // — playback halts and voice mode turns off (no recording starts). Speaking
+  // to the mic again naturally re-enables voice replies.
   function onMicPressIn() {
     if (busy) return;
+    if (speaking && !recordingRef.current && !startingRef.current) {
+      pressStoppedRef.current = true; // consume this press entirely
+      stopSpeaking();
+      if (prefs.readAloud) setPrefs((p) => ({ ...p, readAloud: false }));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      return;
+    }
     if (recordingRef.current || startingRef.current) {
       pressStoppedRef.current = true; // this press is the "stop" tap
       void stopVoice();
     } else {
       pressStoppedRef.current = false;
+      // starting a voice question implies wanting a voice answer
+      if (!prefs.readAloud) setPrefs((p) => ({ ...p, readAloud: true }));
       void startVoice();
     }
   }
