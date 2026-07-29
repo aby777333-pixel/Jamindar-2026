@@ -1,13 +1,14 @@
-// Jamin Bazaar — dynamic brochure Edge Function (0053, v2 per owner spec 29-07).
-// GET /brochure/<propertyId>?ref=<JA-REF-xxxxx | JA-P-xxxx>[&src=app|sharepage|whatsapp]
+// Jamin Bazaar — dynamic brochure Edge Function (0053, v3 per owner spec 29-07).
+// GET /brochure/<propertyId>?ref=<JA-REF-xxxxx | JA-P-xxxx | member code>[&src=app|sharepage|whatsapp]
 //
 // A fresh personalized PDF is generated from the LATEST database profile at
-// request time — the original brochure pages are never modified; only a
+// request time — the original brochure pages are never modified; only ONE
 // branded contact page is appended:
-//   • verified promoter ref  → their live photo, name, badge, IDs, contacts,
-//     service area, company, dual QR (project page + digital V-Card), logo.
-//   • super-admin ref        → the official corporate contact page instead.
-//   • anonymous / unverified → the original brochure untouched.
+//   • super-admin ref         → the official corporate contact page.
+//   • verified promoter ref   → their live photo, badge, IDs, contacts, dual QR.
+//   • any other member's ref  → their own name / phone / email (v3: every
+//     logged-in user shares a brochure carrying THEIR contact details).
+//   • no ref / unknown ref    → the original brochure untouched.
 // Freshness: the cache key hashes every personalized field, so ANY profile
 // change produces a new PDF immediately; stale copies can never be served.
 // On ANY failure it falls back to the original brochure so downloads never break.
@@ -26,6 +27,7 @@ const GREEN = rgb(0.09, 0.55, 0.28);
 const INK = rgb(0.12, 0.12, 0.12);
 const MUTED = rgb(0.42, 0.42, 0.42);
 const CREAM = rgb(1, 0.973, 0.93);
+const HAIR = rgb(0.88, 0.85, 0.78);
 
 function redirect(url: string) {
   return new Response(null, { status: 302, headers: { Location: url, 'Cache-Control': 'no-store' } });
@@ -36,12 +38,26 @@ async function hashKey(s: string): Promise<string> {
   return Array.from(new Uint8Array(d)).slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Word-wrap by MEASURED width so values can never collide with the QR column. */
+function wrapText(font: any, text: string, size: number, maxW: number): string[] {
+  const words = String(text ?? '').split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const trial = cur ? `${cur} ${w}` : w;
+    if (font.widthOfTextAtSize(trial, size) <= maxW || !cur) cur = trial;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
 /** Draw a QR code as pure vector rectangles (no canvas/PNG needed). */
 function drawQr(page: any, text: string, x: number, y: number, size: number) {
   const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
   const n = qr.modules.size;
   const cell = size / n;
-  page.drawRectangle({ x: x - 6, y: y - 6, width: size + 12, height: size + 12, color: rgb(1, 1, 1), borderColor: GOLD, borderWidth: 1 });
+  page.drawRectangle({ x: x - 7, y: y - 7, width: size + 14, height: size + 14, color: rgb(1, 1, 1), borderColor: GOLD, borderWidth: 1.2 });
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       if (qr.modules.get(r, c)) {
@@ -77,58 +93,72 @@ Deno.serve(async (req) => {
     const d = data as any;
     if (!d?.ok || !d.property?.brochure_url) return new Response('Brochure not available', { status: 404 });
     original = d.property.brochure_url as string;
-    const promoter = d.promoter;
+    const promoter = d.promoter; // promoters / verified partners / super admins only
     const cfg = d.config ?? {};
     const siteBase = cfg.site_base ?? 'https://merry-begonia-4c3cd1.netlify.app';
     const brand = cfg.brand_name ?? 'Jamin Bazaar';
     const badge = cfg.badge_label ?? 'Verified Jamin Bazaar Partner';
 
-    // Latest profile facts straight from the DB at generation time (spec §7).
-    let role: string | null = null;
-    let area = '';
+    // v3: resolve ANY member by their code (buyer referrals carry their own
+    // contact page). Latest data straight from the DB at generation time (§7).
+    let person: any = null;
     if (promoter?.id) {
       const { data: pr } = await svc.from('profiles').select('role, city, district, state').eq('id', promoter.id).maybeSingle();
-      role = (pr as any)?.role ?? null;
-      area = [(pr as any)?.city, (pr as any)?.district, (pr as any)?.state].filter(Boolean).join(', ');
+      person = { ...promoter, role: (pr as any)?.role ?? null,
+        area: [(pr as any)?.city, (pr as any)?.district, (pr as any)?.state].filter(Boolean).join(', ') };
+    } else if (ref && /^[A-Za-z0-9-]{3,40}$/.test(ref)) {
+      const up = ref.toUpperCase();
+      const { data: m } = await svc.from('profiles')
+        .select('id, full_name, mobile, email, avatar_url, member_code, referral_code, role')
+        .or(`referral_code.eq.${up},member_code.eq.${up}`)
+        .maybeSingle();
+      if (m) person = {
+        id: (m as any).id, name: (m as any).full_name, mobile: (m as any).mobile, email: (m as any).email,
+        avatar_url: (m as any).avatar_url, member_code: (m as any).member_code,
+        referral_code: (m as any).referral_code, role: (m as any).role, verified: false, member: true,
+      };
     }
-    const isCorporate = role === 'super_admin';
 
     const logDownload = (pid: string | null) =>
       svc.from('brochure_downloads').insert({
         property_id: propertyId, user_id: null, promoter_id: pid,
-        ref_code: (ref || promoter?.referral_code || '').toUpperCase() || null, channel,
+        ref_code: (ref || person?.referral_code || '').toUpperCase() || null, channel,
       });
 
-    // Anonymous / unverified (non-admin) refs get the original brochure.
-    if (!promoter || (!promoter.verified && !isCorporate)) {
+    // Unknown / missing ref → the original brochure, attribution still logged.
+    if (!person) {
       await svc.rpc('log_share_event', { p_ref: ref, p_property: propertyId, p_event: 'download', p_channel: channel });
       return redirect(original);
     }
 
+    const isCorporate = person.role === 'super_admin';
+    const isVerified = !!person.verified;
     const corporate = cfg.corporate ?? {};
-    const code = (promoter.partner_code ?? promoter.referral_code) as string;
-    const refCode = (promoter.referral_code ?? code) as string;
+    const code = (person.partner_code ?? person.referral_code ?? person.member_code) as string;
+    const refCode = (person.referral_code ?? code) as string;
     const shareLink = `${siteBase}/s/${propertyId}?ref=${encodeURIComponent(refCode)}`;
     const vcardLink = `${siteBase}/card?c=${encodeURIComponent(code)}`;
     const referralLink = `${siteBase}/welcome?ref=${encodeURIComponent(refCode)}`;
 
     const ver = await hashKey(
       isCorporate
-        ? ['corp', original, JSON.stringify(corporate), brand].join('|')
-        : [original, promoter.name, promoter.mobile, promoter.whatsapp, promoter.email, promoter.avatar_url, promoter.designation, area, badge, brand].join('|'),
+        ? ['corp3', original, JSON.stringify(corporate), brand].join('|')
+        : ['v3', original, person.name, person.mobile, person.whatsapp, person.email, person.avatar_url,
+           person.designation, person.area, badge, brand, String(isVerified)].join('|'),
     );
-    const cachePath = `personalized/${propertyId}/${(isCorporate ? 'JB-CORP' : code).replace(/[^A-Za-z0-9-]/g, '')}-${ver}.pdf`;
+    const keyBase = isCorporate ? 'JB-CORP' : (isVerified ? code : `JB-M-${code}`);
+    const cachePath = `personalized/${propertyId}/${String(keyBase).replace(/[^A-Za-z0-9-]/g, '')}-${ver}.pdf`;
 
     // Cache hit (key includes every personalized field, so this is always fresh data).
     const dir = cachePath.substring(0, cachePath.lastIndexOf('/'));
     const base = cachePath.substring(cachePath.lastIndexOf('/') + 1);
     const { data: listing } = await svc.storage.from('property-media').list(dir, { search: base });
     if ((listing ?? []).some((f: any) => f.name === base)) {
-      await logDownload(isCorporate ? null : promoter.id);
+      await logDownload(isCorporate ? null : person.id);
       return redirect(STORAGE_PUBLIC + cachePath);
     }
 
-    // Build the personalized PDF.
+    // ── build the personalized PDF ─────────────────────────────────────────
     const srcBytes = new Uint8Array(await (await fetch(original)).arrayBuffer());
     const doc = await PDFDocument.load(srcBytes, { ignoreEncryption: true });
     const last = doc.getPage(doc.getPageCount() - 1);
@@ -138,127 +168,142 @@ Deno.serve(async (req) => {
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const logo = await fetchImage(doc, `${siteBase}/logo.png`);
 
-    // Canvas + header band
+    const L = 48;                              // left margin
+    const qrSize = 116;
+    const qrX = W - L - qrSize;                // QR column, right-aligned
+    const valX = L + 96;                       // value column
+    const valMaxW = qrX - 26 - valX;           // values may NEVER cross the QR
+
+    // canvas + header band
     page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: CREAM });
-    const bandH = H * 0.135;
+    const bandH = Math.min(110, H * 0.135);
     page.drawRectangle({ x: 0, y: H - bandH, width: W, height: bandH, color: CHARCOAL });
     page.drawRectangle({ x: 0, y: H - bandH - 4, width: W, height: 4, color: GOLD });
-    let brandX = 40;
+    let brandX = L;
     if (logo) {
-      const ls = 44;
-      page.drawImage(logo, { x: 40, y: H - bandH / 2 - ls / 2, width: ls, height: ls });
-      brandX = 40 + ls + 14;
+      const ls = 42;
+      page.drawImage(logo, { x: L, y: H - bandH / 2 - ls / 2, width: ls, height: ls });
+      brandX = L + ls + 14;
     }
-    page.drawText(brand.toUpperCase(), { x: brandX, y: H - bandH / 2 + 4, size: 24, font: bold, color: rgb(1, 1, 1) });
-    page.drawText((cfg.tagline ?? 'Signature for Fortune'), { x: brandX, y: H - bandH / 2 - 16, size: 11, font: helv, color: GOLD });
+    page.drawText(brand.toUpperCase(), { x: brandX, y: H - bandH / 2 + 3, size: 21, font: bold, color: rgb(1, 1, 1) });
+    page.drawText((cfg.tagline ?? 'Signature for Fortune'), { x: brandX, y: H - bandH / 2 - 15, size: 10, font: helv, color: GOLD });
+
+    const topY = H - bandH - 42;
+
+    // shared helpers for tidy label/value rows
+    let rowY = 0;
+    function drawRow(label: string, value: string, valueSize = 11.5, valueColor = INK, valueFont = bold) {
+      page.drawText(label.toUpperCase(), { x: L, y: rowY, size: 8.5, font: bold, color: MUTED });
+      const lines = wrapText(valueFont, value, valueSize, valMaxW);
+      let yy = rowY;
+      for (const ln of lines) {
+        page.drawText(ln, { x: valX, y: yy, size: valueSize, font: valueFont, color: valueColor });
+        yy -= valueSize + 4;
+      }
+      const bottom = Math.min(yy + valueSize + 4, rowY) - 8;
+      page.drawLine({ start: { x: L, y: bottom }, end: { x: qrX - 26, y: bottom }, thickness: 0.5, color: HAIR });
+      rowY = bottom - 16;
+    }
+    function qrBlock(link: string, caption: string, y: number): number {
+      drawQr(page, link, qrX, y - qrSize, qrSize);
+      const capW = bold.widthOfTextAtSize(caption, 8.5);
+      page.drawText(caption, { x: qrX + (qrSize - capW) / 2, y: y - qrSize - 20, size: 8.5, font: bold, color: MUTED });
+      return y - qrSize - 34;
+    }
 
     if (isCorporate) {
-      // ── official corporate contact page (super-admin downloads, spec §2) ──
-      page.drawText('CONTACT JAMIN BAZAAR', { x: 40, y: H - bandH - 40, size: 15, font: bold, color: RED });
-      let y = H - bandH - 84;
-      page.drawText(String(corporate.company ?? 'Jamin Property Developers 1 Pvt Ltd'), { x: 40, y, size: 18, font: bold, color: INK });
-      y -= 34;
-      const rows: [string, string][] = [
+      // ── official corporate contact page ──
+      page.drawText('CONTACT JAMIN BAZAAR', { x: L, y: topY, size: 12.5, font: bold, color: RED });
+      page.drawText(String(corporate.company ?? 'Jamin Property Developers 1 Pvt Ltd'), { x: L, y: topY - 26, size: 17, font: bold, color: INK });
+      page.drawRectangle({ x: L, y: topY - 36, width: 44, height: 3, color: GOLD });
+
+      rowY = topY - 66;
+      const rows: [string, string][] = ([
         ['Address', String(corporate.address ?? '')],
         ['Phone', String(corporate.phones ?? cfg.desk_phone ?? '')],
         ['Email', String(corporate.email ?? '')],
         ['Website', String(corporate.website ?? '')],
-      ].filter(([, v]) => v) as [string, string][];
-      for (const [label, value] of rows) {
-        page.drawText(label.toUpperCase(), { x: 40, y, size: 9, font: bold, color: MUTED });
-        // wrap long values (address) at ~72 chars
-        const chunks = value.match(/.{1,72}(\s|$)/g) ?? [value];
-        let yy = y;
-        for (const c of chunks) {
-          page.drawText(c.trim(), { x: 140, y: yy, size: 12, font: bold, color: INK });
-          yy -= 16;
-        }
-        page.drawLine({ start: { x: 40, y: yy - 2 }, end: { x: W - 220, y: yy - 2 }, thickness: 0.5, color: rgb(0.88, 0.85, 0.78) });
-        y = yy - 18;
-      }
-      const qrSize = 130;
-      drawQr(page, `${siteBase}/s/${propertyId}`, W - qrSize - 48, H - bandH - 80 - qrSize, qrSize);
-      page.drawText('Scan to view this project', { x: W - qrSize - 52, y: H - bandH - 102 - qrSize, size: 10, font: bold, color: INK });
+      ] as [string, string][]).filter(([, v]) => v);
+      for (const [label, value] of rows) drawRow(label, value);
+
+      qrBlock(`${siteBase}/s/${propertyId}`, 'Scan to view this project', topY - 8);
     } else {
-      // ── verified promoter contact page (spec §2) ──
-      page.drawText('YOUR PERSONAL PROPERTY PARTNER', { x: 40, y: H - bandH - 34, size: 13, font: bold, color: RED });
+      // ── personal contact page (verified partner OR any member) ──
+      page.drawText(isVerified ? 'YOUR PERSONAL PROPERTY PARTNER' : 'SHARED WITH YOU BY', { x: L, y: topY, size: 12.5, font: bold, color: RED });
 
-      let y = H - bandH - 60;
-      const leftX = 40;
-
-      let avatarBottom = y;
-      if (promoter.avatar_url) {
-        const img = await fetchImage(doc, promoter.avatar_url);
+      let y = topY - 22;
+      let photoBottom = y;
+      let hasPhoto = false;
+      if (person.avatar_url) {
+        const img = await fetchImage(doc, person.avatar_url);
         if (img) {
-          const box = 110;
+          hasPhoto = true;
+          const box = 92;
           const scale = Math.min(box / img.width, box / img.height);
           const iw = img.width * scale, ih = img.height * scale;
-          page.drawRectangle({ x: leftX - 4, y: y - box - 4, width: box + 8, height: box + 8, color: rgb(1, 1, 1), borderColor: GOLD, borderWidth: 2 });
-          page.drawImage(img, { x: leftX + (box - iw) / 2, y: y - box + (box - ih) / 2, width: iw, height: ih });
-          avatarBottom = y - box - 12;
+          page.drawRectangle({ x: L - 4, y: y - box - 4, width: box + 8, height: box + 8, color: rgb(1, 1, 1), borderColor: GOLD, borderWidth: 2 });
+          page.drawImage(img, { x: L + (box - iw) / 2, y: y - box + (box - ih) / 2, width: iw, height: ih });
+          photoBottom = y - box - 14;
         }
       }
+      const nameX = hasPhoto ? L + 112 : L;
+      page.drawText(String(person.name ?? 'Jamin Member'), { x: nameX, y: y - 20, size: 19, font: bold, color: INK });
+      const subLine = isVerified
+        ? [person.designation, person.area ? `Serving ${person.area}` : null].filter(Boolean).join(' · ')
+        : 'Jamin Bazaar Member';
+      if (subLine) page.drawText(subLine.slice(0, 70), { x: nameX, y: y - 37, size: 10.5, font: helv, color: MUTED });
 
-      const nameX = promoter.avatar_url ? leftX + 130 : leftX;
-      page.drawText(String(promoter.name ?? 'Jamin Partner'), { x: nameX, y: y - 26, size: 22, font: bold, color: INK });
-      const subLine = [promoter.designation, area ? `Serving ${area}` : null].filter(Boolean).join(' · ');
-      if (subLine) page.drawText(subLine.slice(0, 70), { x: nameX, y: y - 44, size: 11, font: helv, color: MUTED });
-
-      const badgeY = y - (subLine ? 74 : 60);
-      const badgeW = bold.widthOfTextAtSize(badge, 11) + 40;
-      page.drawRectangle({ x: nameX, y: badgeY, width: badgeW, height: 24, color: GREEN });
-      page.drawCircle({ x: nameX + 13, y: badgeY + 12, size: 8, color: rgb(1, 1, 1) });
-      page.drawLine({ start: { x: nameX + 9.5, y: badgeY + 12 }, end: { x: nameX + 12, y: badgeY + 8.5 }, thickness: 1.8, color: GREEN });
-      page.drawLine({ start: { x: nameX + 12, y: badgeY + 8.5 }, end: { x: nameX + 17, y: badgeY + 15.5 }, thickness: 1.8, color: GREEN });
-      page.drawText(badge, { x: nameX + 26, y: badgeY + 7, size: 11, font: bold, color: rgb(1, 1, 1) });
-
-      y = Math.min(avatarBottom, badgeY) - 30;
-      const rows: [string, string][] = [];
-      if (promoter.mobile) rows.push(['Mobile', `+${String(promoter.mobile).replace(/^\+/, '')}`]);
-      if (promoter.whatsapp) rows.push(['WhatsApp', `+${String(promoter.whatsapp).replace(/^\+/, '')}`]);
-      if (promoter.email) rows.push(['Email', String(promoter.email)]);
-      rows.push(['Promoter ID', code]);
-      rows.push(['Referral code', refCode]);
-      for (const [label, value] of rows) {
-        page.drawText(label.toUpperCase(), { x: leftX, y, size: 9, font: bold, color: MUTED });
-        page.drawText(value, { x: leftX + 110, y, size: 13, font: bold, color: INK });
-        page.drawLine({ start: { x: leftX, y: y - 8 }, end: { x: W - 220, y: y - 8 }, thickness: 0.5, color: rgb(0.88, 0.85, 0.78) });
-        y -= 28;
+      let badgeBottom = y - 48;
+      if (isVerified) {
+        const badgeY = y - 70;
+        const badgeW = bold.widthOfTextAtSize(badge, 10.5) + 38;
+        page.drawRectangle({ x: nameX, y: badgeY, width: badgeW, height: 23, color: GREEN });
+        page.drawCircle({ x: nameX + 12, y: badgeY + 11.5, size: 7.5, color: rgb(1, 1, 1) });
+        page.drawLine({ start: { x: nameX + 8.8, y: badgeY + 11.5 }, end: { x: nameX + 11.2, y: badgeY + 8.4 }, thickness: 1.7, color: GREEN });
+        page.drawLine({ start: { x: nameX + 11.2, y: badgeY + 8.4 }, end: { x: nameX + 15.8, y: badgeY + 14.8 }, thickness: 1.7, color: GREEN });
+        page.drawText(badge, { x: nameX + 24, y: badgeY + 7, size: 10.5, font: bold, color: rgb(1, 1, 1) });
+        badgeBottom = badgeY - 14;
       }
 
-      y -= 4;
-      page.drawText('REFERRAL LINK', { x: leftX, y, size: 9, font: bold, color: MUTED });
-      page.drawText(referralLink, { x: leftX + 110, y, size: 10, font: helv, color: RED });
-      y -= 20;
-      page.drawText('DIGITAL V-CARD', { x: leftX, y, size: 9, font: bold, color: MUTED });
-      page.drawText(vcardLink, { x: leftX + 110, y, size: 10, font: helv, color: RED });
+      rowY = Math.min(photoBottom, badgeBottom) - 14;
+      const rows: [string, string][] = [];
+      if (person.mobile) rows.push(['Mobile', `+${String(person.mobile).replace(/^\+/, '')}`]);
+      if (isVerified && person.whatsapp && person.whatsapp !== person.mobile) rows.push(['WhatsApp', `+${String(person.whatsapp).replace(/^\+/, '')}`]);
+      if (person.email) rows.push(['Email', String(person.email)]);
+      if (isVerified && person.partner_code) rows.push(['Promoter ID', String(person.partner_code)]);
+      else if (person.member_code) rows.push(['Member ID', String(person.member_code)]);
+      if (refCode && refCode !== person.member_code) rows.push(['Referral code', String(refCode)]);
+      for (const [label, value] of rows) drawRow(label, value);
 
-      // Dual QR column (spec §2): project page + digital V-Card.
-      const qrSize = 108;
-      const qrX = W - qrSize - 48;
-      let qrY = H - bandH - 64 - qrSize;
-      drawQr(page, shareLink, qrX, qrY, qrSize);
-      page.drawText('View this project', { x: qrX + 2, y: qrY - 18, size: 9, font: bold, color: INK });
-      qrY = qrY - 18 - 26 - qrSize;
-      drawQr(page, vcardLink, qrX, qrY, qrSize);
-      page.drawText('My digital V-Card', { x: qrX - 2, y: qrY - 18, size: 9, font: bold, color: INK });
+      rowY -= 2;
+      page.drawText('REFERRAL LINK', { x: L, y: rowY, size: 8.5, font: bold, color: MUTED });
+      page.drawText(referralLink, { x: valX, y: rowY, size: 9.5, font: helv, color: RED });
+      if (isVerified) {
+        rowY -= 18;
+        page.drawText('DIGITAL V-CARD', { x: L, y: rowY, size: 8.5, font: bold, color: MUTED });
+        page.drawText(vcardLink, { x: valX, y: rowY, size: 9.5, font: helv, color: RED });
+      }
+
+      // QR column — project page always; V-Card below for verified partners.
+      const nextQrTop = qrBlock(shareLink, 'View this project', topY - 8);
+      if (isVerified) qrBlock(vcardLink, 'My digital V-Card', nextQrTop - 6);
     }
 
-    // Footer
-    page.drawRectangle({ x: 0, y: 0, width: W, height: 46, color: CHARCOAL });
-    page.drawText(`${brand} · Helpdesk ${cfg.desk_phone ?? '+91 93848 18895'}`, { x: 40, y: 27, size: 10, font: bold, color: rgb(1, 1, 1) });
+    // footer
+    page.drawRectangle({ x: 0, y: 0, width: W, height: 42, color: CHARCOAL });
+    page.drawText(`${brand} · Helpdesk ${cfg.desk_phone ?? '+91 93848 18895'}`, { x: L, y: 25, size: 9.5, font: bold, color: rgb(1, 1, 1) });
     page.drawText(
       isCorporate
         ? `Official ${brand} brochure — generated fresh from live data.`
-        : `This brochure was personalized for ${promoter.name} (${code}) via the ${brand} app.`,
-      { x: 40, y: 12, size: 8, font: helv, color: rgb(0.7, 0.7, 0.7) },
+        : `This brochure was shared by ${person.name ?? 'a Jamin Bazaar member'} (${code}) via the ${brand} app.`,
+      { x: L, y: 12, size: 7.5, font: helv, color: rgb(0.7, 0.7, 0.7) },
     );
 
     const out = await doc.save();
     const up = await svc.storage.from('property-media').upload(cachePath, out, { contentType: 'application/pdf', upsert: true });
     if (up.error) return redirect(original);
 
-    await logDownload(isCorporate ? null : promoter.id);
+    await logDownload(isCorporate ? null : person.id);
     return redirect(STORAGE_PUBLIC + cachePath);
   } catch (_e) {
     // Never break a brochure download.
