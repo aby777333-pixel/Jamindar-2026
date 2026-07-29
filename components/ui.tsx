@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, space, type as T } from "@/lib/theme";
 
 // Reusable soft, refined elevation (elegant layered shadow + Android elevation).
@@ -91,11 +92,13 @@ export function Card({
     return (
       <Pressable
         onPress={onPress}
-        // Plain object, NOT a function: NativeWind's jsxImportSource interop
-        // drops function-form Pressable styles on native (web is unaffected).
+        // Soft native ripple = premium touch feedback without function-form
+        // styles (which NativeWind drops on native — keep plain objects only).
+        android_ripple={{ color: "rgba(20,21,26,0.07)", foreground: true }}
         style={{
           flex, alignSelf, width, minWidth, maxWidth,
           margin, marginTop, marginBottom, marginLeft, marginRight,
+          borderRadius: space.md,
         }}
       >
         <View style={[base, elevation.card, visual]}>{children}</View>
@@ -223,7 +226,10 @@ export function Chip({
 }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress?.();
+      }}
       style={{
         paddingHorizontal: 14,
         paddingVertical: 9,
@@ -231,6 +237,11 @@ export function Chip({
         backgroundColor: active ? colors.brand : colors.surface,
         borderWidth: 1,
         borderColor: active ? colors.brand : colors.border,
+        shadowColor: active ? colors.brand : "transparent",
+        shadowOpacity: active ? 0.35 : 0,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: active ? 3 : 0,
       }}
     >
       <Text style={{ color: active ? "#fff" : colors.inkSoft, fontWeight: "600", fontSize: 13 }}>
@@ -254,6 +265,7 @@ export function StatCard({
 }) {
   return (
     <Card onPress={onPress} style={{ flex: 1, minWidth: 0, padding: space.sm }}>
+      <View style={{ width: 26, height: 3, borderRadius: 99, backgroundColor: accent, opacity: 0.85, marginBottom: 6 }} />
       <Text style={{ color: accent, fontSize: T.subhead.fontSize, lineHeight: T.subhead.lineHeight, fontWeight: "800" }}>{value}</Text>
       <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 2, marginTop: 2 }}>{label}</Text>
     </Card>
@@ -269,9 +281,12 @@ export function Loading({ label }: { label?: string }) {
   );
 }
 
-export function Empty({ title, subtitle }: { title: string; subtitle?: string }) {
+export function Empty({ title, subtitle, icon = "sparkles-outline" }: { title: string; subtitle?: string; icon?: string }) {
   return (
     <View style={{ alignItems: "center", paddingVertical: space.xl, paddingHorizontal: space.lg }}>
+      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: space.sm }}>
+        <Ionicons name={icon as any} size={26} color={colors.brand} />
+      </View>
       <Text style={{ fontSize: T.body.fontSize, fontWeight: "700", color: colors.ink }}>{title}</Text>
       {subtitle ? (
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.xs }}>
