@@ -92,6 +92,7 @@ export function Card({
     return (
       <Pressable
         onPress={onPress}
+        accessibilityRole="button"
         // Soft native ripple = premium touch feedback without function-form
         // styles (which NativeWind drops on native — keep plain objects only).
         android_ripple={{ color: "rgba(20,21,26,0.07)", foreground: true }}
@@ -170,6 +171,9 @@ export function Button({
   return (
     <Pressable
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress?.();
@@ -230,6 +234,10 @@ export function Chip({
         Haptics.selectionAsync().catch(() => {});
         onPress?.();
       }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!active }}
+      hitSlop={4}
       style={{
         paddingHorizontal: 14,
         paddingVertical: 9,
