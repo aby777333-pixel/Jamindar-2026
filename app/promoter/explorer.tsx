@@ -76,7 +76,8 @@ export default function Explorer() {
     { title: "Ready to move", items: byPhase("current") },
     { title: "Ongoing projects", items: byPhase("ongoing") },
     { title: "Upcoming projects", items: byPhase("future") },
-    { title: "Recently added", items: [...all].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 12) },
+    // Bug report #8: sold-out projects don't belong in "Recently added".
+    { title: "Recently added", items: [...all].filter((p) => p.status !== "sold").sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 12) },
     { title: "Saved projects", items: data?.saved ?? [] },
   ];
 
@@ -110,13 +111,15 @@ export default function Explorer() {
       </View>
 
       {/* type chips — wrapping rows (bug 28-07: horizontal scrolling left the
-          last chip half-visible; wrapped chips are always fully readable). */}
+          last chip half-visible; wrapped chips are always fully readable).
+          Bug report #8: chips grow to share each row's full width so no large
+          gap is left on the right. */}
       <View style={{ marginTop: space.sm, paddingHorizontal: space.md, flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
         {CHIPS.map((c) => (
           <Pressable
             key={c.key}
             onPress={() => openList(c.key === "all" ? undefined : c.key)}
-            style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+            style={{ flexGrow: 1, alignItems: "center", paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
           >
             <Text numberOfLines={1} style={{ color: colors.inkSoft, fontWeight: "600", fontSize: T.small.fontSize, lineHeight: T.small.lineHeight }}>{c.label}</Text>
           </Pressable>

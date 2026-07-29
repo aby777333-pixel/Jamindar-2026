@@ -67,18 +67,20 @@ export default function AdminConsole() {
         <Loading />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* Bug report #8: every summary card navigates to its records —
+              Buyers/Promoters open the role-filtered registration list. */}
           <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
             <StatCard label="Total Users" value={stats!.users} onPress={() => router.push("/admin/registrations" as Href)} />
-            <StatCard label="Buyers" value={stats!.buyers} accent={colors.gold} onPress={() => router.push("/admin/registrations" as Href)} />
-            <StatCard label="Promoters" value={stats!.promoters} accent="#4B57C9" />
+            <StatCard label="Buyers" value={stats!.buyers} accent={colors.gold} onPress={() => router.push({ pathname: "/admin/registrations", params: { role: "buyer" } } as never)} />
+            <StatCard label="Promoters" value={stats!.promoters} accent="#4B57C9" onPress={() => router.push({ pathname: "/admin/registrations", params: { role: "promoter" } } as never)} />
           </View>
           <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-            <StatCard label="Properties" value={stats!.properties} accent="#1E9E6A" />
-            <StatCard label="Site Visits" value={stats!.visits} accent="#2B6FE1" />
-            <StatCard label="Leads" value={stats!.leads} accent={colors.brand} />
+            <StatCard label="Properties" value={stats!.properties} accent="#1E9E6A" onPress={() => router.push("/admin/properties" as Href)} />
+            <StatCard label="Site Visits" value={stats!.visits} accent="#2B6FE1" onPress={() => router.push("/manage-visits" as Href)} />
+            <StatCard label="Leads" value={stats!.leads} accent={colors.brand} onPress={() => router.push("/admin/activity" as Href)} />
           </View>
           <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
-            <StatCard label="Brochures" value={stats!.brochures} accent="#159A8C" />
+            <StatCard label="Brochures" value={stats!.brochures} accent="#159A8C" onPress={() => router.push("/admin/activity" as Href)} />
             <StatCard label="Voice Chats" value={stats!.voice} accent="#7C4BC9" />
             <View style={{ flex: 1 }} />
           </View>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Text, View, ScrollView, Pressable, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
@@ -25,6 +25,9 @@ const PAGE = 25;
  *  over the admin_registration_details() RPC result. */
 export default function AdminRegistrations() {
   const router = useRouter();
+  // Bug report #8: the dashboard's Buyers/Promoters cards must show only that
+  // role — they pass ?role=… ; without the param this stays the full list.
+  const { role: roleParam } = useLocalSearchParams<{ role?: string }>();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("date");
   const [asc, setAsc] = useState(false);
@@ -42,6 +45,7 @@ export default function AdminRegistrations() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let rows = data ?? [];
+    if (roleParam) rows = rows.filter((r) => r.role === roleParam);
     if (q) {
       rows = rows.filter(
         (r) =>
@@ -57,7 +61,7 @@ export default function AdminRegistrations() {
       return (new Date(a.registered_at).getTime() - new Date(b.registered_at).getTime()) * dir;
     });
     return rows;
-  }, [data, search, sort, asc]);
+  }, [data, search, sort, asc, roleParam]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const safePage = Math.min(page, pages - 1);
@@ -90,8 +94,12 @@ export default function AdminRegistrations() {
           <Ionicons name="arrow-back" size={24} color={colors.ink} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>Registration Details</Text>
-          <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{filtered.length} registered {filtered.length === 1 ? "user" : "users"}</Text>
+          <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>
+            {roleParam ? `${roleParam.charAt(0).toUpperCase()}${roleParam.slice(1).replace(/_/g, " ")}s` : "Registration Details"}
+          </Text>
+          <Text style={{ color: colors.inkFaint, fontSize: 12 }}>
+            {filtered.length} registered {roleParam ? `${roleParam.replace(/_/g, " ")}${filtered.length === 1 ? "" : "s"}` : filtered.length === 1 ? "user" : "users"}
+          </Text>
         </View>
       </View>
 

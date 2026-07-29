@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Text, View, ScrollView, Pressable, Image, Alert, TextInput, ActivityIndicator } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Text, View, ScrollView, Pressable, Image, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -103,6 +103,9 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bug report #8: the rejection-reason box sits at the bottom of the scroll —
+  // keep it visible above the keyboard while typing.
+  const scrollRef = useRef<ScrollView>(null);
   // Bug 28-07: document thumbnails must open full-screen for verification.
   const [viewer, setViewer] = useState<{ uri: string; title: string } | null>(null);
 
@@ -164,7 +167,8 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
         <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "600", color: colors.ink, letterSpacing: -0.4 }}>Review KYC</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Card style={{ marginBottom: space.md }}>
           <Text style={{ fontSize: T.body.fontSize, fontWeight: "600", color: colors.ink }}>{row.applicant?.full_name ?? "Applicant"}</Text>
           <Text style={{ color: colors.inkFaint, fontSize: 13, marginTop: 2 }}>
@@ -238,6 +242,8 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
               placeholder="e.g. Aadhaar image is blurred — please re-upload."
               placeholderTextColor={colors.inkFaint}
               multiline
+              // scroll the box above the keyboard once it opens (bug report #8)
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
               style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, minHeight: 70, fontSize: 15, color: colors.ink, marginBottom: space.md, textAlignVertical: "top" }}
             />
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -260,6 +266,7 @@ function Detail({ row, onBack, onReviewed }: { row: Row; onBack: () => void; onR
           </Card>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

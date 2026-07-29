@@ -36,8 +36,17 @@ export default function Notifications() {
   // Bug 28-07 (#6): the feed follows the ACTIVE view — in Buyer view,
   // promoter/admin-journey notifications (partner status, submission reviews)
   // are hidden. Rows are always the signed-in user's own (RLS-scoped).
+  // Bug report #8: while a super admin PREVIEWS Buyer view, their admin-stream
+  // rows (site-visit bookings/cancellations, leads, partner requests) must not
+  // appear — a real buyer would never receive those. Real buyer accounts are
+  // unaffected: they keep every notification of their own (incl. visits).
+  const previewRole = useAuth((s) => s.previewRole);
+  const isBuyerPreview = profile?.role === "super_admin" && previewRole === "buyer";
   const HIDDEN_FOR_BUYER = ["partner", "submission"];
-  const visible = (items ?? []).filter((n) => role !== "buyer" || !HIDDEN_FOR_BUYER.includes(n.type));
+  const ADMIN_STREAM = ["visit", "lead", "partner", "submission"];
+  const visible = (items ?? []).filter((n) =>
+    isBuyerPreview ? !ADMIN_STREAM.includes(n.type) : role !== "buyer" || !HIDDEN_FOR_BUYER.includes(n.type)
+  );
 
   // mark unread as read once the list is seen
   useEffect(() => {

@@ -1,12 +1,35 @@
 import { useState } from "react";
-import { Text, View, ScrollView, Pressable, Alert } from "react-native";
+import { Text, View, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, Loading, Empty, Button } from "@/components/ui";
+import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
+
+/** Bug report #8: the full-height Button made each partner card bulky —
+ *  actions are now slim pills tucked under the identity row. */
+function MiniAction({ label, onPress, loading, gold }: { label: string; onPress: () => void; loading?: boolean; gold?: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      style={{
+        paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, minWidth: 86,
+        alignItems: "center", justifyContent: "center",
+        backgroundColor: gold ? colors.gold : colors.surface,
+        borderWidth: 1, borderColor: gold ? colors.gold : colors.border,
+      }}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={gold ? "#fff" : colors.inkSoft} />
+      ) : (
+        <Text style={{ color: gold ? "#fff" : colors.inkSoft, fontWeight: "700", fontSize: 12.5 }}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
 
 const FILTERS = ["pending", "verified", "rejected"] as const;
 
@@ -94,34 +117,24 @@ export default function AdminPartners() {
                   </Text>
                 </View>
               </View>
-              {filter === "pending" ? (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Reject" variant="outline" onPress={() => review(p.id, "rejected")} loading={busy === p.id + "rejected"} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Verify" variant="gold" onPress={() => review(p.id, "verified")} loading={busy === p.id + "verified"} />
-                  </View>
-                </View>
-              ) : filter === "verified" ? (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Set Pending" variant="outline" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Reject" variant="outline" onPress={() => confirmStatusChange(p, "rejected")} loading={busy === p.id + "rejected"} />
-                  </View>
-                </View>
-              ) : (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Set Pending" variant="outline" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button label="Verify" variant="gold" onPress={() => confirmStatusChange(p, "verified")} loading={busy === p.id + "verified"} />
-                  </View>
-                </View>
-              )}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+                {filter === "pending" ? (
+                  <>
+                    <MiniAction label="Reject" onPress={() => review(p.id, "rejected")} loading={busy === p.id + "rejected"} />
+                    <MiniAction label="Verify" gold onPress={() => review(p.id, "verified")} loading={busy === p.id + "verified"} />
+                  </>
+                ) : filter === "verified" ? (
+                  <>
+                    <MiniAction label="Set Pending" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
+                    <MiniAction label="Reject" onPress={() => confirmStatusChange(p, "rejected")} loading={busy === p.id + "rejected"} />
+                  </>
+                ) : (
+                  <>
+                    <MiniAction label="Set Pending" onPress={() => confirmStatusChange(p, "pending")} loading={busy === p.id + "pending"} />
+                    <MiniAction label="Verify" gold onPress={() => confirmStatusChange(p, "verified")} loading={busy === p.id + "verified"} />
+                  </>
+                )}
+              </View>
             </Card>
           ))}
         </ScrollView>
