@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Text, View, ScrollView, Pressable, TextInput } from "react-native";
+import { Text, View, ScrollView, Pressable, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading } from "@/components/ui";
 import { KpiTile, PromoterSection, SoftEmpty } from "@/components/promoter";
 import { JamindarFab } from "@/components/Jamindar";
@@ -37,6 +37,20 @@ type Summary = {
 };
 
 type HistoryRow = { entry_date: string; income_type: string; description: string; reference_no: string; amount: number; status: string };
+
+type WalletRequest = { id: string; amount: number; method: string; status: string; remarks: string | null; created_at: string; paid_at: string | null };
+type Wallet = {
+  balance: number; withdrawable: number; pending_income: number; total_earnings: number;
+  on_hold: number; withdrawn: number; min_withdrawal: number;
+  last_details: Record<string, string> | null; requests: WalletRequest[];
+};
+
+const WD_TONE: Record<string, { bg: string; fg: string; label: string }> = {
+  pending: { bg: colors.goldSoft, fg: colors.goldDark, label: "Pending" },
+  approved: { bg: "#E8F1FE", fg: "#2B6FE1", label: "Approved" },
+  paid: { bg: colors.successSoft, fg: colors.success, label: "Paid" },
+  declined: { bg: colors.brandSoft, fg: colors.brand, label: "Declined" },
+};
 
 const SEGMENTS: { key: Segment; label: string }[] = [
   { key: "dsi", label: "Direct Sales" },
@@ -128,8 +142,14 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
 export default function SalesIncome() {
   const router = useRouter();
   const { profile } = useAuth();
+  const qc = useQueryClient();
   const uid = profile?.id;
   const [seg, setSeg] = useState<Segment>("dsi");
+  const [wdOpen, setWdOpen] = useState(false);
+  const [wdAmount, setWdAmount] = useState("");
+  const [wdMethod, setWdMethod] = useState<"bank" | "upi">("bank");
+  const [wdFields, setWdFields] = useState<Record<string, string>>({});
+  const [wdBusy, setWdBusy] = useState(false);
   const [range, setRangeState] = useState<Range>(sessionFilter.range);
   const [statusF, setStatusFState] = useState<StatusFilter>(sessionFilter.status);
   const [search, setSearchState] = useState(sessionFilter.search);
@@ -185,6 +205,48 @@ export default function SalesIncome() {
       return (data as HistoryRow[]) ?? [];
     },
   });
+
+  // Live wallet (0059): server-computed balance, holds and request history.
+  const { data: w } = useQuery({
+    queryKey: ["bazaar-wallet", uid],
+    enabled: !!uid && seg === "wallet",
+    queryFn: async (): Promise<Wallet> => {
+      const { data, error } = await supabase.rpc("bazaar_wallet_summary");
+      if (error) throw error;
+      return data as unknown as Wallet;
+    },
+  });
+
+  async function submitWithdrawal() {
+    const amt = Number(wdAmount.replace(/[^0-9.]/g, ""));
+    if (!amt || amt <= 0) { Alert.alert("Withdrawal", "Enter a valid amount."); return; }
+    setWdBusy(true);
+    try {
+      const details = wdMethod === "bank"
+        ? { holder: wdFields.holder ?? "", account: wdFields.account ?? "", ifsc: wdFields.ifsc ?? "" }
+        : { upi: wdFields.upi ?? "" };
+      const { data, error } = await supabase.rpc("bazaar_request_withdrawal", {
+        p_amount: amt, p_method: wdMethod, p_details: details,
+      });
+      if (error) throw error;
+      const r = data as { ok: boolean; error?: string };
+      if (!r.ok) { Alert.alert("Withdrawal", r.error ?? "Could not submit the request."); return; }
+      setWdOpen(false); setWdAmount("");
+      qc.invalidateQueries({ queryKey: ["bazaar-wallet", uid] });
+      Alert.alert("Request submitted 🎉", "Your withdrawal request has been sent for approval. You'll be notified as soon as it is reviewed.");
+    } catch (e: any) {
+      Alert.alert("Withdrawal", e?.message ?? "Something went wrong — please try again.");
+    } finally {
+      setWdBusy(false);
+    }
+  }
+
+  function openWithdraw() {
+    const last = w?.last_details ?? {};
+    setWdMethod(last.method === "upi" ? "upi" : "bank");
+    setWdFields({ holder: last.holder ?? "", account: last.account ?? "", ifsc: last.ifsc ?? "", upi: last.upi ?? "" });
+    setWdOpen(true);
+  }
 
   const bucket: Bucket | null = !s ? null : seg === "dsi" ? s.dsi : seg === "rsi" ? s.rsi : seg === "asi" ? s.asi : null;
   const st = s?.status;
@@ -256,14 +318,109 @@ export default function SalesIncome() {
           {/* totals */}
           {seg === "wallet" ? (
             <View style={{ gap: space.sm, marginBottom: space.sm }}>
+              {/* balance hero */}
+              <Card style={{ backgroundColor: colors.navy, borderColor: colors.navy, overflow: "hidden" }}>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: T.caption.fontSize + 1, fontWeight: "700", letterSpacing: 0.6 }}>WALLET BALANCE</Text>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 30, marginTop: 4 }}>{formatINR(w?.balance ?? 0)}</Text>
+                <View style={{ flexDirection: "row", gap: space.md, marginTop: space.sm, flexWrap: "wrap" }}>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: T.caption.fontSize + 1 }}>Pending income {formatINR(w?.pending_income ?? 0)}</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: T.caption.fontSize + 1 }}>On hold {formatINR(w?.on_hold ?? 0)}</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: T.caption.fontSize + 1 }}>Withdrawn {formatINR(w?.withdrawn ?? 0)}</Text>
+                </View>
+                <Pressable
+                  onPress={wdOpen ? () => setWdOpen(false) : openWithdraw}
+                  style={{ marginTop: space.md, backgroundColor: colors.brand, borderRadius: 12, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}
+                >
+                  <Ionicons name={wdOpen ? "close" : "cash-outline"} size={17} color="#fff" />
+                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.small.fontSize + 1 }}>{wdOpen ? "Cancel" : "Withdraw funds"}</Text>
+                </Pressable>
+              </Card>
+
+              {/* withdrawal form */}
+              {wdOpen ? (
+                <Card style={{ gap: space.xs }}>
+                  <Text style={{ color: colors.ink, fontWeight: "800", fontSize: T.small.fontSize + 1 }}>New withdrawal request</Text>
+                  <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1 }}>
+                    Available {formatINR(w?.balance ?? 0)} · minimum {formatINR(w?.min_withdrawal ?? 100)}
+                  </Text>
+                  <TextInput
+                    value={wdAmount}
+                    onChangeText={setWdAmount}
+                    keyboardType="numeric"
+                    placeholder="Amount (₹)"
+                    placeholderTextColor={colors.inkFaint}
+                    style={{ backgroundColor: colors.surfaceSunken, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: T.body.fontSize, color: colors.ink, fontWeight: "700" }}
+                  />
+                  <View style={{ flexDirection: "row", gap: space.xs }}>
+                    {(["bank", "upi"] as const).map((m) => (
+                      <Chip key={m} label={m === "bank" ? "Bank transfer" : "UPI"} on={wdMethod === m} onPress={() => setWdMethod(m)} />
+                    ))}
+                  </View>
+                  {wdMethod === "bank" ? (
+                    <View style={{ gap: space.xs }}>
+                      {([["holder", "Account holder name"], ["account", "Account number"], ["ifsc", "IFSC code"]] as const).map(([k, ph]) => (
+                        <TextInput
+                          key={k}
+                          value={wdFields[k] ?? ""}
+                          onChangeText={(v) => setWdFields((f) => ({ ...f, [k]: v }))}
+                          placeholder={ph}
+                          placeholderTextColor={colors.inkFaint}
+                          autoCapitalize={k === "ifsc" ? "characters" : "words"}
+                          style={{ backgroundColor: colors.surfaceSunken, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: T.small.fontSize, color: colors.ink }}
+                        />
+                      ))}
+                    </View>
+                  ) : (
+                    <TextInput
+                      value={wdFields.upi ?? ""}
+                      onChangeText={(v) => setWdFields((f) => ({ ...f, upi: v }))}
+                      placeholder="UPI ID (name@bank)"
+                      placeholderTextColor={colors.inkFaint}
+                      autoCapitalize="none"
+                      style={{ backgroundColor: colors.surfaceSunken, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: T.small.fontSize, color: colors.ink }}
+                    />
+                  )}
+                  <Pressable
+                    disabled={wdBusy}
+                    onPress={submitWithdrawal}
+                    style={{ backgroundColor: wdBusy ? colors.inkFaint : colors.success, borderRadius: 12, paddingVertical: 12, alignItems: "center", marginTop: 2 }}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.small.fontSize + 1 }}>{wdBusy ? "Submitting…" : "Submit request"}</Text>
+                  </Pressable>
+                </Card>
+              ) : null}
+
               <View style={{ flexDirection: "row", gap: space.sm }}>
-                <KpiTile icon="wallet" label="Available" value={formatINR(walletAvailable)} tint={colors.successSoft} accent={colors.success} />
-                <KpiTile icon="trending-up" label="Total earned" value={formatINR(walletTotal)} tint={colors.brandSoft} accent={colors.brand} />
+                <KpiTile icon="trending-up" label="Total earned" value={formatINR(w?.total_earnings ?? walletTotal)} tint={colors.brandSoft} accent={colors.brand} />
+                <KpiTile icon="hourglass" label="Pending" value={formatINR(w?.pending_income ?? 0)} tint={colors.goldSoft} accent={colors.goldDark} />
               </View>
               <View style={{ flexDirection: "row", gap: space.sm }}>
                 <KpiTile icon="lock-closed" label="Locked" value={formatINR(lockedTotal)} tint={colors.goldSoft} accent={colors.goldDark} />
-                <KpiTile icon="checkmark-done" label="Withdrawn" value={formatINR(s.withdrawn)} tint={colors.surfaceSunken} accent={colors.inkSoft} />
+                <KpiTile icon="checkmark-done" label="Withdrawn" value={formatINR(w?.withdrawn ?? s.withdrawn)} tint={colors.surfaceSunken} accent={colors.inkSoft} />
               </View>
+
+              {/* my requests */}
+              {(w?.requests ?? []).length ? (
+                <Card style={{ gap: space.xs }}>
+                  <Text style={{ color: colors.ink, fontWeight: "800", fontSize: T.small.fontSize + 1 }}>Withdrawal requests</Text>
+                  {(w?.requests ?? []).map((r) => {
+                    const tone = WD_TONE[r.status] ?? WD_TONE.pending;
+                    return (
+                      <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: 7, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.ink, fontWeight: "800", fontSize: T.small.fontSize + 1 }}>{formatINR(r.amount)}</Text>
+                          <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1 }}>
+                            {r.method === "upi" ? "UPI" : "Bank"} · {timeAgo(r.created_at)}{r.remarks ? ` · ${r.remarks}` : ""}
+                          </Text>
+                        </View>
+                        <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                          <Text style={{ color: tone.fg, fontWeight: "800", fontSize: T.caption.fontSize + 1 }}>{tone.label}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </Card>
+              ) : null}
             </View>
           ) : (
             <View style={{ gap: space.sm, marginBottom: space.sm }}>

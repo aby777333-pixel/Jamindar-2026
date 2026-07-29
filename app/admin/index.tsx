@@ -1,4 +1,5 @@
-import { Text, View, ScrollView, Pressable, Linking } from "react-native";
+import { useEffect, useRef } from "react";
+import { Text, View, ScrollView, Pressable, Linking, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +17,31 @@ async function count(table: string, filter?: (q: any) => any): Promise<number> {
   if (filter) q = filter(q);
   const { count } = await q;
   return count ?? 0;
+}
+
+/** Soft pulsing glow beside a pending count (owner spec 29-07): attracts the
+ *  eye without harsh flashing, and disappears with the badge once resolved. */
+function PulseDot({ color = "#fff" }: { color?: string }) {
+  const a = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(a, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(a, { toValue: 0.35, duration: 800, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+  return <Animated.View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity: a, marginRight: 4 }} />;
+}
+
+function CountBadge({ n, bg = colors.brand }: { n: number; bg?: string }) {
+  if (!n) return null;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", minWidth: 26, height: 26, paddingHorizontal: 9, borderRadius: 13, backgroundColor: bg, justifyContent: "center" }}>
+      <PulseDot />
+      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{n}</Text>
+    </View>
+  );
 }
 
 export default function AdminConsole() {
@@ -37,6 +63,18 @@ export default function AdminConsole() {
       ]);
       const partnersPending = await count("profiles", (q) => q.eq("partner_status", "pending"));
       return { users, buyers, promoters, properties, visits, leads, brochures, voice, kycPending, partnersPending };
+    },
+  });
+
+  // Smart activity indicators (0059): one RPC, shared with the web console;
+  // refreshes automatically so both consoles stay in sync.
+  const { data: pend } = useQuery({
+    queryKey: ["admin-pending-counts"],
+    refetchInterval: 45000,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase.rpc("admin_pending_counts");
+      if (error) throw error;
+      return (data as Record<string, number>) ?? {};
     },
   });
 
@@ -99,13 +137,7 @@ export default function AdminConsole() {
               <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>KYC Verifications</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Review, approve or reject submissions</Text>
             </View>
-            {stats!.kycPending > 0 ? (
-              <View style={{ minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{stats!.kycPending}</Text>
-              </View>
-            ) : (
-              <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-            )}
+            {stats!.kycPending > 0 ? <CountBadge n={stats!.kycPending} /> : <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />}
           </Card>
 
           <Card onPress={() => router.push("/admin/partners" as Href)} style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 }}>
@@ -116,25 +148,32 @@ export default function AdminConsole() {
               <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>Partner Requests</Text>
               <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Verify or reject Jamin Partners</Text>
             </View>
-            {stats!.partnersPending > 0 ? (
-              <View style={{ minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, backgroundColor: colors.goldDark, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{stats!.partnersPending}</Text>
-              </View>
-            ) : (
-              <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-            )}
+            {stats!.partnersPending > 0 ? <CountBadge n={stats!.partnersPending} bg={colors.goldDark} /> : <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />}
+          </Card>
+
+          {/* Wallet & withdrawals — live entry (0059) */}
+          <Card onPress={() => router.push("/admin/withdrawals" as Href)} style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="wallet" size={22} color={colors.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "700", color: colors.ink, fontSize: 15 }}>Wallet & Withdrawals</Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Approve, decline & mark promoter payouts</Text>
+            </View>
+            {(pend?.withdrawals ?? 0) > 0 ? <CountBadge n={pend!.withdrawals} bg={colors.success} /> : <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />}
           </Card>
 
           {/* management shortcuts */}
           <SectionTitle>Management</SectionTitle>
           <Card style={{ padding: 0, marginBottom: 24 }}>
             {[
-              { icon: "pulse", label: "Live Activity", note: "Every platform event, in real time", href: "/admin/activity" as Href },
-              { icon: "business", label: "Property Management", note: "Create, edit, media, availability", href: "/admin/properties" as Href },
-              { icon: "calendar", label: "Site Visits", note: "Confirm, reschedule, cancel bookings", href: "/manage-visits" as Href },
+              { icon: "pulse", label: "Live Activity", note: "Every platform event, in real time", href: "/admin/activity" as Href, badge: pend?.leads ?? 0 },
+              { icon: "business", label: "Property Management", note: "Create, edit, media, availability", href: "/admin/properties" as Href, badge: pend?.submissions ?? 0 },
+              { icon: "calendar", label: "Site Visits", note: "Confirm, reschedule, cancel bookings", href: "/manage-visits" as Href, badge: pend?.visits ?? 0 },
+              { icon: "wallet", label: "Wallet & Withdrawals", note: "Promoter payout requests & approvals", href: "/admin/withdrawals" as Href, badge: pend?.withdrawals ?? 0 },
               { icon: "chatbubbles", label: "Messages", note: "Conversations, moderation & audit", href: "/messages" as Href },
               { icon: "headset", label: "Help Desk Contact", note: "Phone, WhatsApp & email shown to users", href: "/admin/desk-contact" as Href },
-              { icon: "people-circle", label: "Community", note: "Moderate posts, contact log & reports", href: "/admin/community" as Href },
+              { icon: "people-circle", label: "Community", note: "Moderate posts, contact log & reports", href: "/admin/community" as Href, badge: pend?.community ?? 0 },
               // Same Supabase backend as this console — one source of truth, changes reflect instantly.
               { icon: "globe", label: "Full Web Console", note: "All views incl. Share & Brochures, earnings, tree", href: null, url: "https://merry-begonia-4c3cd1.netlify.app/admin" },
               { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts", href: null },
@@ -147,7 +186,8 @@ export default function AdminConsole() {
                     <Text style={{ fontWeight: "700", color: colors.ink }}>{r.label}</Text>
                     <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{r.note}</Text>
                   </View>
-                  {r.href || (r as any).url ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Soon</Text>}
+                  {((r as any).badge ?? 0) > 0 ? <CountBadge n={(r as any).badge} /> :
+                    r.href || (r as any).url ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Soon</Text>}
                 </View>
               );
               if (r.href) return <Pressable key={r.label} onPress={() => router.push(r.href!)}>{body}</Pressable>;
