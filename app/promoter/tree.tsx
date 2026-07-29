@@ -63,7 +63,12 @@ export default function EarningTree() {
               <Text style={{ color: colors.onDarkFaint, fontSize: T.caption.fontSize + 1 }}>Levels deep</Text>
             </View>
           </View>
-          {profile?.member_code ? (
+          {profile?.role === "super_admin" ? (
+            // Owner directive (29-07): no generated ID for super admins.
+            <Text style={{ color: colors.onDarkFaint, fontSize: T.caption.fontSize + 1, marginTop: space.sm }}>
+              <Text style={{ color: "#fff", fontWeight: "700" }}>Super Admin</Text>
+            </Text>
+          ) : profile?.member_code ? (
             <Text style={{ color: colors.onDarkFaint, fontSize: T.caption.fontSize + 1, marginTop: space.sm }}>
               Promoter ID · <Text style={{ color: "#fff", fontWeight: "700" }}>{profile.member_code}</Text>
             </Text>

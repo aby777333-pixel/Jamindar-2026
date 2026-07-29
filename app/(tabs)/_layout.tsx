@@ -1,10 +1,14 @@
-import { Tabs } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { View } from "react-native";
 import { JamindarFab } from "@/components/Jamindar";
 import { TabBar } from "@/components/TabBar";
 
 export default function TabsLayout() {
+  // Audit 29-07 (#16): the Jamindar tab mounts its own sheet — showing the mic
+  // FAB there put a second entry point to a second copy of the same sheet.
+  const pathname = usePathname();
+  const onAssistantTab = pathname?.includes("assistant");
   return (
     <View style={{ flex: 1 }}>
       <Tabs
@@ -44,7 +48,7 @@ export default function TabsLayout() {
         />
       </Tabs>
       {/* clears the floating tab bar (≈71pt tall + its 13pt bottom margin) */}
-      <JamindarFab bottomOffset={92} />
+      {onAssistantTab ? null : <JamindarFab bottomOffset={92} />}
     </View>
   );
 }

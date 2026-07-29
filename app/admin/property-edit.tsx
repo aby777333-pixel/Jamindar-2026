@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType, type PropertyStatus, type ProjectPhase } from "@/lib/types";
 import { generateDescription } from "@/lib/property-media";
+import { useAdminGate } from "@/components/AdminGate";
 
 const TYPES = Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[];
 const STATUSES: PropertyStatus[] = ["draft", "available", "reserved", "sold", "archived"];
@@ -163,6 +164,9 @@ export default function PropertyEdit() {
       setAiBusy(false);
     }
   }
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   if (loading) return <Loading />;
 

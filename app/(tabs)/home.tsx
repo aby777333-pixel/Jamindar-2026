@@ -112,7 +112,7 @@ export default function Home() {
 
   function runSuggestion(s: Suggestion) {
     if (s.action.type === "checklist") Alert.alert("Pre-purchase checklist", checklistText());
-    else if (s.action.type === "visits") router.navigate("/(tabs)/account");
+    else if (s.action.type === "visits") router.push("/visits" as Href); // audit 29-07: went to Account
     else browse(s.action.filters);
   }
 

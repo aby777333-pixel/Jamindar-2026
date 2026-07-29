@@ -35,7 +35,9 @@ export default function ReferralCentre() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const code = profile?.referral_code ?? "";
+  // Audit 29-07: with a null referral_code every share tile was silently dead —
+  // fall back to the partner/member code like the Command Center does.
+  const code = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? "";
 
   const { data: stats } = useQuery({ queryKey: ["referral-stats", profile?.id], enabled: !!profile?.id, queryFn: fetchReferralStats });
   const { data: referrals } = useQuery({
@@ -155,7 +157,7 @@ export default function ReferralCentre() {
           </View>
           {ps === "verified" ? (
             <>
-              <Text style={{ color: colors.gold, fontWeight: "600", marginTop: 10 }}>✅ Verified Jamin Partner</Text>
+              <Text style={{ color: colors.gold, fontWeight: "600", marginTop: 10 }}>✅ Verified Jamin Bazaar Partner</Text>
               {profile?.partner_code ? <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4 }}>Partner ID · {profile.partner_code}</Text> : null}
               {profile?.partner_verified_at ? <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 2 }}>Approved {new Date(profile.partner_verified_at).toLocaleDateString()}</Text> : null}
             </>

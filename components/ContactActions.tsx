@@ -56,7 +56,7 @@ export function ContactActions({ contact, context }: { contact: PromoterContact;
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
             {verified ? <Ionicons name="ribbon" size={12} color={colors.goldDark} /> : null}
             <Text style={{ color: verified ? colors.goldDark : colors.inkFaint, fontSize: T.caption.fontSize + 1, fontWeight: verified ? "700" : "400" }} numberOfLines={1}>
-              {verified ? "Verified Jamin Partner" : contact.designation || "Jamin Partner"}
+              {verified ? "Verified Jamin Bazaar Partner" : contact.designation || "Jamin Partner"}
             </Text>
           </View>
         </View>

@@ -10,6 +10,7 @@ import {
   listMedia, pickAndAddImages, pickAndAddVideos, addLink, setPrimary, moveMedia, removeMedia, updateMedia,
   MEDIA_KINDS, AUDIENCES, type PropertyMedia,
 } from "@/lib/property-media";
+import { useAdminGate } from "@/components/AdminGate";
 
 const KIND_LABEL: Record<string, string> = Object.fromEntries(MEDIA_KINDS.map((k) => [k.key, k.label]));
 const DOC_KINDS = MEDIA_KINDS.filter((k) => k.group === "document");
@@ -38,6 +39,9 @@ export default function PropertyMediaScreen() {
 
   const photos = (media ?? []).filter((m) => m.kind === "image");
   const docs = (media ?? []).filter((m) => m.kind !== "image");
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   if (isLoading) return <Loading />;
 

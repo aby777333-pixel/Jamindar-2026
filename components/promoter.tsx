@@ -17,10 +17,10 @@ import { IconChip } from "./premium";
 
 type PartnerStatus = "none" | "eligible" | "pending" | "verified" | "rejected";
 
-/** "Verified Jamin Partner" pill (gold jewel accent) + its pending/none states. */
+/** "Verified Jamin Bazaar Partner" pill (gold jewel accent) + its pending/none states. */
 export function PartnerBadge({ status }: { status: string }) {
   const map: Record<PartnerStatus, { label: string; bg: string; fg: string; icon: string }> = {
-    verified: { label: "Verified Jamin Partner", bg: colors.goldSoft, fg: colors.goldDark, icon: "ribbon" },
+    verified: { label: "Verified Jamin Bazaar Partner", bg: colors.goldSoft, fg: colors.goldDark, icon: "ribbon" },
     pending: { label: "Verification pending", bg: colors.brandSoft, fg: colors.brand, icon: "time" },
     eligible: { label: "Verification pending", bg: colors.brandSoft, fg: colors.brand, icon: "time" },
     rejected: { label: "Verification needs attention", bg: colors.brandSoft, fg: colors.brand, icon: "alert-circle" },
@@ -53,10 +53,10 @@ export function VerificationBanner({ status, onAction }: { status: string; onAct
   if (status === "verified") return null;
   const pending = status === "pending" || status === "eligible";
   const cfg = pending
-    ? { icon: "time", title: "Verification in progress", body: "Your KYC is under review. You'll get a Verified Jamin Partner badge once approved.", cta: null }
+    ? { icon: "time", title: "Verification in progress", body: "Your KYC is under review. You'll get a Verified Jamin Bazaar Partner badge once approved.", cta: null }
     : status === "rejected"
       ? { icon: "alert-circle", title: "Verification needs attention", body: "Some details need correcting. Update your KYC to continue.", cta: "Review KYC" }
-      : { icon: "shield-checkmark", title: "Become a Verified Jamin Partner", body: "Complete your KYC to unlock referrals, leads, and commissions.", cta: "Complete KYC" };
+      : { icon: "shield-checkmark", title: "Become a Verified Jamin Bazaar Partner", body: "Complete your KYC to unlock referrals, leads, and commissions.", cta: "Complete KYC" };
   return (
     <View
       style={{

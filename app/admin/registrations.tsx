@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
+import { useAdminGate } from "@/components/AdminGate";
 
 interface Row {
   user_id: string | null;
@@ -62,6 +63,9 @@ export default function AdminRegistrations() {
     });
     return rows;
   }, [data, search, sort, asc, roleParam]);
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const safePage = Math.min(page, pages - 1);

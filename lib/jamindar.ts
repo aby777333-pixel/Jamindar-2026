@@ -123,11 +123,14 @@ export async function getOrCreateConversation(userId: string, language: string):
   if (recent && Date.now() - new Date(recent.last_message_at).getTime() < 12 * 3600 * 1000) {
     return recent.id as string;
   }
-  const { data: created } = await supabase
+  // Audit 29-07: a refused insert left `created` null and the next line threw a
+  // TypeError that killed the assistant — surface a real error instead.
+  const { data: created, error } = await supabase
     .from("conversations")
     .insert({ user_id: userId, title: "Jamindar chat", language })
     .select("id")
     .single();
+  if (error || !created) throw new Error(error?.message ?? "Could not start a Jamindar conversation.");
   return (created as { id: string }).id;
 }
 

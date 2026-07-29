@@ -196,7 +196,8 @@ async function boot(){
   if(!prof || prof.role!=="super_admin"){ $("#login-msg").textContent="This console is for administrators only."; await sb.auth.signOut(); return; }
   ME = prof;
   $("#login").style.display="none"; $("#app").style.display="grid";
-  $("#who-name").textContent = (prof.full_name||"Admin")+" · "+(prof.member_code||"");
+  // Owner directive (29-07): super admins carry no generated ID — show the role.
+  $("#who-name").textContent = (prof.full_name||"Admin")+" · Super Admin";
   document.querySelectorAll("#nav a").forEach(a=>a.onclick=()=>go(a.dataset.view));
   refreshBadges(); go("dashboard");
 }

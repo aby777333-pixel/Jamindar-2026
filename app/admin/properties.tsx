@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { colors, type as T } from "@/lib/theme";
 import { formatINR } from "@/lib/format";
 import type { Property } from "@/lib/types";
+import { useAdminGate } from "@/components/AdminGate";
 
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   draft: { bg: colors.surfaceSunken, fg: colors.inkFaint },
@@ -27,6 +28,9 @@ export default function AdminProperties() {
       return (data as Property[]) ?? [];
     },
   });
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

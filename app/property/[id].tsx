@@ -370,11 +370,11 @@ export default function PropertyDetail() {
           <Pressable onPress={() => router.back()} style={{ position: "absolute", top: 12, left: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
             <Ionicons name="arrow-back" size={22} color="#fff" />
           </Pressable>
-          {role === "buyer" ? (
-            <Pressable onPress={toggleFav} style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
-              <Ionicons name={isFav ? "heart" : "heart-outline"} size={22} color={isFav ? colors.brand : "#fff"} />
-            </Pressable>
-          ) : null}
+          {/* Audit 29-07: favourites are per-user, not buyer-only — promoters and
+              admins save from the explorer rails, so the heart must match here. */}
+          <Pressable onPress={toggleFav} style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
+            <Ionicons name={isFav ? "heart" : "heart-outline"} size={22} color={isFav ? colors.brand : "#fff"} />
+          </Pressable>
           {allVideos.length > 0 ? (
             <View style={{ position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, padding: 3 }}>
               {(["photos", "videos"] as const).map((m) => (

@@ -3,8 +3,6 @@ import { Linking, Platform, Share } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "./supabase";
 
-// Public landing that captures ?ref=<code> for acquisition (deep-link wiring TODO).
-const REFERRAL_BASE = "https://merry-begonia-4c3cd1.netlify.app/welcome";
 
 export function referralLink(code: string): string {
   // Branded invite page (server-rendered OG preview with the promoter's card,

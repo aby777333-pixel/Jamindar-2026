@@ -9,6 +9,7 @@ import { RolePreviewBar } from "@/components/RolePreview";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
+import { useAdminGate } from "@/components/AdminGate";
 
 async function count(table: string, filter?: (q: any) => any): Promise<number> {
   let q = supabase.from(table).select("id", { count: "exact", head: true });
@@ -51,6 +52,9 @@ export default function AdminConsole() {
     },
   });
 
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 8 }}>
@@ -59,7 +63,7 @@ export default function AdminConsole() {
         </Pressable>
         <View>
           <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink }}>Admin Console</Text>
-          <Text style={{ color: colors.inkFaint, fontSize: 13 }}>Jamin ecosystem overview</Text>
+          <Text style={{ color: colors.inkFaint, fontSize: 13 }}>Jamin Bazaar ecosystem overview</Text>
         </View>
       </View>
 

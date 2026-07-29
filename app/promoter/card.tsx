@@ -14,7 +14,7 @@ import { pickAndUploadAvatar } from "@/lib/property-media";
 import { cardLink, cardMessage, shareVia, type ShareChannel } from "@/lib/referral";
 
 /** Digital Jamin Promoter Card — premium shareable identity: professional
- *  photo (mandatory), name, Promoter ID, Verified Jamin Partner badge with
+ *  photo (mandatory), name, Promoter ID, Verified Jamin Bazaar Partner badge with
  *  admin-controlled state, QR + public V-Card link, contact details and
  *  one-tap sharing. The share payload always originates from the promoter's
  *  verified profile; the QR and links open the public premium card page. */
@@ -37,11 +37,14 @@ export default function PromoterCard() {
 
   if (isLoading) return <Loading label="Preparing your card…" />;
 
-  const code = profile?.partner_code ?? profile?.referral_code ?? promo?.referral_code ?? profile?.member_code ?? "—";
-  const refCode = profile?.referral_code ?? promo?.referral_code ?? profile?.member_code ?? "—";
-  const link = cardLink(code);
+  // Audit 29-07: the em-dash placeholder used to leak into the share link and
+  // QR ("/card?c=%E2%80%94" → "Card not found"). No real code → no share/QR.
+  const code = profile?.partner_code ?? profile?.referral_code ?? promo?.referral_code ?? profile?.member_code ?? "";
+  const refCode = profile?.referral_code ?? promo?.referral_code ?? profile?.member_code ?? "";
+  const link = code ? cardLink(code) : "";
   const verified = profile?.partner_status === "verified";
   const hasPhoto = !!profile?.avatar_url;
+  const shareable = hasPhoto && !!code;
   const area = [profile?.city, profile?.district, profile?.state].filter(Boolean).join(", ") || "Service area not set";
   const designation = (promo as any)?.designation ?? "Jamin Partner";
 
@@ -64,7 +67,7 @@ export default function PromoterCard() {
   }
 
   async function shareCard() {
-    if (!hasPhoto) return;
+    if (!shareable) return;
     await Share.share({ message: cardMessage(profile?.full_name, code) });
   }
 
@@ -138,7 +141,7 @@ export default function PromoterCard() {
               >
                 <Ionicons name={verified ? "checkmark-circle" : "time"} size={14} color={verified ? "#3DD68C" : colors.onDarkFaint} />
                 <Text style={{ color: verified ? "#3DD68C" : colors.onDarkFaint, fontWeight: "800", fontSize: T.caption.fontSize + 1, letterSpacing: 0.3 }}>
-                  {verified ? "Verified Jamin Partner" : "Verification pending"}
+                  {verified ? "Verified Jamin Bazaar Partner" : "Verification pending"}
                 </Text>
               </Pressable>
             </View>
@@ -146,7 +149,7 @@ export default function PromoterCard() {
             {/* QR + public card link */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.md }}>
               <View style={{ backgroundColor: "#fff", padding: 8, borderRadius: 14 }}>
-                <QRCode value={link} size={92} color={colors.navy} backgroundColor="#fff" />
+                {link ? <QRCode value={link} size={92} color={colors.navy} backgroundColor="#fff" /> : null}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ color: colors.onDarkFaint, fontSize: T.caption.fontSize + 1, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" }}>Referral code</Text>
@@ -192,27 +195,27 @@ export default function PromoterCard() {
 
         {!verified ? (
           <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.sm, lineHeight: T.small.lineHeight }}>
-            Your card upgrades to a Verified Jamin Partner card automatically once the administration approves you.
+            Your card upgrades to a Verified Jamin Bazaar Partner card automatically once the administration approves you.
           </Text>
         ) : null}
 
         {/* one-tap share — needs the mandatory photo */}
         <Pressable
           onPress={shareCard}
-          disabled={!hasPhoto}
+          disabled={!shareable}
           style={{
             marginTop: space.md,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
             gap: 8,
-            backgroundColor: hasPhoto ? colors.brand : colors.surfaceSunken,
+            backgroundColor: shareable ? colors.brand : colors.surfaceSunken,
             borderRadius: space.sm + 3,
             paddingVertical: space.sm + 2,
           }}
         >
-          <Ionicons name="share-social" size={18} color={hasPhoto ? "#fff" : colors.inkFaint} />
-          <Text style={{ color: hasPhoto ? "#fff" : colors.inkFaint, fontWeight: "700", fontSize: T.body.fontSize }}>Share my card</Text>
+          <Ionicons name="share-social" size={18} color={shareable ? "#fff" : colors.inkFaint} />
+          <Text style={{ color: shareable ? "#fff" : colors.inkFaint, fontWeight: "700", fontSize: T.body.fontSize }}>Share my card</Text>
         </Pressable>
 
         {/* open the public premium card */}
@@ -229,11 +232,11 @@ export default function PromoterCard() {
           {channels.map((c) => (
             <Pressable
               key={c.label}
-              disabled={!hasPhoto}
+              disabled={!shareable}
               onPress={async () => {
                 await shareVia(c.ch, cardMessage(profile?.full_name, code), link, "My Jamin Properties card");
               }}
-              style={{ alignItems: "center", gap: 6, flex: 1, opacity: hasPhoto ? 1 : 0.45 }}
+              style={{ alignItems: "center", gap: 6, flex: 1, opacity: shareable ? 1 : 0.45 }}
             >
               <View style={{ width: 50, height: 50, borderRadius: 16, backgroundColor: c.tint, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name={c.icon as any} size={22} color={c.fg} />
@@ -251,7 +254,7 @@ export default function PromoterCard() {
             <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: colors.success, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
               <Ionicons name="checkmark" size={28} color="#fff" />
             </View>
-            <Text style={{ fontSize: T.body.fontSize + 1, fontWeight: "800", color: colors.ink }}>Verified Jamin Partner</Text>
+            <Text style={{ fontSize: T.body.fontSize + 1, fontWeight: "800", color: colors.ink }}>Verified Jamin Bazaar Partner</Text>
             <Text style={{ color: colors.inkSoft, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: 8 }}>
               This promoter has been verified and approved by the Jamin Promoters administration.
             </Text>

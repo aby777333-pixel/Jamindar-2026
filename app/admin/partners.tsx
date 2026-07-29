@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
+import { useAdminGate } from "@/components/AdminGate";
 
 /** Bug report #8: the full-height Button made each partner card bulky —
  *  actions are now slim pills tucked under the identity row. */
@@ -51,6 +52,9 @@ export default function AdminPartners() {
       return data ?? [];
     },
   });
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   async function review(userId: string, decision: "verified" | "rejected" | "pending") {
     setBusy(userId + decision);

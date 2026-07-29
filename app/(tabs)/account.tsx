@@ -97,7 +97,9 @@ export default function Account() {
           </View>
           <Text style={{ color: colors.inkFaint, marginTop: 2, fontSize: 13 }}>+{profile?.mobile}</Text>
 
-          {profile?.member_code ? (
+          {/* Super admins carry no generated ID — the role pill below already
+              says "Super Admin" (owner directive, audit round 29-07). */}
+          {profile?.member_code && profile.role !== "super_admin" ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: colors.surfaceSunken, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
               <Ionicons name="finger-print" size={13} color={colors.inkFaint} />
               <Text style={{ color: colors.inkSoft, fontSize: 12, fontWeight: "600", letterSpacing: 0.5 }}>

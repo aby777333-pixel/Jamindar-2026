@@ -20,7 +20,8 @@ const ITEMS: Item[] = [
   { label: "Documents", icon: "folder-open", href: "/buyer/kyc" as Href },
   { label: "Referral", icon: "gift", href: "/referral" as Href },
   { label: "Notifications", icon: "notifications", href: "/notifications" as Href },
-  { label: "Messages", icon: "chatbubbles", href: "/(tabs)/assistant" as Href },
+  // Audit 29-07: this tile opened the AI assistant instead of the inbox.
+  { label: "Messages", icon: "chatbubbles", href: "/messages" as Href },
   { label: "Support", icon: "help-buoy", href: "/support" as Href },
   { label: "Profile", icon: "person", href: "/profile" as Href },
 ];
@@ -46,7 +47,8 @@ export default function BuyerDashboard() {
           <View style={{ flex: 1 }}>
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }} numberOfLines={1}>{profile?.full_name ?? "Guest"}</Text>
             <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 2 }}>
-              {[profile?.member_code, kyc.label].filter(Boolean).join(" · ")}
+              {/* super admins show the role, never a generated ID (29-07) */}
+              {[profile?.role === "super_admin" ? "Super Admin" : profile?.member_code, kyc.label].filter(Boolean).join(" · ")}
             </Text>
           </View>
           {profile?.partner_status === "verified" ? (

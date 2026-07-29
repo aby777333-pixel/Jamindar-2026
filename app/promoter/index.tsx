@@ -136,7 +136,12 @@ export default function PromoterDashboard() {
               <PartnerBadge status={partnerStatus} />
             </View>
           </View>
-          {profile?.member_code ? (
+          {profile?.role === "super_admin" ? (
+            // Owner directive (29-07): super admins show no generated ID — just the role.
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ color: colors.brand, fontSize: T.small.fontSize, fontWeight: "800", letterSpacing: 0.4 }}>SUPER ADMIN</Text>
+            </View>
+          ) : profile?.member_code ? (
             <View style={{ alignItems: "flex-end" }}>
               <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize, fontWeight: "600", letterSpacing: 0.4 }}>PROMOTER ID</Text>
               <Text style={{ color: colors.ink, fontSize: T.small.fontSize + 1, fontWeight: "800", letterSpacing: 0.3, marginTop: 1 }}>{profile.member_code}</Text>
@@ -319,7 +324,6 @@ export default function PromoterDashboard() {
         {/* roadmap — reserved space for upcoming promoter modules incl. ML tree */}
         <PromoterSection title="Coming to your suite">
           <View style={{ gap: space.sm }}>
-            <ReservedCard icon="chatbubbles" title="In-app messaging" subtitle="Live chat & video calling with your leads." />
             <ReservedCard icon="document-text" title="Downloadable statements" subtitle="Monthly PDF statements & incentive programs." />
           </View>
         </PromoterSection>

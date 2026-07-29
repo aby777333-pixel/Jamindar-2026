@@ -11,6 +11,7 @@ import { timeAgo } from "@/lib/format";
 import { signedKycUrl } from "@/lib/kyc";
 import { ZoomableImageViewer } from "@/components/ImageViewer";
 import type { KycSubmission } from "@/lib/types";
+import { useAdminGate } from "@/components/AdminGate";
 
 type Row = KycSubmission & {
   applicant: { full_name: string | null; member_code: string | null; mobile: string | null } | null;
@@ -45,6 +46,9 @@ export default function AdminKyc() {
       return (data as Row[]) ?? [];
     },
   });
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   if (selected) {
     return <Detail row={selected} onBack={() => setSelected(null)} onReviewed={() => { setSelected(null); qc.invalidateQueries({ queryKey: ["admin-kyc"] }); qc.invalidateQueries({ queryKey: ["admin-stats"] }); }} />;

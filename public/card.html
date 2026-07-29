@@ -130,7 +130,7 @@
       <div class="avatar-ring">
         <img id="avatar" class="avatar" alt="Profile photo" style="display:none" />
         <div id="avatarFallback" class="avatar" style="display:flex"></div>
-        <div id="vcheck" class="vcheck" title="Verified Jamin Partner">
+        <div id="vcheck" class="vcheck" title="Verified Jamin Bazaar Partner">
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
         </div>
       </div>
@@ -141,7 +141,7 @@
       </div>
       <div id="badge" class="badge">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-        Verified Jamin Partner
+        Verified Jamin Bazaar Partner
       </div>
       <div class="ids" id="ids"></div>
 
@@ -204,7 +204,7 @@
 <div class="modal-bg" id="modalBg">
   <div class="modal">
     <div class="mcheck"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
-    <h3>Verified Jamin Partner</h3>
+    <h3>Verified Jamin Bazaar Partner</h3>
     <p>This promoter has been verified and approved by the Jamin Promoters administration.</p>
     <button id="modalClose">Close</button>
   </div>
@@ -248,7 +248,7 @@
   rpc("promoter_card", { p_code: code }).then(function (card) {
     if (!card || !card.name) { notFound(); return; }
 
-    document.title = card.name + " · Verified Jamin Partner — Jamin Properties";
+    document.title = card.name + " · Verified Jamin Bazaar Partner — Jamin Properties";
     $("loading").style.display = "none";
     $("page").style.display = "block";
     $("year").textContent = new Date().getFullYear();
@@ -342,7 +342,7 @@
       if (card.email) lines.push("EMAIL:" + card.email);
       if (card.location) lines.push("ADR;TYPE=WORK:;;" + card.location + ";;;;India");
       lines.push("URL:" + cardUrl);
-      if (card.verified) lines.push("NOTE:Verified Jamin Partner · " + (card.partner_code || ""));
+      if (card.verified) lines.push("NOTE:Verified Jamin Bazaar Partner · " + (card.partner_code || ""));
       lines.push("END:VCARD");
       var blob = new Blob([lines.join("\r\n")], { type: "text/vcard" });
       var a = document.createElement("a");
@@ -353,7 +353,7 @@
 
     // share
     $("shareCard").addEventListener("click", function () {
-      var text = card.name + " · " + (card.verified ? "Verified Jamin Partner" : "Jamin Partner") + "\n" + cardUrl;
+      var text = card.name + " · " + (card.verified ? "Verified Jamin Bazaar Partner" : "Jamin Partner") + "\n" + cardUrl;
       if (navigator.share) { navigator.share({ title: card.name + " — Jamin Properties", text: text, url: cardUrl }).catch(function () {}); }
       else { navigator.clipboard.writeText(cardUrl); alert("Card link copied"); }
     });

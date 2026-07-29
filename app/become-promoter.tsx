@@ -118,7 +118,7 @@ export default function BecomePromoter() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, backgroundColor: colors.successSoft, borderRadius: space.sm, padding: space.sm, marginTop: space.md }}>
               <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               <Text style={{ flex: 1, color: colors.success, fontWeight: "700", fontSize: T.small.fontSize }}>
-                You're already a Verified Jamin Partner{profile?.partner_code ? ` · ${profile.partner_code}` : ""}.
+                You're already a Verified Jamin Bazaar Partner{profile?.partner_code ? ` · ${profile.partner_code}` : ""}.
               </Text>
             </View>
           ) : pending ? (

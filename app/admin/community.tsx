@@ -8,6 +8,7 @@ import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
+import { useAdminGate } from "@/components/AdminGate";
 
 type Sub = "posts" | "contacts" | "reports";
 
@@ -67,7 +68,8 @@ export default function AdminCommunity() {
   }
 
   async function resolveReport(id: string) {
-    await supabase.from("community_reports").update({ status: "resolved" }).eq("id", id);
+    const { error } = await supabase.from("community_reports").update({ status: "resolved" }).eq("id", id);
+    if (error) { Alert.alert("Couldn't resolve", error.message); return; }
     reports.refetch();
   }
 
@@ -82,6 +84,9 @@ export default function AdminCommunity() {
       <Text style={{ fontSize: 10.5, fontWeight: "700", color: s === "published" ? colors.success : s === "hidden" ? colors.goldDark : colors.brand }}>{s}</Text>
     </View>
   );
+
+  const adminGate = useAdminGate();
+  if (adminGate) return adminGate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
