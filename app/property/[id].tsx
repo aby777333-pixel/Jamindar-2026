@@ -297,7 +297,9 @@ export default function PropertyDetail() {
     amenities: (property.amenities?.length ?? 0) > 0,
     location: !!(property.gmaps_url || (property.lat && property.lng) || property.street_view_url || property.google_earth_url || (property.nearby_places?.length ?? 0) > 0 || (property.nearby_landmarks?.length ?? 0) > 0 || Object.values(property.nearby_defaults ?? {}).some(Boolean)),
     legal: !!property.rera_number || Object.values(property.approvals ?? {}).some(Boolean) || Object.keys(property.legal ?? {}).length > 0 || (property.documents?.length ?? 0) > 0,
-    investment: Object.keys(property.investment ?? {}).length > 0,
+    // Sold-out projects hide Investment — appreciation/EMI pitches make no
+    // sense once nothing is left to buy (owner directive 29-07, Udumalaipet).
+    investment: property.status !== "sold" && Object.keys(property.investment ?? {}).length > 0,
   };
   const hidden = new Set(property.tab_config?.hidden ?? []);
   const order = property.tab_config?.order ?? [];
