@@ -39,19 +39,13 @@ const CHANNELS: ChannelDef[] = [
     fg: colors.brand,
     available: (c) => !!c.mobile,
   },
-  {
-    key: "whatsapp_call",
-    label: "WhatsApp call",
-    hint: "Opens the chat — tap the call icon",
-    icon: "videocam",
-    tint: colors.successSoft,
-    fg: "#25D366",
-    available: (c) => !!(c.whatsapp || c.mobile),
-  },
+  // "WhatsApp call" removed (bug report #9): wa.me can only open a chat — WhatsApp
+  // exposes no direct-call intent, so a call row was misleading. Calls go via
+  // Phone call; WhatsApp reaches the contact through the message row below.
   {
     key: "whatsapp_message",
     label: "WhatsApp message",
-    hint: "Message on WhatsApp",
+    hint: "Chat on WhatsApp — call from inside the chat",
     icon: "logo-whatsapp",
     tint: colors.successSoft,
     fg: "#25D366",

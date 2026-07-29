@@ -669,7 +669,13 @@ export function JamindarSheet({
             <Pressable onPress={() => router.push("/jamindar/settings")} style={{ padding: 6 }}>
               <Ionicons name="options" size={20} color={colors.inkSoft} />
             </Pressable>
-            <Pressable onPress={() => setPrefs((p) => ({ ...p, readAloud: !p.readAloud }))} style={{ padding: 6 }}>
+            <Pressable
+              onPress={() => {
+                if (prefs.readAloud) stopSpeaking(); // turning voice off silences the current reply instantly (bug report #9)
+                setPrefs((p) => ({ ...p, readAloud: !p.readAloud }));
+              }}
+              style={{ padding: 6 }}
+            >
               <Ionicons name={prefs.readAloud ? "volume-high" : "volume-mute"} size={22} color={colors.inkSoft} />
             </Pressable>
             <Pressable onPress={onClose} style={{ padding: 6 }}>

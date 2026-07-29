@@ -196,7 +196,9 @@ export default function ProfileSetup() {
           A few details so Jamindar can personalise your experience.
         </Text>
 
-        <Field label="Full name" value={name} onChangeText={setName} placeholder="Abraham" autoFocus />
+        {/* No autoFocus — opening the screen must not pop the keyboard (bug report #9);
+            the keyboard appears only when the user taps a field. */}
+        <Field label="Full name" value={name} onChangeText={setName} placeholder="Abraham" />
         <Field label="Email address" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
 
         <Text style={{ color: colors.inkSoft, fontWeight: "600", marginBottom: 8, fontSize: 13 }}>Gender</Text>

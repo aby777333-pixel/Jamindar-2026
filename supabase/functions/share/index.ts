@@ -73,7 +73,7 @@ const STYLE = `
   .brandbar b{font-size:15px;letter-spacing:.14em}
   .brandbar span{color:var(--gold);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
   .phase{position:absolute;right:14px;top:64px;z-index:2;background:var(--gold);color:#221a05;font-weight:700;font-size:11px;letter-spacing:.06em;padding:5px 12px;border-radius:99px;text-transform:uppercase}
-  .head{position:relative;z-index:2;margin-top:-84px;padding:0 18px}
+  .head{position:relative;z-index:2;margin-top:-84px;padding:0 18px;min-height:96px}
   h1{font-size:26px;line-height:1.2;text-shadow:0 2px 12px rgba(0,0,0,.5)}
   .loc{color:#e6d9b8;font-size:13px;margin-top:6px}
   .price{display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:rgba(212,166,39,.16);border:1px solid rgba(212,166,39,.55);color:#f4e3ae;border-radius:12px;padding:8px 14px;font-size:15px;font-weight:800}
@@ -328,7 +328,13 @@ async function sendLead(){
       name:document.getElementById('f_name').value, mobile:document.getElementById('f_mobile').value,
       message:document.getElementById('f_msg').value})});
     var d=await r.json();
-    if(d.ok){document.getElementById('f_ok').style.display='block';}else{alert(d.error||'Please try again.');}
+    if(d.ok){
+      document.getElementById('f_ok').style.display='block';
+      document.getElementById('f_name').value='';
+      document.getElementById('f_mobile').value='';
+      document.getElementById('f_msg').value='';
+      setTimeout(function(){document.getElementById('f_ok').style.display='none';},6000);
+    }else{alert(d.error||'Please try again.');}
   }catch(e){alert('Network error — please try again.');}
   b.disabled=false;
 }
