@@ -84,11 +84,11 @@ export function matchMentionedProjects(reply: string, pool: Property[]): Propert
 export function phaseLabel(p: Property): string {
   switch (p.project_phase) {
     case "current":
-      return "Ready to move";
+      return "Upcoming";
     case "ongoing":
       return "Ongoing";
     case "future":
-      return "Upcoming";
+      return "Future";
     case "completed":
       return "Completed";
     default:

@@ -530,9 +530,12 @@ export const LAND_TYPES: LandTypeDef[] = [
 export type PhaseDef = { emoji: string; label: string; tint: string; phase: "completed" | "current" | "ongoing" | "future" };
 // Four tiles, in the owner's requested order; the Home row gives each flex:1
 // so they spread evenly across the full width.
+// Owner-directed display order & wording (29-07): lifecycle timeline
+// Completed → Ongoing → Upcoming → Future. "Upcoming" is the `current`
+// DB phase renamed for buyers — the phase KEYS never change.
 export const PROJECT_PHASES: PhaseDef[] = [
   { emoji: "🏆", label: "Completed", tint: colors.goldSoft, phase: "completed" },
-  { emoji: "🏡", label: "Current", tint: colors.brandSoft, phase: "current" },
   { emoji: "🏗️", label: "Ongoing", tint: "#E8F1FE", phase: "ongoing" },
+  { emoji: "🏡", label: "Upcoming", tint: colors.brandSoft, phase: "current" },
   { emoji: "🌱", label: "Future", tint: colors.successSoft, phase: "future" },
 ];

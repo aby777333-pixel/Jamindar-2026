@@ -194,10 +194,12 @@ function speakable(t: string): string {
   return s.trim();
 }
 
+// Naming (owner 29-07): current = "Upcoming", future = "Future" — matches the
+// app tiles/badges so Jamindar never contradicts what the screen shows.
 const PHASE_LABEL: Record<string, string> = {
-  current: "Ready to move",
+  current: "Upcoming",
   ongoing: "Ongoing",
-  future: "Upcoming",
+  future: "Future",
   completed: "Completed",
 };
 

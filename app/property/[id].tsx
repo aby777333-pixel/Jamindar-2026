@@ -282,8 +282,8 @@ export default function PropertyDetail() {
   const approvalTag = topApproval(property.approvals);
   const PHASE_META: Record<string, { label: string; color: string }> = {
     ongoing: { label: "Ongoing", color: colors.goldDark },
-    current: { label: "Ready now", color: colors.brand },
-    future: { label: "Upcoming", color: colors.success },
+    current: { label: "Upcoming", color: colors.brand },
+    future: { label: "Future", color: colors.success },
     completed: { label: "Completed", color: colors.goldDark },
   };
   const phase = PHASE_META[property.project_phase] ?? PHASE_META.current;

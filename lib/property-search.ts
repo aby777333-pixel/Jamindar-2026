@@ -17,7 +17,7 @@ export interface SearchFilters {
 
 const PHASE_LABELS: Record<ProjectPhase, string> = {
   completed: "Completed projects",
-  current: "Current projects",
+  current: "Upcoming projects",
   ongoing: "Ongoing projects",
   future: "Future projects",
 };

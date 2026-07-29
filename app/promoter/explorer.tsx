@@ -73,9 +73,9 @@ export default function Explorer() {
   const rails: { title: string; items: Property[]; type?: PropertyType }[] = [
     { title: "Featured projects", items: all.filter((p) => p.is_featured) },
     { title: "Recommended for you", items: all.filter((p) => !p.is_featured && p.status === "available").slice(0, 12) },
-    { title: "Ready to move", items: byPhase("current") },
+    { title: "Upcoming projects", items: byPhase("current") },
     { title: "Ongoing projects", items: byPhase("ongoing") },
-    { title: "Upcoming projects", items: byPhase("future") },
+    { title: "Future projects", items: byPhase("future") },
     // Bug report #8: sold-out projects don't belong in "Recently added".
     { title: "Recently added", items: [...all].filter((p) => p.status !== "sold").sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 12) },
     { title: "Saved projects", items: data?.saved ?? [] },
