@@ -1,9 +1,11 @@
-// Jamindar — branded share page Edge Function (0053).
-// GET  /share/<propertyId>?ref=<code>[&lang=ta] → premium server-rendered page with
-//      full Open Graph/Twitter meta (rich previews on WhatsApp/Telegram/FB/X/iMessage),
-//      project hero, promoter card + verified badge, CTAs and a QR code.
-// POST /share/<propertyId> {action:'lead', ...} → attributed lead / site-visit request.
-// Served on the branded domain via Netlify proxy: /s/* → this function.
+// Jamindar — branded share pages Edge Function (0053, v2).
+// GET  /share/<propertyId>?ref=<code>[&lang=ta]  → premium project share page
+// GET  /share/invite/<code>[?lang=ta]            → premium promoter invite page
+//      Both server-render full Open Graph/Twitter meta so WhatsApp/Telegram/FB/
+//      LinkedIn/X/iMessage show rich preview cards instead of plain links.
+// POST /share/<propertyId> {action:'lead'|...}   → attributed lead / site-visit
+// POST /share/invite/<code> {action:'wa'}        → WhatsApp app-request funnel
+// Served on the branded domain via Netlify proxies: /s/* and /i/*.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import QRCode from 'npm:qrcode@1.5.3';
@@ -16,24 +18,33 @@ const T: Record<string, Record<string, string>> = {
     visit: 'Book Site Visit', enquire: 'Send Enquiry', name: 'Your name', mobile: '10-digit mobile',
     message: 'Message (optional)', send: 'Submit', sent: 'Thank you! We will contact you shortly.',
     scan: 'Scan to open this page', partner: 'Your Personal Property Partner', plots: 'plots',
-    available: 'available', phase_future: 'Upcoming Project', phase_ongoing: 'Ongoing Project',
-    phase_current: 'Current Project', phase_completed: 'Completed Project',
+    available: 'available', highlights: 'Highlights', phase_future: 'Upcoming Project',
+    phase_ongoing: 'Ongoing Project', phase_current: 'Current Project', phase_completed: 'Completed Project',
+    inviteTitle: 'invites you to Jamin Properties', inviteCode: 'Your invite code', copy: 'Copy code',
+    copied: 'Copied!', openApp: 'Open the Jamindar App', getWa: 'Get the app on WhatsApp',
+    liveProjects: 'Live Projects', refLabel: 'Referral code', trackLabel: 'Tracking ID',
   },
   ta: {
     view: 'திட்டத்தைப் பார்க்க', brochure: 'விவரக்கையேடு பதிவிறக்க', call: 'அழைக்க', whatsapp: 'வாட்ஸ்அப்',
     visit: 'நேரில் பார்வையிட முன்பதிவு', enquire: 'விசாரணை அனுப்ப', name: 'உங்கள் பெயர்', mobile: '10 இலக்க மொபைல்',
     message: 'செய்தி (விருப்பம்)', send: 'சமர்ப்பிக்க', sent: 'நன்றி! விரைவில் உங்களை தொடர்பு கொள்வோம்.',
     scan: 'இந்தப் பக்கத்தை திறக்க ஸ்கேன் செய்யவும்', partner: 'உங்கள் சொந்த சொத்து பங்குதாரர்', plots: 'மனைகள்',
-    available: 'கிடைக்கின்றன', phase_future: 'வரவிருக்கும் திட்டம்', phase_ongoing: 'நடைபெறும் திட்டம்',
-    phase_current: 'தற்போதைய திட்டம்', phase_completed: 'நிறைவடைந்த திட்டம்',
+    available: 'கிடைக்கின்றன', highlights: 'சிறப்பம்சங்கள்', phase_future: 'வரவிருக்கும் திட்டம்',
+    phase_ongoing: 'நடைபெறும் திட்டம்', phase_current: 'தற்போதைய திட்டம்', phase_completed: 'நிறைவடைந்த திட்டம்',
+    inviteTitle: 'ஜமீன் ப்ராப்பர்டீஸுக்கு உங்களை அழைக்கிறார்', inviteCode: 'உங்கள் அழைப்புக் குறியீடு', copy: 'குறியீட்டை நகலெடு',
+    copied: 'நகலெடுக்கப்பட்டது!', openApp: 'ஜமீன்தார் ஆப்பை திறக்க', getWa: 'வாட்ஸ்அப்பில் ஆப்பை பெற',
+    liveProjects: 'நடப்பு திட்டங்கள்', refLabel: 'பரிந்துரை குறியீடு', trackLabel: 'கண்காணிப்பு ஐடி',
   },
   hi: {
     view: 'प्रोजेक्ट देखें', brochure: 'ब्रोशर डाउनलोड करें', call: 'कॉल करें', whatsapp: 'व्हाट्सऐप',
     visit: 'साइट विज़िट बुक करें', enquire: 'पूछताछ भेजें', name: 'आपका नाम', mobile: '10 अंकों का मोबाइल',
     message: 'संदेश (वैकल्पिक)', send: 'भेजें', sent: 'धन्यवाद! हम शीघ्र संपर्क करेंगे।',
     scan: 'यह पेज खोलने के लिए स्कैन करें', partner: 'आपके निजी प्रॉपर्टी पार्टनर', plots: 'प्लॉट',
-    available: 'उपलब्ध', phase_future: 'आगामी प्रोजेक्ट', phase_ongoing: 'चालू प्रोजेक्ट',
-    phase_current: 'वर्तमान प्रोजेक्ट', phase_completed: 'पूर्ण प्रोजेक्ट',
+    available: 'उपलब्ध', highlights: 'मुख्य विशेषताएं', phase_future: 'आगामी प्रोजेक्ट',
+    phase_ongoing: 'चालू प्रोजेक्ट', phase_current: 'वर्तमान प्रोजेक्ट', phase_completed: 'पूर्ण प्रोजेक्ट',
+    inviteTitle: 'आपको जमीन प्रॉपर्टीज़ पर आमंत्रित करते हैं', inviteCode: 'आपका इनवाइट कोड', copy: 'कोड कॉपी करें',
+    copied: 'कॉपी हो गया!', openApp: 'जमींदार ऐप खोलें', getWa: 'व्हाट्सऐप पर ऐप पाएं',
+    liveProjects: 'लाइव प्रोजेक्ट्स', refLabel: 'रेफरल कोड', trackLabel: 'ट्रैकिंग आईडी',
   },
 };
 
@@ -46,96 +57,7 @@ function digitsWa(s: string): string {
   return d;
 }
 
-Deno.serve(async (req) => {
-  try {
-    const url = new URL(req.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const propertyId = parts[parts.length - 1];
-    if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return new Response('Not found', { status: 404 });
-
-    if (req.method === 'POST') {
-      const body = await req.json().catch(() => ({}));
-      const { data } = await svc.rpc('share_capture_lead', {
-        p_ref: String(body.ref ?? ''), p_property: propertyId,
-        p_name: String(body.name ?? ''), p_mobile: String(body.mobile ?? ''),
-        p_message: String(body.message ?? ''), p_intent: body.intent === 'site_visit' ? 'site_visit' : 'enquiry',
-      });
-      return new Response(JSON.stringify(data ?? { ok: false }), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    const ref = (url.searchParams.get('ref') ?? '').trim();
-    const lang = ['ta', 'hi'].includes(url.searchParams.get('lang') ?? '') ? url.searchParams.get('lang')! : 'en';
-    const t = T[lang];
-
-    const { data } = await svc.rpc('share_page_data', { p_property: propertyId, p_ref: ref || null });
-    const d = data as any;
-    if (!d?.ok) return new Response('Not found', { status: 404 });
-    const p = d.property, pr = d.promoter, cfg = d.config ?? {};
-    const brand = cfg.brand_name ?? 'Jamin Properties';
-    const siteBase = cfg.site_base ?? 'https://merry-begonia-4c3cd1.netlify.app';
-    const badge = cfg.badge_label ?? 'Verified Jamin Bazaar Partner';
-    const refCode = pr?.referral_code ?? ref;
-    const canonical = `${siteBase}/s/${p.id}${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`;
-    const hero = Array.isArray(p.images) && p.images.length ? String(p.images[0]) : `${siteBase}/jamindar.jpg`;
-    const desc = (lang !== 'en' && p.translations?.[lang]?.description) || p.description ||
-      `${p.title} — premium plotted development by ${brand}.`;
-    const shortDesc = String(desc).replace(/\s+/g, ' ').slice(0, 200);
-    const loc = [p.city, p.district, p.state].filter(Boolean).join(', ');
-    const phaseLabel = t[`phase_${p.project_phase}`] ?? '';
-    const brochureHref = `${siteBase}/b/${p.id}?ref=${encodeURIComponent(refCode || '')}&src=sharepage`;
-    const wa = pr ? digitsWa(pr.whatsapp || pr.mobile || '') : '';
-    const waText = encodeURIComponent(`Hi${pr ? ' ' + pr.name : ''}, I'm interested in ${p.title}${refCode ? ` (Ref: ${refCode})` : ''}`);
-    const qrSvg = await QRCode.toString(canonical, { type: 'svg', margin: 1, width: 132, color: { dark: '#1c1c20', light: '#ffffff' } });
-
-    // log the view as an attributed click (server-side, crawler + human alike)
-    if (ref) svc.rpc('log_share_event', { p_ref: ref, p_property: p.id, p_event: 'click', p_channel: 'share_page' }).then(() => {});
-
-    const promoterCard = pr ? `
-      <div class="pcard">
-        <div class="prow">
-          ${pr.avatar_url ? `<img class="pavatar" src="${esc(pr.avatar_url)}" alt="${esc(pr.name)}">` : `<div class="pavatar pinit">${esc(String(pr.name ?? 'J').charAt(0))}</div>`}
-          <div>
-            <div class="plabel">${esc(t.partner)}</div>
-            <div class="pname">${esc(pr.name)}</div>
-            ${pr.verified ? `<div class="badge"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>${esc(badge)}</div>` : ''}
-            <div class="pid">${esc(pr.partner_code ?? pr.referral_code ?? '')}</div>
-          </div>
-        </div>
-        <div class="pactions">
-          ${pr.mobile ? `<a class="chip" href="tel:${esc(pr.mobile)}">📞 ${esc(t.call)}</a>` : ''}
-          ${wa ? `<a class="chip wa" href="https://wa.me/${wa}?text=${waText}">🟢 ${esc(t.whatsapp)}</a>` : ''}
-          ${pr.email ? `<a class="chip" href="mailto:${esc(pr.email)}">✉️ Email</a>` : ''}
-          <a class="chip" href="${esc(siteBase)}/card?c=${encodeURIComponent(pr.partner_code ?? pr.referral_code ?? '')}">💳 V-Card</a>
-        </div>
-      </div>` : '';
-
-    const html = `<!doctype html>
-<html lang="${lang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(p.title)} — ${esc(brand)}</title>
-<meta name="description" content="${esc(shortDesc)}">
-<link rel="canonical" href="${esc(canonical)}">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="${esc(brand)}">
-<meta property="og:title" content="${esc(p.title)}${loc ? ' · ' + esc(loc) : ''}">
-<meta property="og:description" content="${esc(shortDesc)}">
-<meta property="og:image" content="${esc(hero)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:url" content="${esc(canonical)}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(p.title)}">
-<meta name="twitter:description" content="${esc(shortDesc)}">
-<meta name="twitter:image" content="${esc(hero)}">
-<meta name="theme-color" content="#17171b">
-<script type="application/ld+json">${JSON.stringify({
-      '@context': 'https://schema.org', '@type': 'Residence', name: p.title,
-      description: shortDesc, image: hero, url: canonical,
-      address: { '@type': 'PostalAddress', addressLocality: p.city, addressRegion: p.state, addressCountry: 'IN' },
-    })}</script>
-<style>
+const STYLE = `
   :root{--red:#e11414;--gold:#d4a627;--ink:#17171b;--cream:#fdf8ef}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;background:var(--ink);color:#fff;min-height:100vh}
@@ -152,6 +74,8 @@ Deno.serve(async (req) => {
   h1{font-size:26px;line-height:1.2;text-shadow:0 2px 12px rgba(0,0,0,.5)}
   .loc{color:#e6d9b8;font-size:13px;margin-top:6px}
   .desc{padding:14px 18px 4px;color:#c9c9cf;font-size:14px;line-height:1.65}
+  .hl{display:flex;gap:8px;padding:10px 18px 0;flex-wrap:wrap}
+  .hl span{background:rgba(212,166,39,.14);border:1px solid rgba(212,166,39,.4);color:#eeddaa;border-radius:99px;padding:6px 12px;font-size:12px}
   .stats{display:flex;gap:10px;padding:12px 18px;flex-wrap:wrap}
   .stat{background:rgba(255,255,255,.06);border:1px solid rgba(212,166,39,.35);border-radius:12px;padding:8px 14px;font-size:12px;color:#e8e8ee}
   .stat b{color:var(--gold);font-size:15px;display:block}
@@ -160,6 +84,7 @@ Deno.serve(async (req) => {
   .btn.primary{background:linear-gradient(135deg,#f11c1c,#b90707);grid-column:1/-1;font-size:16px;box-shadow:0 8px 24px rgba(225,20,20,.35)}
   .btn.ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)}
   .btn.gold{background:linear-gradient(135deg,#e7bc45,#c1922a);color:#221a05}
+  .btn.wa{background:linear-gradient(135deg,#28c05a,#128a3c)}
   .pcard{margin:8px 18px;background:var(--cream);border-radius:18px;padding:16px;color:var(--ink)}
   .prow{display:flex;gap:14px;align-items:center}
   .pavatar{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--gold)}
@@ -172,24 +97,176 @@ Deno.serve(async (req) => {
   .chip{background:#fff;border:1px solid #e3dccb;border-radius:99px;padding:8px 14px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
   .chip.wa{background:#e9f9ef;border-color:#b5e3c6}
   .qrbox{display:flex;gap:14px;align-items:center;margin:14px 18px;background:rgba(255,255,255,.05);border:1px dashed rgba(212,166,39,.5);border-radius:16px;padding:14px}
-  .qrbox svg{border-radius:10px;background:#fff;padding:4px}
-  .qrbox p{font-size:12px;color:#c9c9cf;line-height:1.5}
+  .qrbox svg{border-radius:10px;background:#fff;padding:4px;flex-shrink:0}
+  .qrbox p{font-size:12px;color:#c9c9cf;line-height:1.5;word-break:break-all}
   .form{margin:8px 18px 26px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:16px}
   .form h3{font-size:15px;margin-bottom:10px;color:var(--gold)}
   .form input,.form textarea{width:100%;background:#101013;border:1px solid rgba(255,255,255,.16);border-radius:10px;color:#fff;padding:12px;font-size:14px;margin-bottom:10px}
   .form .ok{color:#7ee2a8;font-size:13px;padding:6px 0}
+  .code{margin:14px 18px;background:var(--cream);border-radius:18px;padding:18px;text-align:center;color:var(--ink)}
+  .code .clabel{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8a8577}
+  .code .cval{font-size:30px;font-weight:900;letter-spacing:.08em;margin:6px 0;color:var(--red)}
+  .projgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 18px 16px}
+  .proj{display:block;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;text-decoration:none;color:#fff}
+  .proj img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block}
+  .proj .pb{padding:10px}
+  .proj .pt{font-size:13px;font-weight:700;line-height:1.3}
+  .proj .pc{font-size:11px;color:#c3b98f;margin-top:3px}
   footer{padding:18px;text-align:center;color:#6f6f78;font-size:11px;line-height:1.7}
   @media(min-width:641px){.wrap{border-radius:0 0 24px 24px;overflow:hidden}}
-</style>
-</head>
+`;
+
+function brandbar(brand: string, tagline: string, siteBase: string) {
+  return `<div class="brandbar"><img src="${esc(siteBase)}/logo.png" alt=""><div><b>${esc(brand.toUpperCase())}</b><br><span>${esc(tagline)}</span></div></div>`;
+}
+
+function pageHead(o: { lang: string; title: string; desc: string; image: string; url: string; brand: string; type?: string }) {
+  return `<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(o.title)}</title>
+<meta name="description" content="${esc(o.desc)}">
+<link rel="canonical" href="${esc(o.url)}">
+<meta property="og:type" content="${o.type ?? 'website'}">
+<meta property="og:site_name" content="${esc(o.brand)}">
+<meta property="og:title" content="${esc(o.title)}">
+<meta property="og:description" content="${esc(o.desc)}">
+<meta property="og:image" content="${esc(o.image)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="${esc(o.url)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(o.title)}">
+<meta name="twitter:description" content="${esc(o.desc)}">
+<meta name="twitter:image" content="${esc(o.image)}">
+<meta name="theme-color" content="#17171b">
+<style>${STYLE}</style>`;
+}
+
+function promoterCardHtml(pr: any, t: Record<string, string>, badge: string, siteBase: string, waText: string, extraLine?: string) {
+  const wa = digitsWa(pr.whatsapp || pr.mobile || '');
+  return `
+  <div class="pcard">
+    <div class="prow">
+      ${pr.avatar_url ? `<img class="pavatar" src="${esc(pr.avatar_url)}" alt="${esc(pr.name)}">` : `<div class="pavatar pinit">${esc(String(pr.name ?? 'J').charAt(0))}</div>`}
+      <div>
+        <div class="plabel">${esc(t.partner)}</div>
+        <div class="pname">${esc(pr.name)}</div>
+        ${pr.verified ? `<div class="badge"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>${esc(badge)}</div>` : ''}
+        <div class="pid">${esc(pr.partner_code ?? '')}${pr.partner_code && pr.referral_code ? ' · ' : ''}${esc(pr.referral_code ?? '')}</div>
+        ${extraLine ? `<div class="pid">${extraLine}</div>` : ''}
+      </div>
+    </div>
+    <div class="pactions">
+      ${pr.mobile ? `<a class="chip" href="tel:${esc(pr.mobile)}">📞 ${esc(t.call)}</a>` : ''}
+      ${wa ? `<a class="chip wa" href="https://wa.me/${wa}?text=${waText}">🟢 ${esc(t.whatsapp)}</a>` : ''}
+      ${pr.email ? `<a class="chip" href="mailto:${esc(pr.email)}">✉️ Email</a>` : ''}
+      <a class="chip" href="${esc(siteBase)}/card?c=${encodeURIComponent(pr.partner_code ?? pr.referral_code ?? '')}">💳 V-Card</a>
+    </div>
+  </div>`;
+}
+
+// ───────────────────────── invite page (/i/<code>) ─────────────────────────
+async function renderInvite(code: string, lang: string, siteBase0: string): Promise<Response> {
+  const t = T[lang];
+  const [{ data: card }, { data: cfgRow }] = await Promise.all([
+    svc.rpc('promoter_card', { p_code: code }),
+    svc.from('site_config').select('value').eq('key', 'share').maybeSingle(),
+  ]);
+  const pr = card as any;
+  const cfg = (cfgRow as any)?.value ?? {};
+  const brand = cfg.brand_name ?? 'Jamin Properties';
+  const siteBase = cfg.site_base ?? siteBase0;
+  const badge = cfg.badge_label ?? 'Verified Jamin Bazaar Partner';
+  if (!pr || pr.error || !pr.name) return new Response('Invite not found', { status: 404 });
+
+  const refCode = pr.referral_code ?? code;
+  const canonical = `${siteBase}/i/${encodeURIComponent(refCode)}`;
+  const heroImg = (Array.isArray(pr.projects) && pr.projects.find((x: any) => x.image)?.image) || `${siteBase}/jamindar.jpg`;
+  const title = `${pr.name} ${T.en.inviteTitle}`;
+  const descTxt = `Verified plots & land with clear titles. Join with invite code ${refCode} for personal assistance from ${pr.name}.`;
+  const qrSvg = await QRCode.toString(canonical, { type: 'svg', margin: 1, width: 132, color: { dark: '#1c1c20', light: '#ffffff' } });
+  const deskWa = digitsWa(cfg.desk_phone ?? '+919384818895');
+  const waText = encodeURIComponent(`Hi ${pr.name}, I got your Jamin Properties invite (${refCode}).`);
+  const deskText = encodeURIComponent(`Hi! Please send me the Jamindar app download link. My invite code: ${refCode}`);
+
+  svc.rpc('log_share_event', { p_ref: refCode, p_property: null, p_event: 'click', p_channel: 'invite_page' }).then(() => {});
+
+  const projs = (Array.isArray(pr.projects) ? pr.projects : []).slice(0, 4);
+  const html = `<!doctype html>
+<html lang="${lang}">
+<head>${pageHead({ lang, title, desc: descTxt, image: heroImg, url: canonical, brand, type: 'profile' })}</head>
+<body>
+<div class="wrap">
+  <div class="hero">${brandbar(brand, cfg.tagline ?? 'Signature for Fortune', siteBase)}<img src="${esc(heroImg)}" alt=""></div>
+  <div class="head"><h1>${esc(pr.name)}</h1><div class="loc">${esc(T[lang].inviteTitle)}</div></div>
+  ${promoterCardHtml(pr, t, badge, siteBase, waText)}
+  <div class="code">
+    <div class="clabel">${esc(t.inviteCode)}</div>
+    <div class="cval" id="code">${esc(refCode)}</div>
+    <button class="btn gold" style="width:100%" onclick="navigator.clipboard.writeText('${esc(refCode)}').then(()=>{this.textContent='${esc(t.copied)}'})">📋 ${esc(t.copy)}</button>
+  </div>
+  <div class="ctas">
+    <a class="btn primary" href="jamindar://welcome?ref=${encodeURIComponent(refCode)}">📱 ${esc(t.openApp)}</a>
+    <a class="btn wa" style="grid-column:1/-1" href="https://wa.me/${deskWa}?text=${deskText}" onclick="fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'wa'}),keepalive:true})">🟢 ${esc(t.getWa)}</a>
+  </div>
+  ${projs.length ? `<div class="desc" style="padding-top:0"><b style="color:var(--gold)">${esc(t.liveProjects)}</b></div>
+  <div class="projgrid">${projs.map((x: any) => `
+    <a class="proj" href="${esc(siteBase)}/s/${esc(x.id)}?ref=${encodeURIComponent(refCode)}">
+      ${x.image ? `<img loading="lazy" src="${esc(x.image)}" alt="">` : ''}
+      <div class="pb"><div class="pt">${esc(x.title)}</div><div class="pc">${esc(x.city ?? '')}</div></div>
+    </a>`).join('')}</div>` : ''}
+  <div class="qrbox">${qrSvg}<p><b>${esc(t.scan)}</b><br>${esc(canonical)}</p></div>
+  <footer>${esc(brand)} · Helpdesk ${esc(cfg.desk_phone ?? '+91 93848 18895')}<br>${esc(t.refLabel)}: ${esc(refCode)} · ${esc(t.trackLabel)}: ${esc(pr.partner_code ?? pr.member_code ?? refCode)}<br>© ${new Date().getFullYear()} ${esc(brand)}. All rights reserved.</footer>
+</div>
+</body>
+</html>`;
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, s-maxage=60' } });
+}
+
+// ───────────────────────── property page (/s/<id>) ─────────────────────────
+async function renderProperty(propertyId: string, ref: string, lang: string, siteBase0: string): Promise<Response> {
+  const t = T[lang];
+  const { data } = await svc.rpc('share_page_data', { p_property: propertyId, p_ref: ref || null });
+  const d = data as any;
+  if (!d?.ok) return new Response('Not found', { status: 404 });
+  const p = d.property, pr = d.promoter, cfg = d.config ?? {};
+  const brand = cfg.brand_name ?? 'Jamin Properties';
+  const siteBase = cfg.site_base ?? siteBase0;
+  const badge = cfg.badge_label ?? 'Verified Jamin Bazaar Partner';
+  const refCode = pr?.referral_code ?? ref;
+  const canonical = `${siteBase}/s/${p.id}${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`;
+  const hero = Array.isArray(p.images) && p.images.length ? String(p.images[0]) : `${siteBase}/jamindar.jpg`;
+  const desc = (lang !== 'en' && p.translations?.[lang]?.description) || p.description ||
+    `${p.title} — premium plotted development by ${brand}.`;
+  const shortDesc = String(desc).replace(/\s+/g, ' ').slice(0, 200);
+  const loc = [p.city, p.district, p.state].filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(', ');
+  const phaseLabel = t[`phase_${p.project_phase}`] ?? '';
+  const brochureHref = `${siteBase}/b/${p.id}?ref=${encodeURIComponent(refCode || '')}&src=sharepage`;
+  const waText = encodeURIComponent(`Hi${pr ? ' ' + pr.name : ''}, I'm interested in ${p.title}${refCode ? ` (Ref: ${refCode})` : ''}`);
+  const qrSvg = await QRCode.toString(canonical, { type: 'svg', margin: 1, width: 132, color: { dark: '#1c1c20', light: '#ffffff' } });
+  const highlights = (Array.isArray(p.amenities) ? p.amenities : [])
+    .map((a: any) => (typeof a === 'string' ? a : a?.label ?? a?.name ?? ''))
+    .filter(Boolean).slice(0, 4);
+
+  if (ref) svc.rpc('log_share_event', { p_ref: ref, p_property: p.id, p_event: 'click', p_channel: 'share_page' }).then(() => {});
+
+  const html = `<!doctype html>
+<html lang="${lang}">
+<head>${pageHead({ lang, title: `${p.title}${loc ? ' · ' + loc : ''}`, desc: shortDesc, image: hero, url: canonical, brand })}
+<script type="application/ld+json">${JSON.stringify({
+    '@context': 'https://schema.org', '@type': 'Residence', name: p.title,
+    description: shortDesc, image: hero, url: canonical,
+    address: { '@type': 'PostalAddress', addressLocality: p.city, addressRegion: p.state, addressCountry: 'IN' },
+  })}</script></head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="brandbar"><img src="${esc(siteBase)}/logo.png" alt=""><div><b>${esc(brand.toUpperCase())}</b><br><span>${esc(cfg.tagline ?? 'Signature for Fortune')}</span></div></div>
+    ${brandbar(brand, cfg.tagline ?? 'Signature for Fortune', siteBase)}
     ${phaseLabel ? `<div class="phase">${esc(phaseLabel)}</div>` : ''}
     <img src="${esc(hero)}" alt="${esc(p.title)}">
   </div>
   <div class="head"><h1>${esc(p.title)}</h1>${loc ? `<div class="loc">📍 ${esc(loc)}</div>` : ''}</div>
+  ${highlights.length ? `<div class="hl">${highlights.map((h: string) => `<span>✦ ${esc(h)}</span>`).join('')}</div>` : ''}
   <div class="desc">${esc(shortDesc)}${String(desc).length > 200 ? '…' : ''}</div>
   <div class="stats">
     ${p.plots_total ? `<div class="stat"><b>${esc(p.plots_total)}</b>${esc(t.plots)}</div>` : ''}
@@ -197,11 +274,11 @@ Deno.serve(async (req) => {
     ${p.rera_number ? `<div class="stat"><b>DTCP</b>${esc(p.rera_number)}</div>` : ''}
   </div>
   <div class="ctas">
-    <a class="btn primary" href="jamindar://property/${esc(p.id)}" onclick="setTimeout(function(){location.href='${esc(siteBase)}/welcome?p=${esc(p.id)}&ref=${encodeURIComponent(refCode || '')}'},900)">🏡 ${esc(t.view)}</a>
+    <a class="btn primary" href="jamindar://property/${esc(p.id)}" onclick="fetch(location.pathname+location.search,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'wa_intent'}),keepalive:true});setTimeout(function(){location.href='https://wa.me/${digitsWa(cfg.desk_phone ?? '+919384818895')}?text=${encodeURIComponent(`Hi! Please send me the Jamindar app link to view ${p.title}.${refCode ? ` (Ref: ${refCode})` : ''}`)}'},1200)">🏡 ${esc(t.view)}</a>
     ${p.brochure_url ? `<a class="btn gold" href="${esc(brochureHref)}">📄 ${esc(t.brochure)}</a>` : ''}
     <button class="btn ghost" onclick="document.getElementById('leadform').scrollIntoView({behavior:'smooth'});window.__intent='site_visit';document.getElementById('ftitle').textContent='${esc(t.visit)}'">📅 ${esc(t.visit)}</button>
   </div>
-  ${promoterCard}
+  ${pr ? promoterCardHtml(pr, t, badge, siteBase, waText, `${esc(t.refLabel)}: ${esc(refCode)} · ${esc(t.trackLabel)}: ${esc(pr.partner_code ?? refCode)}`) : ''}
   <div class="qrbox">${qrSvg}<p><b>${esc(t.scan)}</b><br>${esc(canonical)}</p></div>
   <div class="form" id="leadform">
     <h3 id="ftitle">${esc(t.enquire)}</h3>
@@ -229,13 +306,50 @@ async function sendLead(){
 </script>
 </body>
 </html>`;
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, s-maxage=60' } });
+}
 
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, s-maxage=60',
-      },
-    });
+Deno.serve(async (req) => {
+  try {
+    const url = new URL(req.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const lang = ['ta', 'hi'].includes(url.searchParams.get('lang') ?? '') ? url.searchParams.get('lang')! : 'en';
+    const isInvite = parts.includes('invite');
+    const lastSeg = decodeURIComponent(parts[parts.length - 1] ?? '');
+    const siteBase0 = 'https://merry-begonia-4c3cd1.netlify.app';
+
+    if (isInvite) {
+      if (!/^[A-Za-z0-9-]{4,24}$/.test(lastSeg)) return new Response('Not found', { status: 404 });
+      if (req.method === 'POST') {
+        const body = await req.json().catch(() => ({}));
+        if (body.action === 'wa') {
+          await svc.rpc('log_wa_request', { p_code: lastSeg, p_source: 'invite_page', p_property: null }).then(() => {}, () => {});
+          return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ ok: false }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      return await renderInvite(lastSeg, lang, siteBase0);
+    }
+
+    const propertyId = lastSeg;
+    if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return new Response('Not found', { status: 404 });
+
+    if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      if (body.action === 'wa_intent') {
+        const ref = (url.searchParams.get('ref') ?? '').trim();
+        if (ref) await svc.rpc('log_wa_request', { p_code: ref, p_source: 'share_page', p_property: propertyId }).then(() => {}, () => {});
+        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      const { data } = await svc.rpc('share_capture_lead', {
+        p_ref: String(body.ref ?? ''), p_property: propertyId,
+        p_name: String(body.name ?? ''), p_mobile: String(body.mobile ?? ''),
+        p_message: String(body.message ?? ''), p_intent: body.intent === 'site_visit' ? 'site_visit' : 'enquiry',
+      });
+      return new Response(JSON.stringify(data ?? { ok: false }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    return await renderProperty(propertyId, (url.searchParams.get('ref') ?? '').trim(), lang, siteBase0);
   } catch (_e) {
     return new Response('Something went wrong', { status: 500 });
   }

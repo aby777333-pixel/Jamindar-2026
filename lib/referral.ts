@@ -7,7 +7,9 @@ import { supabase } from "./supabase";
 const REFERRAL_BASE = "https://merry-begonia-4c3cd1.netlify.app/welcome";
 
 export function referralLink(code: string): string {
-  return `${REFERRAL_BASE}?ref=${encodeURIComponent(code)}`;
+  // Branded invite page (server-rendered OG preview with the promoter's card,
+  // verified badge, QR and projects). Old /welcome?ref= links 301 here too.
+  return `https://merry-begonia-4c3cd1.netlify.app/i/${encodeURIComponent(code)}`;
 }
 
 export function referralMessage(code: string): string {
@@ -137,9 +139,10 @@ export function propertyShareMessage(
       "",
       "— — —",
       `${promoter.name}${promoter.designation ? ` · ${promoter.designation}` : ""}`,
-      "Verified Jamin Partner" + (promoter.promoterId ? ` · ${promoter.promoterId}` : ""),
+      "✅ Verified Jamin Bazaar Partner" + (promoter.promoterId ? ` · ${promoter.promoterId}` : ""),
     );
     if (promoter.mobile) lines.push(`📞 +${promoter.mobile.replace(/^\+/, "")}`);
+    if (ref) lines.push(`Ref: ${ref}`);
   }
 
   lines.push("", "JAMIN PROPERTIES · Signature for Fortune");

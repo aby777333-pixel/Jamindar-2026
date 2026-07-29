@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, Pressable } from "react-native";
+import { Text, View, ScrollView, Pressable, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -129,6 +129,8 @@ export default function AdminConsole() {
               { icon: "chatbubbles", label: "Messages", note: "Conversations, moderation & audit", href: "/messages" as Href },
               { icon: "headset", label: "Help Desk Contact", note: "Phone, WhatsApp & email shown to users", href: "/admin/desk-contact" as Href },
               { icon: "people-circle", label: "Community", note: "Moderate posts, contact log & reports", href: "/admin/community" as Href },
+              // Same Supabase backend as this console — one source of truth, changes reflect instantly.
+              { icon: "globe", label: "Full Web Console", note: "All views incl. Share & Brochures, earnings, tree", href: null, url: "https://merry-begonia-4c3cd1.netlify.app/admin" },
               { icon: "mic", label: "Voice Logs", note: "Speech, language, transcripts", href: null },
               { icon: "bar-chart", label: "Analytics & Reports", note: "Trends, funnels, exports", href: null },
             ].map((r, i) => {
@@ -139,10 +141,12 @@ export default function AdminConsole() {
                     <Text style={{ fontWeight: "700", color: colors.ink }}>{r.label}</Text>
                     <Text style={{ color: colors.inkFaint, fontSize: 12 }}>{r.note}</Text>
                   </View>
-                  {r.href ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Soon</Text>}
+                  {r.href || (r as any).url ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : <Text style={{ color: colors.inkFaint, fontSize: 11 }}>Soon</Text>}
                 </View>
               );
-              return r.href ? <Pressable key={r.label} onPress={() => router.push(r.href!)}>{body}</Pressable> : <View key={r.label}>{body}</View>;
+              if (r.href) return <Pressable key={r.label} onPress={() => router.push(r.href!)}>{body}</Pressable>;
+              if ((r as any).url) return <Pressable key={r.label} onPress={() => Linking.openURL((r as any).url).catch(() => {})}>{body}</Pressable>;
+              return <View key={r.label}>{body}</View>;
             })}
           </Card>
 

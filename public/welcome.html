@@ -5,10 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Jamin Properties — Signature for Fortune</title>
 <meta name="description" content="Verified plots, farm land, villas & homes across Tamil Nadu. Meet Jamindar, your multilingual AI property advisor." />
-<meta property="og:title" content="Jamin Properties" />
-<meta property="og:description" content="Verified plots & land with clear titles. Open this link to view the property and connect with the Jamin desk." />
+<meta property="og:site_name" content="Jamin Properties" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Jamin Properties · Signature for Fortune" />
+<meta property="og:description" content="Verified plots & land with clear titles across Tamil Nadu. Open this link to view the project with your personal Jamin partner." />
 <meta property="og:image" content="https://merry-begonia-4c3cd1.netlify.app/jamindar.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Jamin Properties · Signature for Fortune" />
+<meta name="twitter:image" content="https://merry-begonia-4c3cd1.netlify.app/jamindar.jpg" />
 <link rel="icon" type="image/jpeg" href="/jamindar.jpg" />
+<script>
+  // Branded-experience upgrade (0053): legacy share links land here from older
+  // APKs and previously sent messages. Humans are bounced to the premium pages
+  // (/s/ property share, /i/ invite) before this page paints; crawlers ignore
+  // JS and read the OG tags above. Plain /welcome (no params) is untouched.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      var p = q.get("p"), r = q.get("ref");
+      if (p && /^[0-9a-f-]{36}$/i.test(p)) { location.replace("/s/" + p + (r ? "?ref=" + encodeURIComponent(r) : "")); return; }
+      if (r && !p) { location.replace("/i/" + encodeURIComponent(r)); }
+    } catch (e) { /* fall through to the classic page */ }
+  })();
+</script>
 <style>
   :root {
     --navy: #151B2E; --navy2: #212B47; --ink: #1C2130; --ink-soft: #4A5065;
