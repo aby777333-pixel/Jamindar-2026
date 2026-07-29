@@ -114,7 +114,9 @@
   @media (max-width:820px){
     #app{grid-template-columns:1fr;} aside{position:static;height:auto;}
     main{padding:18px 14px;}
-    .stats{grid-template-columns:repeat(2,1fr);}
+    .stats{grid-template-columns:repeat(2,1fr) !important;}
+    .dash-cols{grid-template-columns:1fr !important;}
+    .dash-proj{grid-template-columns:repeat(2,1fr) !important;}
     /* wide tables scroll inside their own container — the page never scrolls sideways */
     table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;}
     .drawer{width:100vw;max-width:100vw;}
@@ -272,21 +274,126 @@ function go(v){
 }
 window.go = go;
 
-// ───────── dashboard ─────────
+// ───────── dashboard (command center, 29-07 aesthetic round) ─────────
+// Everything below is read-only: counts, the same admin_pending_counts RPC the
+// badges use, and a few recent rows. No writes, no workflow changes.
+function agoShort(iso){
+  const s=(Date.now()-new Date(iso).getTime())/1000;
+  if(s<60) return "just now"; if(s<3600) return `${Math.floor(s/60)}m ago`;
+  if(s<86400) return `${Math.floor(s/3600)}h ago`; return `${Math.floor(s/86400)}d ago`;
+}
 async function renderDashboard(){
   const c = (t,f)=>{let q=sb.from(t).select("id",{count:"exact",head:true}); if(f)q=f(q); return q.then(r=>r.count||0);};
-  const [users,buyers,promoters,props,visits,leads,kyc,partners,referred] = await Promise.all([
+  const [users,buyers,promoters,props,visits,leads,referred,pendRes,leadRows,regRows,visitRows,projRows] = await Promise.all([
     c("profiles"),c("profiles",q=>q.eq("role","buyer")),c("profiles",q=>q.eq("role","promoter")),
-    c("properties"),c("site_visits"),c("leads"),c("kyc_submissions",q=>q.eq("status","pending")),c("profiles",q=>q.eq("partner_status","pending")),
+    c("properties"),c("site_visits"),c("leads"),
     c("profiles",q=>q.not("referred_by","is",null)),
+    sb.rpc("admin_pending_counts").then(r=>r.data||{}),
+    sb.from("leads").select("id,source,status,notes,created_at").order("created_at",{ascending:false}).limit(4).then(r=>r.data||[]),
+    sb.from("profiles").select("full_name,role,created_at").order("created_at",{ascending:false}).limit(4).then(r=>r.data||[]),
+    sb.from("site_visits").select("status,created_at,property:properties(title)").order("created_at",{ascending:false}).limit(3).then(r=>r.data||[]),
+    sb.from("properties").select("id,title,city,status,project_phase,images").order("is_featured",{ascending:false}).order("created_at",{ascending:false}).limit(4).then(r=>r.data||[]),
   ]);
-  const stat=(n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}" title="Open ${l}"`:''}><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`;
-  $("#view").innerHTML = `<div class="stats">
-    ${stat(users,"Total users",null,"go('registrations')")}${stat(buyers,"Buyers","var(--gold-dark)","go('registrations')")}${stat(promoters,"Promoters","#4B57C9","go('registrations')")}${stat(props,"Properties","var(--success)")}
-    ${stat(visits,"Site visits","#2B6FE1")}${stat(leads,"Leads","var(--brand)")}${stat(kyc,"KYC pending","var(--gold-dark)")}${stat(partners,"Partner pending","var(--gold-dark)")}${stat(referred,"Referred signups","var(--success)","go('users')")}
+  const pend = pendRes;
+  const h = new Date().getHours();
+  const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"});
+
+  const stat=(icon,n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}" title="Open ${l}"`:''}>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:38px;height:38px;border-radius:12px;background:${col||'var(--brand)'}1A;display:grid;place-items:center;font-size:17px;flex:none;">${icon}</div>
+      <div><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>
+    </div></div>`;
+
+  const ATT=[
+    ["kyc","🛡","KYC verifications waiting","kyc"],
+    ["partners","🎗","Partner requests to review","partners"],
+    ["withdrawals","👛","Withdrawals awaiting approval","wallet"],
+    ["submissions","📥","Property submissions","subs"],
+    ["visits","🗓","Site visits to confirm","visits"],
+    ["leads","📇","New leads to contact","leads"],
+    ["invites","💬","WhatsApp app requests","invites"],
+    ["community","🗣","Community reports","community"],
+  ];
+  const attRows = ATT.filter(([k])=>Number(pend[k]||0)>0).map(([k,ic,label,view])=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--hair);cursor:pointer;" onclick="go('${view}')">
+      <span style="font-size:16px;">${ic}</span>
+      <span style="flex:1;font-size:13.5px;font-weight:500;">${label}</span>
+      <span class="pill warn" style="font-size:12px;">${pend[k]}</span>
+      <span class="muted">›</span>
+    </div>`).join("");
+
+  const feed=[
+    ...leadRows.map(r=>({when:r.created_at, ic:"📇", txt:`New lead · ${esc((r.notes||r.source||"lead").split("\n")[0].slice(0,64))}`, view:"leads"})),
+    ...regRows.map(r=>({when:r.created_at, ic:r.role==="promoter"?"🎗":"👤", txt:`${esc(r.full_name||"New member")} joined as ${esc(r.role||"buyer")}`, view:"registrations"})),
+    ...visitRows.map(r=>({when:r.created_at, ic:"🗓", txt:`Site visit ${esc(r.status)}${r.property?.title?` · ${esc(r.property.title)}`:""}`, view:"visits"})),
+  ].sort((a,b)=>a.when<b.when?1:-1).slice(0,7);
+  const feedRows = feed.map(f=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair);cursor:pointer;" onclick="go('${f.view}')">
+      <span style="font-size:15px;">${f.ic}</span>
+      <span style="flex:1;font-size:13px;color:var(--ink-soft);">${f.txt}</span>
+      <span class="muted" style="font-size:11.5px;flex:none;">${agoShort(f.when)}</span>
+    </div>`).join("");
+
+  const phaseTone={completed:"pill grey",ongoing:"pill blue",current:"pill warn",future:"pill ok"};
+  const projCards = projRows.map(p=>`
+    <div class="card" style="overflow:hidden;cursor:pointer;" onclick="go('properties')" title="Open Properties">
+      <img src="${esc((p.images&&p.images[0])||'')}" alt="" style="width:100%;height:96px;object-fit:cover;display:block;background:var(--sunken);" onerror="this.style.display='none'">
+      <div style="padding:10px 12px;">
+        <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.title)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px;">
+          <span class="muted" style="font-size:11.5px;">${esc(p.city||"")}</span>
+          <span class="${p.status==='sold'?'pill red':(phaseTone[p.project_phase]||'pill grey')}" style="font-size:10px;">${p.status==='sold'?'Sold out':esc(p.project_phase)}</span>
+        </div>
+      </div>
+    </div>`).join("");
+
+  $("#view").innerHTML = `
+  <div class="card" style="background:linear-gradient(120deg,#1A2138 0%,var(--navy) 55%,#2A1520 100%);color:#fff;padding:26px 28px;margin-bottom:18px;position:relative;overflow:hidden;">
+    <div style="position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(225,27,34,.25),transparent 70%);"></div>
+    <div style="position:relative;">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55);">${today}</div>
+      <div style="font-size:24px;font-weight:700;margin-top:4px;">${greet}, ${esc((ME.full_name||"Admin").split(" ")[0])} 👋</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.65);margin-top:6px;">Everything below is live — this console and the mobile app share one backend, so changes sync instantly.</div>
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+        <button class="btn sm" onclick="go('properties')">＋ New property</button>
+        <button class="btn sm gold" onclick="go('wallet')">👛 Wallet</button>
+        <button class="btn sm" style="background:rgba(255,255,255,.12);box-shadow:none;" onclick="go('bazaar')">💼 Sales Income</button>
+        <button class="btn sm" style="background:rgba(255,255,255,.12);box-shadow:none;" onclick="go('share')">📣 Share tools</button>
+      </div>
+    </div>
   </div>
-  <div class="card" style="padding:20px;"><b>Welcome back, ${esc(ME.full_name||"Admin")}.</b>
-  <p class="muted" style="font-size:13px;margin:8px 0 0;">Manage listings from <a onclick="go('properties')">Properties</a>, review <a onclick="go('kyc')">KYC</a> and <a onclick="go('partners')">Partner</a> requests. Everything here shares the live backend with the mobile app — changes sync instantly.</p></div>`;
+
+  <div class="stats" style="grid-template-columns:repeat(4,1fr);">
+    ${stat("👥",users,"Total users","#4B57C9","go('registrations')")}
+    ${stat("🛒",buyers,"Buyers","var(--gold-dark)","go('registrations')")}
+    ${stat("🎗",promoters,"Promoters","var(--brand)","go('registrations')")}
+    ${stat("🏘",props,"Properties","var(--success)","go('properties')")}
+    ${stat("🗓",visits,"Site visits","#2B6FE1","go('visits')")}
+    ${stat("📇",leads,"Leads","var(--brand)","go('leads')")}
+    ${stat("🔗",referred,"Referred signups","var(--success)","go('users')")}
+    ${stat("💼",promoters+buyers,"Active members","#159A8C","go('users')")}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-bottom:18px;" class="dash-cols">
+    <div class="card" style="padding:18px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <b style="font-size:14.5px;">Needs your attention</b>
+        ${attRows?`<span class="pill warn">${ATT.reduce((a,[k])=>a+Number(pend[k]||0),0)} pending</span>`:'<span class="pill ok">All clear</span>'}
+      </div>
+      ${attRows || `<div class="muted" style="font-size:13px;padding:18px 0 8px;">🎉 Nothing pending — every request has been handled.</div>`}
+    </div>
+    <div class="card" style="padding:18px 20px;">
+      <b style="font-size:14.5px;">Recent activity</b>
+      ${feedRows || `<div class="muted" style="font-size:13px;padding:18px 0 8px;">Activity from leads, signups and site visits appears here.</div>`}
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <b style="font-size:14.5px;">Live projects</b>
+    <a onclick="go('properties')" style="font-size:12.5px;font-weight:600;cursor:pointer;">View all ›</a>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;" class="dash-proj">${projCards || '<div class="empty card">No projects yet.</div>'}</div>`;
 }
 
 // ───────── properties ─────────
