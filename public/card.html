@@ -320,7 +320,8 @@
     if (projs.length) {
       $("projSec").style.display = "block";
       $("projects").innerHTML = projs.map(function (p) {
-        var href = "/welcome?p=" + encodeURIComponent(p.id) + (card.referral_code ? "&ref=" + encodeURIComponent(card.referral_code) : "");
+        // Branded share page with rich OG preview + promoter attribution.
+        var href = "/s/" + encodeURIComponent(p.id) + (card.referral_code ? "?ref=" + encodeURIComponent(card.referral_code) : "");
         var phase = { current: "Ready now", ongoing: "Ongoing", future: "Upcoming", completed: "Completed" }[p.phase] || "Live";
         return '<a class="proj" href="' + href + '">' +
           (p.image ? '<img loading="lazy" src="' + esc(p.image) + '" alt="" />' : "") +

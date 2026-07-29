@@ -130,6 +130,7 @@
       <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
       <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
       <a data-view="users">👥 Users</a>
+      <a data-view="share">📣 Share & Brochures</a>
     </nav>
   </aside>
   <main>
@@ -220,11 +221,11 @@ async function refreshBadges(){
 }
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures"};
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML="<div class='empty'>Loading…</div>";
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings}[v])();
 }
 window.go = go;
 
@@ -968,6 +969,58 @@ window.reviewInvite=async(id,decision)=>{
   if(error) return toast(error.message);
   toast(decision==='accepted'?'Invite accepted — referrer credited':'Invite dismissed');
   refreshBadges(); renderInvites();
+};
+
+// ───────── share & brochures (0053: branded share pages + personalized PDFs) ─────────
+async function renderShareSettings(){
+  const [{data:cfgRow},{data:props},{data:dls}] = await Promise.all([
+    sb.from('site_config').select('value').eq('key','share').maybeSingle(),
+    sb.from('properties').select('id,title,project_phase,brochure_url').neq('status','archived').order('created_at',{ascending:false}),
+    sb.from('brochure_downloads').select('created_at,channel,ref_code,promoter:profiles!brochure_downloads_promoter_id_fkey(full_name,partner_code),property:properties(title)').order('created_at',{ascending:false}).limit(25),
+  ]);
+  const cfg=(cfgRow&&cfgRow.value)||{};
+  const base=cfg.site_base||'https://merry-begonia-4c3cd1.netlify.app';
+  const f=(id,label,val,ph)=>`<label style="display:block;font-size:12px;color:var(--muted);margin:10px 0 4px">${label}</label><input id="${id}" value="${esc(val||'')}" placeholder="${ph||''}" style="width:100%">`;
+  $("#view").innerHTML=`
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Share settings</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 0;">These texts appear on every branded share page (/s/…) and on each promoter-personalized brochure (/b/…). Change them here — no code deploy needed.</p>
+    ${f('sc-badge','Verified partner badge label',cfg.badge_label,'Verified Jamin Bazaar Partner')}
+    ${f('sc-brand','Brand name',cfg.brand_name,'Jamin Properties')}
+    ${f('sc-tag','Tagline',cfg.tagline,'Signature for Fortune')}
+    ${f('sc-desk','Helpdesk phone',cfg.desk_phone,'+919384818895')}
+    <div style="margin-top:12px"><button class="btn" onclick="saveShareCfg()">Save settings</button></div>
+  </div>
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Project share links</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 10px;">Copy-ready branded links. Append <b>?ref=JA-REF-…</b> (or a JA-P code) to attribute shares to a promoter — their personalized brochure and contact card are generated automatically.</p>
+    ${(props||[]).map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+        <div style="flex:1;min-width:180px"><b style="font-size:13px">${esc(p.title)}</b><div class="muted" style="font-size:11px">${esc(p.project_phase||'')}${p.brochure_url?' · brochure ✓':' · no brochure'}</div></div>
+        <button class="btn ghost sm" onclick="copyTxt('${base}/s/${p.id}')">Copy share link</button>
+        ${p.brochure_url?`<button class="btn ghost sm" onclick="copyTxt('${base}/b/${p.id}')">Copy brochure link</button>`:''}
+      </div>`).join('')}
+  </div>
+  <div class="card" style="padding:18px;">
+    <b>Recent brochure downloads</b>
+    ${(dls&&dls.length)?`<table style="margin-top:10px"><thead><tr><th>When</th><th>Project</th><th>Promoter</th><th>Ref</th><th>Channel</th></tr></thead><tbody>
+      ${dls.map(r=>`<tr><td class="muted">${new Date(r.created_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${esc(r.property?.title||'—')}</td><td>${esc(r.promoter?.full_name||'—')}${r.promoter?.partner_code?` <span class="muted">· ${esc(r.promoter.partner_code)}</span>`:''}</td>
+        <td class="muted">${esc(r.ref_code||'—')}</td><td class="muted">${esc(r.channel||'app')}</td></tr>`).join('')}</tbody></table>`
+      :`<p class="muted" style="font-size:13px;margin:8px 0 0;">No downloads logged yet.</p>`}
+  </div>`;
+}
+window.copyTxt=async(t)=>{ try{ await navigator.clipboard.writeText(t); toast('Copied'); }catch(e){ prompt('Copy:',t); } };
+window.saveShareCfg=async()=>{
+  const value={
+    badge_label:$("#sc-badge").value.trim()||'Verified Jamin Bazaar Partner',
+    brand_name:$("#sc-brand").value.trim()||'Jamin Properties',
+    tagline:$("#sc-tag").value.trim()||'Signature for Fortune',
+    desk_phone:$("#sc-desk").value.trim()||'+919384818895',
+    site_base:'https://merry-begonia-4c3cd1.netlify.app',
+  };
+  const {error}=await sb.from('site_config').upsert({key:'share',value,updated_at:new Date().toISOString()});
+  if(error) return toast(error.message);
+  toast('Share settings saved — live immediately');
 };
 </script>
 </body>

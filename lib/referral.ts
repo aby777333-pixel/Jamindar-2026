@@ -87,12 +87,20 @@ export async function shareReferral(channel: ShareChannel, code: string): Promis
   return note === "Link copied" ? "Invite link copied" : note;
 }
 
-/** Deep link to a property, carrying the sharer's referral code when present
- *  so the lead is attributed back to them. */
+/** Branded share page for a property (server-rendered OG preview: hero image,
+ *  project details, promoter card + verified badge, CTAs, QR). Carries the
+ *  sharer's referral code so every enquiry/download is attributed back to them. */
 export function propertyLink(propertyId: string, refCode?: string | null): string {
-  const parts = [`p=${encodeURIComponent(propertyId)}`];
-  if (refCode) parts.push(`ref=${encodeURIComponent(refCode)}`);
-  return `${REFERRAL_BASE}?${parts.join("&")}`;
+  const base = `https://merry-begonia-4c3cd1.netlify.app/s/${encodeURIComponent(propertyId)}`;
+  return refCode ? `${base}?ref=${encodeURIComponent(refCode)}` : base;
+}
+
+/** Personalized brochure PDF for a property, stamped with the promoter's
+ *  contact page when the ref belongs to a verified partner. */
+export function brochureLink(propertyId: string, refCode?: string | null, src = "app"): string {
+  const base = `https://merry-begonia-4c3cd1.netlify.app/b/${encodeURIComponent(propertyId)}`;
+  const parts = [refCode ? `ref=${encodeURIComponent(refCode)}` : null, `src=${encodeURIComponent(src)}`].filter(Boolean);
+  return `${base}?${parts.join("&")}`;
 }
 
 export interface PromoterCard {
