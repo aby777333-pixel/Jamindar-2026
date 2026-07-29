@@ -10,7 +10,10 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const SARVAM = "https://api.sarvam.ai";
-const CHAT_MODEL = "sarvam-30b";
+// 29-07: Sarvam DEPRECATED sarvam-30b (every chat call 400'd → Jamindar went
+// down). sarvam-105b is the replacement — a reasoning model, so requests pin
+// reasoning_effort:"low" or short token budgets return empty content.
+const CHAT_MODEL = "sarvam-105b";
 
 // The picked language chip must actually steer the reply, so we name the
 // language for the model rather than relying on it to infer one.
@@ -434,7 +437,7 @@ Deno.serve(async (req) => {
       const inventoryNote = inventoryBlock(invRows);
       const messages = [{ role: "system", content: SYSTEM_PROMPT + langNote + memoryNote + activity + factsNote + inventoryNote }, ...(payload.messages ?? [])];
       const callChat = async (maxTokens: number) => {
-        const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: maxTokens }) });
+        const r = await fetch(`${SARVAM}/v1/chat/completions`, { method: "POST", headers: sh, body: JSON.stringify({ model: CHAT_MODEL, messages, temperature: 0.4, max_tokens: maxTokens, reasoning_effort: "low" }) });
         return { ok: r.ok, d: await r.json() };
       };
       const badReply = (s: string) => !s || leaksPrompt(s) || looksLikeReasoningDump(s) || looksTruncated(s);

@@ -727,7 +727,7 @@ async function renderUsers(){
 let USERS_BY_ID={};
 async function loadUsers(){
   const term=$("#u-search").value.trim().toLowerCase(), role=$("#u-role").value, act=$("#u-active").value;
-  let q=sb.from("profiles").select("id,full_name,member_code,mobile,email,city,role,kyc_status,partner_status,created_at,is_active,referral_code,partner_code,referred_by").order("member_code").limit(500);
+  let q=sb.from("profiles").select("id,full_name,member_code,mobile,email,city,role,kyc_status,partner_status,created_at,is_active,referral_code,partner_code,referred_by,referred_by_set_at,referred_by_set_by").order("member_code").limit(500);
   if(role) q=q.eq("role",role);
   const { data } = await q; let rows=data||[];
   USERS_BY_ID={}; rows.forEach(u=>USERS_BY_ID[u.id]=u);
@@ -770,8 +770,62 @@ window.openUserEdit=(id)=>{
       <div class="muted" style="font-size:12px;margin-top:10px">Mobile +${esc(u.mobile||"")} · Role ${esc(u.role)} — mobile and role are managed by the platform (roles change via the Partner workflow / super-admin allowlist).</div></div>
     <div class="sec"><h4>Referral</h4>
       <div class="muted" style="font-size:13px">Code <b>${esc(u.referral_code||"—")}</b>${u.partner_code?" · Partner ID <b>"+esc(u.partner_code)+"</b>":""}</div>
-      ${u.referral_code?`<button class="btn grey sm" style="margin-top:8px" onclick="copyRefLink('${esc(u.referral_code)}')">Copy referral link</button>`:""}</div></div>`;
+      ${u.referral_code?`<button class="btn grey sm" style="margin-top:8px" onclick="copyRefLink('${esc(u.referral_code)}')">Copy referral link</button>`:""}</div>
+    ${referrerSection(u)}</div>`;
   $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+// ── Referral assignment (0062, owner spec 29-07): super admin can assign,
+// change or remove a user's referrer after registration. Future activity
+// follows the new chain; history is untouched. Full audit server-side.
+function referrerSection(u){
+  const ref = u.referred_by ? USERS_BY_ID[u.referred_by] : null;
+  const by  = u.referred_by_set_by ? USERS_BY_ID[u.referred_by_set_by] : null;
+  const options = Object.values(USERS_BY_ID)
+    .filter(x=>x.id!==u.id && x.is_active!==false && x.referral_code)
+    .map(x=>`<option value="${esc(x.referral_code)}">${esc(x.full_name||x.member_code||"Member")} · ${esc(x.role)}${x.partner_status==="verified"?" · verified partner":""}</option>`)
+    .join("");
+  return `<div class="sec"><h4>Referred by</h4>
+    ${ref
+      ? `<div style="font-size:13.5px"><b>${esc(ref.full_name||ref.member_code||"Member")}</b> <span class="muted">· ${esc(ref.referral_code||"")}${ref.partner_status==="verified"?" · verified partner":""}</span></div>
+         <div class="muted" style="font-size:11.5px;margin-top:3px">${u.referred_by_set_at
+            ? `Assigned ${new Date(u.referred_by_set_at).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}${by?` by ${esc(by.full_name||"admin")}`:""}`
+            : "Joined with this referral at signup"}</div>
+         <div class="muted" style="font-size:11.5px;margin-top:2px;word-break:break-all">Link: https://merry-begonia-4c3cd1.netlify.app/welcome?ref=${esc(ref.referral_code||"")}</div>`
+      : `<div class="muted" style="font-size:13px">No referrer — this user registered without a referral link.</div>`}
+    <label style="margin-top:14px">${ref?"Change referrer":"Assign a referrer"}</label>
+    <div style="display:flex;gap:6px">
+      <input list="ref-pick" id="ref-pick-input" placeholder="Search by name or code…" style="flex:1;min-width:0"/>
+      <button class="btn sm" style="flex:none" onclick="assignReferrer('${u.id}')">${ref?"Change":"Assign"}</button>
+      ${ref?`<button class="btn grey sm" style="flex:none" onclick="removeReferrer('${u.id}')">Remove</button>`:""}
+    </div>
+    <datalist id="ref-pick">${options}</datalist>
+    <div class="muted" style="font-size:11px;margin-top:8px">Future enquiries, site visits and commissions from this user follow the new referrer. Past records stay unchanged. Every change is audited.</div>
+  </div>`;
+}
+window.assignReferrer=async(id)=>{
+  const raw=($("#ref-pick-input")?.value||"").trim().toUpperCase();
+  if(!raw) return toast("Type or pick a member first");
+  const target=Object.values(USERS_BY_ID).find(x=>(x.referral_code||"").toUpperCase()===raw||(x.member_code||"").toUpperCase()===raw||(x.partner_code||"").toUpperCase()===raw);
+  if(!target) return toast("No member found with that code");
+  if(target.id===id) return toast("A user can't refer themselves");
+  const u=USERS_BY_ID[id];
+  if(u.referred_by===target.id) return toast("Already the current referrer");
+  if(!confirm(`Assign ${target.full_name||target.member_code} (${target.referral_code}) as the referrer for ${u.full_name||u.member_code}?\n\nAll future enquiries, site visits and commissions from this user will be attributed to the new referrer. Past records stay unchanged.`)) return;
+  const {data,error}=await sb.rpc("admin_set_referrer",{p_user:id,p_referrer:target.id});
+  if(error) return toast(error.message);
+  if(data&&data.ok===false) return toast(data.error||"Couldn't assign the referrer");
+  toast(`Referrer updated ✓ ${target.full_name||target.referral_code}`);
+  await loadUsers(); openUserEdit(id);
+};
+window.removeReferrer=async(id)=>{
+  const u=USERS_BY_ID[id];
+  if(!confirm(`Remove the referral assignment from ${u.full_name||u.member_code}?\n\nFuture activity will no longer be attributed to any referrer. Past records stay unchanged.`)) return;
+  const {data,error}=await sb.rpc("admin_set_referrer",{p_user:id,p_referrer:null});
+  if(error) return toast(error.message);
+  if(data&&data.ok===false) return toast(data.error||"Couldn't remove the referrer");
+  toast("Referral assignment removed");
+  await loadUsers(); openUserEdit(id);
 };
 window.saveUserEdit=async(id)=>{
   const g=(k)=>$(`#drawer [data-uk="${k}"]`)?.value.trim()||null;

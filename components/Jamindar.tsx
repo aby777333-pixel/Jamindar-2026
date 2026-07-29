@@ -276,6 +276,13 @@ export function JamindarSheet({
 
   function stopSpeaking() {
     speakSeq.current += 1; // invalidate any in-flight playback loop
+    // Bug report #11: remove() alone does NOT halt audio already playing on
+    // device — pause first, then release.
+    try {
+      playerRef.current?.pause();
+    } catch {
+      /* ignore */
+    }
     try {
       playerRef.current?.remove();
     } catch {

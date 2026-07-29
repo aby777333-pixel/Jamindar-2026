@@ -116,6 +116,9 @@ export default function PropertyDetail() {
 
   function stopListen() {
     listenSeq.current += 1; // invalidate any in-flight synthesis/playback loop
+    // Bug report #11: remove() alone does NOT halt audio already playing on
+    // device — pause first, then release.
+    try { listenPlayerRef.current?.pause(); } catch { /* ignore */ }
     try { listenPlayerRef.current?.remove(); } catch { /* ignore */ }
     listenPlayerRef.current = null;
     setListening(false);
