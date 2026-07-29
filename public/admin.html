@@ -147,6 +147,9 @@
 <div class="drawer" id="drawer"></div>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -1013,6 +1016,105 @@ async function renderShareSettings(){
 }
 window.copyTxt=async(t)=>{ try{ await navigator.clipboard.writeText(t); toast('Copied'); }catch(e){ prompt('Copy:',t); } };
 // ───────── Sales Income (migration 0056: DSI/RSI/ASI, ranks, launch offers) ─────────
+// Advanced filter & reporting (spec 29-07): presets + custom range + type/
+// status/promoter/search combine; totals + table refresh instantly; exports
+// (Excel/CSV/PDF) honour every active filter and carry metadata. The chosen
+// filter is remembered for the session.
+const bzFilter = { preset:'all', from:'', to:'', type:'', status:'', user:'', q:'' };
+function bzRangeFromPreset(p){
+  const now=new Date(); const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const day=o=>new Date(now.getFullYear(),now.getMonth(),now.getDate()+o);
+  const monday=b=>{const d=new Date(b);d.setDate(d.getDate()-((d.getDay()+6)%7));return d;};
+  switch(p){
+    case 'today': return [iso(day(0)),iso(day(0))];
+    case 'yesterday': return [iso(day(-1)),iso(day(-1))];
+    case 'week': return [iso(monday(now)),iso(day(0))];
+    case 'lastweek': {const m=monday(now),f=new Date(m),t=new Date(m);f.setDate(f.getDate()-7);t.setDate(t.getDate()-1);return [iso(f),iso(t)];}
+    case 'month': return [iso(new Date(now.getFullYear(),now.getMonth(),1)),''];
+    case 'lastmonth': return [iso(new Date(now.getFullYear(),now.getMonth()-1,1)),iso(new Date(now.getFullYear(),now.getMonth(),0))];
+    case 'year': return [`${now.getFullYear()}-01-01`,''];
+    case 'lastyear': return [`${now.getFullYear()-1}-01-01`,`${now.getFullYear()-1}-12-31`];
+    case 'custom': return [bzFilter.from,bzFilter.to];
+    default: return ['',''];
+  }
+}
+async function bzReportRows(){
+  const [f,t]=bzRangeFromPreset(bzFilter.preset);
+  const {data,error}=await sb.rpc('bazaar_admin_income_report',{
+    p_from:f||null,p_to:t||null,p_type:bzFilter.type||null,p_status:bzFilter.status||null,
+    p_user:bzFilter.user||null,p_search:bzFilter.q||null});
+  if(error){toast(error.message);return [];}
+  return data||[];
+}
+function bzFilterLabel(){
+  const [f,t]=bzRangeFromPreset(bzFilter.preset);
+  const names={all:'All time',today:'Today',yesterday:'Yesterday',week:'This week',lastweek:'Last week',month:'This month',lastmonth:'Last month',year:'This year',lastyear:'Last year',custom:`${bzFilter.from||'…'} → ${bzFilter.to||'…'}`};
+  return [names[bzFilter.preset]||'All time', bzFilter.type?bzFilter.type.toUpperCase():null, bzFilter.status||null, bzFilter.q?`"${bzFilter.q}"`:null].filter(Boolean).join(' · ')+(f||t?` (${f||'…'} → ${t||'today'})`:'');
+}
+async function bzRenderReport(){
+  const host=$("#bz-report"); if(!host) return;
+  host.innerHTML='<div class="muted">Loading report…</div>';
+  const rows=await bzReportRows();
+  const sum=s=>rows.filter(r=>s.includes(r.status)).reduce((a,r)=>a+Number(r.amount),0);
+  const total=rows.reduce((a,r)=>a+Number(r.amount),0);
+  host.innerHTML=`
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 10px;font-size:12.5px">
+      <span><b>${rows.length}</b> transactions</span>
+      <span>Total <b>₹${total.toLocaleString('en-IN')}</b></span>
+      <span>Pending <b>₹${sum(['pending','approved']).toLocaleString('en-IN')}</b></span>
+      <span>Paid <b>₹${sum(['paid']).toLocaleString('en-IN')}</b></span>
+      <span class="muted">Filter: ${esc(bzFilterLabel())}</span>
+    </div>
+    ${rows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Promoter</th><th>Buyer</th><th>Project</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${rows.slice(0,200).map(r=>`<tr>
+        <td class="muted" style="white-space:nowrap">${new Date(r.entry_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})}</td>
+        <td><b>${esc(r.income_type.toUpperCase())}</b>${r.level!=null&&r.income_type==='rsi'?` <span class="muted">L${r.level}</span>`:''}</td>
+        <td class="muted">${esc(r.reference_no)}</td>
+        <td>${esc(r.promoter_name||'—')}<div class="muted" style="font-size:10px">${esc(r.promoter_code||'')}</div></td>
+        <td>${esc(r.buyer_name||'—')}</td>
+        <td>${esc(r.project_title||'—')}${r.project_city?`<div class="muted" style="font-size:10px">${esc(r.project_city)}${r.project_phase?' · '+esc(r.project_phase):''}</div>`:''}</td>
+        <td><b>₹${Number(r.amount).toLocaleString('en-IN')}</b></td>
+        <td><span class="pill ${r.status==='paid'?'ok':r.status==='rejected'||r.status==='cancelled'?'grey':'warn'}">${esc(r.status)}</span></td>
+      </tr>`).join('')}</tbody></table>${rows.length>200?`<div class="muted" style="margin-top:6px">Showing first 200 of ${rows.length} — exports include everything.</div>`:''}</div>`
+      :'<div class="empty">No income transactions match this filter.</div>'}`;
+}
+window.bzApplyFilter=()=>{
+  bzFilter.preset=$("#bzf-preset").value; bzFilter.from=$("#bzf-from").value; bzFilter.to=$("#bzf-to").value;
+  bzFilter.type=$("#bzf-type").value; bzFilter.status=$("#bzf-status").value; bzFilter.user=$("#bzf-user").value; bzFilter.q=$("#bzf-q").value.trim();
+  $("#bzf-custom").style.display = bzFilter.preset==='custom' ? 'flex' : 'none';
+  bzRenderReport();
+};
+window.bzClearFilter=()=>{ Object.assign(bzFilter,{preset:'all',from:'',to:'',type:'',status:'',user:'',q:''}); renderBazaarIncome(); };
+function bzExportMeta(){
+  return [["Jamin Bazaar — Income report"],[`Filter: ${bzFilterLabel()}`],[`Generated: ${new Date().toLocaleString('en-IN')}`],[`Generated by: ${ME?.full_name||'Admin'} (Super Admin)`],[]];
+}
+window.bzExport=async(fmt)=>{
+  const rows=await bzReportRows();
+  if(!rows.length) return toast('Nothing to export for this filter');
+  const header=["Date","Type","Reference","Description","Promoter","Code","Buyer","Project","City","Phase","Amount","Status"];
+  const body=rows.map(r=>[new Date(r.entry_date).toLocaleString('en-IN'),r.income_type.toUpperCase(),r.reference_no,r.description||'',r.promoter_name||'',r.promoter_code||'',r.buyer_name||'',r.project_title||'',r.project_city||'',r.project_phase||'',Number(r.amount),r.status]);
+  const total=rows.reduce((a,r)=>a+Number(r.amount),0);
+  const stamp=new Date().toISOString().slice(0,10);
+  if(fmt==='xlsx'||fmt==='csv'){
+    const aoa=[...bzExportMeta(),header,...body,[],["","","","","","","","","","TOTAL",total,""]];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Income");
+    XLSX.writeFile(wb,`jamin-bazaar-income-${stamp}.${fmt}`,fmt==='csv'?{bookType:'csv'}:undefined);
+  } else {
+    const doc=new jspdf.jsPDF({orientation:'landscape'});
+    doc.setFontSize(13); doc.text('Jamin Bazaar — Income report',14,14);
+    doc.setFontSize(9); doc.setTextColor(110);
+    doc.text(`Filter: ${bzFilterLabel()}`,14,20);
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')} · by ${ME?.full_name||'Admin'} (Super Admin)`,14,25);
+    doc.autoTable({startY:30,head:[header],body:body.map(r=>r.map(String)),styles:{fontSize:7},headStyles:{fillColor:[225,27,34]}});
+    const y=(doc.lastAutoTable?.finalY||30)+8;
+    doc.setFontSize(10); doc.setTextColor(20);
+    doc.text(`Transactions: ${rows.length}    Total: Rs ${total.toLocaleString('en-IN')}`,14,y);
+    doc.save(`jamin-bazaar-income-${stamp}.pdf`);
+  }
+  toast(`Exported ${rows.length} transactions (${fmt.toUpperCase()})`);
+};
+
 async function renderBazaarIncome(){
   const [{data:cfgRow},{data:levels},{data:offers},ranks,{data:ledger},{data:achv}] = await Promise.all([
     sb.from('site_config').select('value').eq('key','bazaar_income').maybeSingle(),
@@ -1040,6 +1142,33 @@ async function renderBazaarIncome(){
       <button class="btn ghost" onclick="bzEvalAll(this)">↻ Re-evaluate ranks</button>
       <button class="btn ghost" onclick="bzMonthly(this)">₹ Credit monthly awards</button>
     </div>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Report &amp; export</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 10px;">Combine period, type, status, promoter and search — totals and the table refresh instantly, and every export honours the active filter.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="bzf-preset">
+        <option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option>
+        <option value="week">This week</option><option value="lastweek">Last week</option>
+        <option value="month">This month</option><option value="lastmonth">Last month</option>
+        <option value="year">This year</option><option value="lastyear">Last year</option><option value="custom">Custom range…</option>
+      </select>
+      <span id="bzf-custom" style="display:none;gap:6px;align-items:center">
+        <input id="bzf-from" type="date"><span class="muted">→</span><input id="bzf-to" type="date">
+      </span>
+      <select id="bzf-type"><option value="">All types</option><option value="dsi">DSI</option><option value="rsi">RSI</option><option value="asi">ASI</option><option value="offer">Offer</option><option value="adjustment">Adjustment</option></select>
+      <select id="bzf-status"><option value="">All statuses</option><option>pending</option><option>approved</option><option>paid</option><option>rejected</option></select>
+      <select id="bzf-user"><option value="">All promoters</option>${rows.map(r=>`<option value="${r.user_id}">${esc(r.full_name||r.member_code||'—')}</option>`).join('')}</select>
+      <input id="bzf-q" type="text" placeholder="Search ref / buyer / project…" style="width:190px">
+      <button class="btn" onclick="bzApplyFilter()">Apply</button>
+      <button class="btn ghost" onclick="bzClearFilter()">Clear</button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" onclick="bzExport('xlsx')">⬇ Excel</button>
+      <button class="btn ghost" onclick="bzExport('csv')">⬇ CSV</button>
+      <button class="btn ghost" onclick="bzExport('pdf')">⬇ PDF</button>
+    </div>
+    <div id="bz-report"></div>
   </div>
 
   <div class="card" style="padding:18px;margin-bottom:14px;">
@@ -1119,6 +1248,15 @@ async function renderBazaarIncome(){
           ${r.status!=='rejected'&&r.status!=='paid'?` <button class="btn ghost sm" onclick="bzLedger('${r.id}','rejected')">Reject</button>`:''}</td>
       </tr>`).join('')}</tbody></table></div>`:`<div class="empty">No award / adjustment entries yet. DSI &amp; referral payouts live in <a onclick="go('earnings')">Earnings</a>.</div>`}
   </div>`;
+
+  // restore the session's filter selections + render the filtered report
+  $("#bzf-preset").value=bzFilter.preset; $("#bzf-type").value=bzFilter.type; $("#bzf-status").value=bzFilter.status;
+  $("#bzf-user").value=bzFilter.user; $("#bzf-q").value=bzFilter.q;
+  $("#bzf-from").value=bzFilter.from; $("#bzf-to").value=bzFilter.to;
+  $("#bzf-custom").style.display=bzFilter.preset==='custom'?'flex':'none';
+  $("#bzf-preset").onchange=()=>{ $("#bzf-custom").style.display=$("#bzf-preset").value==='custom'?'flex':'none'; };
+  $("#bzf-q").onkeydown=(e)=>{ if(e.key==='Enter') bzApplyFilter(); };
+  bzRenderReport();
 }
 window.bzSaveCfg=async()=>{
   const value={dsi_percent:Number($("#bz-dsi").value)||0,min_direct_referrals:Number($("#bz-minref").value)||3,rsi_requires_direct_sale:$("#bz-lock").checked};

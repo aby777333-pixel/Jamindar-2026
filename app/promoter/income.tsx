@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Text, View, ScrollView, Pressable } from "react-native";
+import { Text, View, ScrollView, Pressable, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,12 +18,13 @@ import { formatINR, timeAgo } from "@/lib/format";
  *  server-computed; this screen only reads and formats. */
 
 type Segment = "dsi" | "rsi" | "asi" | "wallet";
-type Range = "all" | "month" | "last" | "quarter";
+type Range = "all" | "today" | "yesterday" | "week" | "lastweek" | "month" | "lastmonth" | "year" | "lastyear" | "custom";
+type StatusFilter = "all" | "pending" | "approved" | "paid";
 
 type Bucket = { total: number; available: number; paid: number; locked?: number };
 type Summary = {
   dsi: Bucket; rsi: Bucket; asi: Bucket; other: Bucket;
-  withdrawn: number; rsi_locked: boolean;
+  withdrawn: number; tx_count?: number; rsi_locked: boolean;
   status: {
     direct_sales_count: number; direct_referrals_count: number; team_sales: number;
     min_referral_team_sales: number; current_level: number; designation: string | null;
@@ -46,10 +47,38 @@ const SEGMENTS: { key: Segment; label: string }[] = [
 
 const RANGES: { key: Range; label: string }[] = [
   { key: "all", label: "All time" },
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This week" },
+  { key: "lastweek", label: "Last week" },
   { key: "month", label: "This month" },
-  { key: "last", label: "Last month" },
-  { key: "quarter", label: "3 months" },
+  { key: "lastmonth", label: "Last month" },
+  { key: "year", label: "This year" },
+  { key: "lastyear", label: "Last year" },
+  { key: "custom", label: "Custom…" },
 ];
+
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "All statuses" },
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "paid", label: "Paid" },
+];
+
+/** Filters survive screen exits within the session (owner spec: "remember the
+ *  last selected filter during the current session"). Module-level on purpose. */
+const sessionFilter: { range: Range; status: StatusFilter; search: string; from: string; to: string } = {
+  range: "all", status: "all", search: "", from: "", to: "",
+};
+
+/** dd/mm/yyyy → yyyy-mm-dd (ISO) or null when not a real calendar date. */
+function parseDMY(s: string): string | null {
+  const m = s.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+  if (d.getUTCFullYear() !== Number(m[3]) || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[1])) return null;
+  return d.toISOString().slice(0, 10);
+}
 
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   pending: { bg: colors.goldSoft, fg: colors.goldDark },
@@ -59,14 +88,33 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   cancelled: { bg: colors.surfaceSunken, fg: colors.inkSoft },
 };
 
-function rangeDates(r: Range): { from?: string; to?: string } {
-  if (r === "all") return {};
+function rangeDates(r: Range, customFrom: string, customTo: string): { from?: string; to?: string } {
   const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (r === "month") return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)) };
-  if (r === "last")
-    return { from: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: iso(new Date(now.getFullYear(), now.getMonth(), 0)) };
-  return { from: iso(new Date(now.getFullYear(), now.getMonth() - 3, 1)) };
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const day = (offset: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+  // Monday-start weeks, matching Indian business convention.
+  const monday = (base: Date) => { const d = new Date(base); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+  switch (r) {
+    case "all": return {};
+    case "today": return { from: iso(day(0)), to: iso(day(0)) };
+    case "yesterday": return { from: iso(day(-1)), to: iso(day(-1)) };
+    case "week": return { from: iso(monday(now)), to: iso(day(0)) };
+    case "lastweek": {
+      const m = monday(now); const from = new Date(m); from.setDate(from.getDate() - 7);
+      const to = new Date(m); to.setDate(to.getDate() - 1);
+      return { from: iso(from), to: iso(to) };
+    }
+    case "month": return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)) };
+    case "lastmonth":
+      return { from: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: iso(new Date(now.getFullYear(), now.getMonth(), 0)) };
+    case "year": return { from: `${now.getFullYear()}-01-01` };
+    case "lastyear": return { from: `${now.getFullYear() - 1}-01-01`, to: `${now.getFullYear() - 1}-12-31` };
+    case "custom": {
+      const from = parseDMY(customFrom) ?? undefined;
+      const to = parseDMY(customTo) ?? undefined;
+      return { from, to };
+    }
+  }
 }
 
 function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
@@ -82,27 +130,56 @@ export default function SalesIncome() {
   const { profile } = useAuth();
   const uid = profile?.id;
   const [seg, setSeg] = useState<Segment>("dsi");
-  const [range, setRange] = useState<Range>("all");
+  const [range, setRangeState] = useState<Range>(sessionFilter.range);
+  const [statusF, setStatusFState] = useState<StatusFilter>(sessionFilter.status);
+  const [search, setSearchState] = useState(sessionFilter.search);
+  const [customFrom, setCustomFrom] = useState(sessionFilter.from);
+  const [customTo, setCustomTo] = useState(sessionFilter.to);
+  const setRange = (r: Range) => { sessionFilter.range = r; setRangeState(r); };
+  const setStatusF = (x: StatusFilter) => { sessionFilter.status = x; setStatusFState(x); };
+  const setSearch = (x: string) => { sessionFilter.search = x; setSearchState(x); };
 
+  const dates = useMemo(() => rangeDates(range, customFrom, customTo), [range, customFrom, customTo]);
+  const filterActive = range !== "all" || statusF !== "all" || !!search.trim();
+  const activeLabel = [
+    range !== "all"
+      ? range === "custom"
+        ? `${customFrom || "…"} → ${customTo || "…"}`
+        : RANGES.find((r) => r.key === range)?.label
+      : null,
+    statusF !== "all" ? STATUS_FILTERS.find((x) => x.key === statusF)?.label : null,
+    search.trim() ? `“${search.trim()}”` : null,
+  ].filter(Boolean).join(" · ");
+
+  function clearFilters() {
+    setRange("all"); setStatusF("all"); setSearch("");
+    setCustomFrom(""); setCustomTo("");
+    sessionFilter.from = ""; sessionFilter.to = "";
+  }
+
+  // Summary totals recalculate for the selected period (owner spec 29-07).
   const { data: s, isLoading } = useQuery({
-    queryKey: ["bazaar-summary", uid],
+    queryKey: ["bazaar-summary", uid, dates.from ?? "", dates.to ?? ""],
     enabled: !!uid,
     queryFn: async (): Promise<Summary> => {
-      const { data, error } = await supabase.rpc("bazaar_income_summary");
+      const { data, error } = await supabase.rpc("bazaar_income_summary", {
+        p_from: dates.from, p_to: dates.to,
+      });
       if (error) throw error;
       return data as unknown as Summary;
     },
   });
 
-  const dates = useMemo(() => rangeDates(range), [range]);
   const { data: history } = useQuery({
-    queryKey: ["bazaar-history", uid, seg, range],
+    queryKey: ["bazaar-history", uid, seg, statusF, search, dates.from ?? "", dates.to ?? ""],
     enabled: !!uid,
     queryFn: async (): Promise<HistoryRow[]> => {
       const { data, error } = await supabase.rpc("bazaar_income_history", {
         p_type: seg === "wallet" ? undefined : seg,
         p_from: dates.from,
         p_to: dates.to,
+        p_status: statusF === "all" ? undefined : statusF,
+        p_search: search.trim() || undefined,
       });
       if (error) throw error;
       return (data as HistoryRow[]) ?? [];
@@ -208,11 +285,65 @@ export default function SalesIncome() {
             </View>
           )}
 
-          {/* date filters */}
-          <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.xs }}>
+          {/* advanced filters (owner spec 29-07): presets + custom range +
+              status + search, applied instantly to totals AND history */}
+          {filterActive ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, backgroundColor: colors.navy, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginBottom: space.xs }}>
+              <Ionicons name="funnel" size={14} color={colors.goldLight ?? colors.gold} />
+              <Text style={{ flex: 1, color: "#fff", fontSize: T.caption.fontSize + 1, fontWeight: "700" }} numberOfLines={1}>
+                Filter: {activeLabel} · {s.tx_count ?? 0} {Number(s.tx_count) === 1 ? "entry" : "entries"}
+              </Text>
+              <Pressable onPress={clearFilters} hitSlop={6} style={{ backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                <Text style={{ color: "#fff", fontSize: T.caption.fontSize, fontWeight: "800" }}>Clear</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs, paddingRight: space.md }} style={{ marginBottom: space.xs, flexGrow: 0 }}>
             {RANGES.map((r) => (
               <Chip key={r.key} label={r.label} on={range === r.key} onPress={() => setRange(r.key)} />
             ))}
+          </ScrollView>
+
+          {range === "custom" ? (
+            <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.xs }}>
+              <TextInput
+                value={customFrom}
+                onChangeText={(v) => { setCustomFrom(v); sessionFilter.from = v; }}
+                placeholder="From · dd/mm/yyyy"
+                placeholderTextColor={colors.inkFaint}
+                style={{ flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: parseDMY(customFrom) || !customFrom ? colors.border : colors.brand, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontSize: T.small.fontSize, color: colors.ink }}
+              />
+              <TextInput
+                value={customTo}
+                onChangeText={(v) => { setCustomTo(v); sessionFilter.to = v; }}
+                placeholder="To · dd/mm/yyyy"
+                placeholderTextColor={colors.inkFaint}
+                style={{ flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: parseDMY(customTo) || !customTo ? colors.border : colors.brand, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontSize: T.small.fontSize, color: colors.ink }}
+              />
+            </View>
+          ) : null}
+
+          <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.xs }}>
+            {STATUS_FILTERS.map((x) => (
+              <Chip key={x.key} label={x.label} on={statusF === x.key} onPress={() => setStatusF(x.key)} />
+            ))}
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, marginBottom: space.xs }}>
+            <Ionicons name="search" size={15} color={colors.inkFaint} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search reference no. or description…"
+              placeholderTextColor={colors.inkFaint}
+              style={{ flex: 1, paddingVertical: 9, paddingHorizontal: 8, fontSize: T.small.fontSize, color: colors.ink }}
+            />
+            {search ? (
+              <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                <Ionicons name="close-circle" size={15} color={colors.inkFaint} />
+              </Pressable>
+            ) : null}
           </View>
 
           {/* history */}
