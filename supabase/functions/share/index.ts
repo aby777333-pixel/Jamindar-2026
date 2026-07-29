@@ -23,6 +23,7 @@ const T: Record<string, Record<string, string>> = {
     inviteTitle: 'invites you to Jamin Properties', inviteCode: 'Your invite code', copy: 'Copy code',
     copied: 'Copied!', openApp: 'Open the Jamindar App', getWa: 'Get the app on WhatsApp',
     liveProjects: 'Live Projects', refLabel: 'Referral code', trackLabel: 'Tracking ID',
+    priceOnRequest: 'Price on Request', negotiable: 'Negotiable', approved: 'Approved', soldOut: 'Sold Out',
   },
   ta: {
     view: 'திட்டத்தைப் பார்க்க', brochure: 'விவரக்கையேடு பதிவிறக்க', call: 'அழைக்க', whatsapp: 'வாட்ஸ்அப்',
@@ -34,6 +35,7 @@ const T: Record<string, Record<string, string>> = {
     inviteTitle: 'ஜமீன் ப்ராப்பர்டீஸுக்கு உங்களை அழைக்கிறார்', inviteCode: 'உங்கள் அழைப்புக் குறியீடு', copy: 'குறியீட்டை நகலெடு',
     copied: 'நகலெடுக்கப்பட்டது!', openApp: 'ஜமீன்தார் ஆப்பை திறக்க', getWa: 'வாட்ஸ்அப்பில் ஆப்பை பெற',
     liveProjects: 'நடப்பு திட்டங்கள்', refLabel: 'பரிந்துரை குறியீடு', trackLabel: 'கண்காணிப்பு ஐடி',
+    priceOnRequest: 'விலை விசாரணையில்', negotiable: 'பேசித் தீர்மானிக்கலாம்', approved: 'அங்கீகாரம்', soldOut: 'விற்றுத் தீர்ந்தது',
   },
   hi: {
     view: 'प्रोजेक्ट देखें', brochure: 'ब्रोशर डाउनलोड करें', call: 'कॉल करें', whatsapp: 'व्हाट्सऐप',
@@ -45,6 +47,7 @@ const T: Record<string, Record<string, string>> = {
     inviteTitle: 'आपको जमीन प्रॉपर्टीज़ पर आमंत्रित करते हैं', inviteCode: 'आपका इनवाइट कोड', copy: 'कोड कॉपी करें',
     copied: 'कॉपी हो गया!', openApp: 'जमींदार ऐप खोलें', getWa: 'व्हाट्सऐप पर ऐप पाएं',
     liveProjects: 'लाइव प्रोजेक्ट्स', refLabel: 'रेफरल कोड', trackLabel: 'ट्रैकिंग आईडी',
+    priceOnRequest: 'मूल्य अनुरोध पर', negotiable: 'परक्राम्य', approved: 'स्वीकृत', soldOut: 'बिक चुका',
   },
 };
 
@@ -73,6 +76,11 @@ const STYLE = `
   .head{position:relative;z-index:2;margin-top:-84px;padding:0 18px}
   h1{font-size:26px;line-height:1.2;text-shadow:0 2px 12px rgba(0,0,0,.5)}
   .loc{color:#e6d9b8;font-size:13px;margin-top:6px}
+  .price{display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:rgba(212,166,39,.16);border:1px solid rgba(212,166,39,.55);color:#f4e3ae;border-radius:12px;padding:8px 14px;font-size:15px;font-weight:800}
+  .price small{font-weight:600;font-size:11px;color:#d8c58a}
+  .soldtag{display:inline-block;margin-left:8px;background:#8a1010;color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;border-radius:99px;padding:5px 12px;text-transform:uppercase;vertical-align:middle}
+  .appr{display:flex;gap:8px;padding:12px 18px 0;flex-wrap:wrap}
+  .appr span{display:inline-flex;align-items:center;gap:6px;background:rgba(23,140,71,.16);border:1px solid rgba(23,140,71,.55);color:#8fe6b2;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700}
   .desc{padding:14px 18px 4px;color:#c9c9cf;font-size:14px;line-height:1.65}
   .hl{display:flex;gap:8px;padding:10px 18px 0;flex-wrap:wrap}
   .hl span{background:rgba(212,166,39,.14);border:1px solid rgba(212,166,39,.4);color:#eeddaa;border-radius:99px;padding:6px 12px;font-size:12px}
@@ -144,6 +152,8 @@ function pageHead(o: { lang: string; title: string; desc: string; image: string;
 
 function promoterCardHtml(pr: any, t: Record<string, string>, badge: string, siteBase: string, waText: string, extraLine?: string) {
   const wa = digitsWa(pr.whatsapp || pr.mobile || '');
+  // logC() (defined on both pages) records call/WhatsApp/email/V-Card taps as
+  // attributed referral events (owner spec 29-07 §6).
   return `
   <div class="pcard">
     <div class="prow">
@@ -157,13 +167,16 @@ function promoterCardHtml(pr: any, t: Record<string, string>, badge: string, sit
       </div>
     </div>
     <div class="pactions">
-      ${pr.mobile ? `<a class="chip" href="tel:${esc(pr.mobile)}">📞 ${esc(t.call)}</a>` : ''}
-      ${wa ? `<a class="chip wa" href="https://wa.me/${wa}?text=${waText}">🟢 ${esc(t.whatsapp)}</a>` : ''}
-      ${pr.email ? `<a class="chip" href="mailto:${esc(pr.email)}">✉️ Email</a>` : ''}
-      <a class="chip" href="${esc(siteBase)}/card?c=${encodeURIComponent(pr.partner_code ?? pr.referral_code ?? '')}">💳 V-Card</a>
+      ${pr.mobile ? `<a class="chip" href="tel:${esc(pr.mobile)}" onclick="logC('call')">📞 ${esc(t.call)}</a>` : ''}
+      ${wa ? `<a class="chip wa" href="https://wa.me/${wa}?text=${waText}" onclick="logC('whatsapp')">🟢 ${esc(t.whatsapp)}</a>` : ''}
+      ${pr.email ? `<a class="chip" href="mailto:${esc(pr.email)}" onclick="logC('email')">✉️ Email</a>` : ''}
+      <a class="chip" href="${esc(siteBase)}/card?c=${encodeURIComponent(pr.partner_code ?? pr.referral_code ?? '')}" onclick="logC('vcard')">💳 V-Card</a>
     </div>
   </div>`;
 }
+
+/** Inline script that posts contact-click events back to this page's endpoint. */
+const LOGC_SCRIPT = `<script>function logC(ch){try{fetch(location.pathname+location.search,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'contact_click',channel:ch}),keepalive:true})}catch(e){}}</script>`;
 
 // ───────────────────────── invite page (/i/<code>) ─────────────────────────
 async function renderInvite(code: string, lang: string, siteBase0: string): Promise<Response> {
@@ -218,6 +231,7 @@ async function renderInvite(code: string, lang: string, siteBase0: string): Prom
   <div class="qrbox">${qrSvg}<p><b>${esc(t.scan)}</b><br>${esc(canonical)}</p></div>
   <footer>${esc(brand)} · Helpdesk ${esc(cfg.desk_phone ?? '+91 93848 18895')}<br>${esc(t.refLabel)}: ${esc(refCode)} · ${esc(t.trackLabel)}: ${esc(pr.partner_code ?? pr.member_code ?? refCode)}<br>© ${new Date().getFullYear()} ${esc(brand)}. All rights reserved.</footer>
 </div>
+${LOGC_SCRIPT}
 </body>
 </html>`;
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, s-maxage=60' } });
@@ -248,6 +262,20 @@ async function renderProperty(propertyId: string, ref: string, lang: string, sit
     .map((a: any) => (typeof a === 'string' ? a : a?.label ?? a?.name ?? ''))
     .filter(Boolean).slice(0, 4);
 
+  // Explicit price line (spec §4) — real price in Indian format, else "Price on Request".
+  const UNIT_LABEL: Record<string, string> = { per_sqft: '/ sq.ft', per_cent: '/ cent', per_acre: '/ acre' };
+  const priceHtml = p.price
+    ? `<div class="price">💰 ₹${Number(p.price).toLocaleString('en-IN')}${UNIT_LABEL[p.price_unit] ? ` <small>${esc(UNIT_LABEL[p.price_unit])}</small>` : ''}${p.price_negotiable ? ` <small>· ${esc(t.negotiable)}</small>` : ''}</div>`
+    : `<div class="price">💰 ${esc(t.priceOnRequest)}</div>`;
+  const soldTag = p.status === 'sold' ? `<span class="soldtag">${esc(t.soldOut)}</span>` : '';
+
+  // Approval badges (spec §4) — from the approvals jsonb ({dtcp:true,…}) + RERA number.
+  const apprChips: string[] = Object.entries((p.approvals ?? {}) as Record<string, unknown>)
+    .filter(([, v]) => !!v)
+    .map(([k]) => `<span>✔ ${esc(k.toUpperCase())} ${esc(t.approved)}</span>`);
+  if (p.rera_number) apprChips.push(`<span>✔ RERA ${esc(p.rera_number)}</span>`);
+  const apprHtml = apprChips.length ? `<div class="appr">${apprChips.join('')}</div>` : '';
+
   if (ref) svc.rpc('log_share_event', { p_ref: ref, p_property: p.id, p_event: 'click', p_channel: 'share_page' }).then(() => {});
 
   const html = `<!doctype html>
@@ -265,7 +293,8 @@ async function renderProperty(propertyId: string, ref: string, lang: string, sit
     ${phaseLabel ? `<div class="phase">${esc(phaseLabel)}</div>` : ''}
     <img src="${esc(hero)}" alt="${esc(p.title)}">
   </div>
-  <div class="head"><h1>${esc(p.title)}</h1>${loc ? `<div class="loc">📍 ${esc(loc)}</div>` : ''}</div>
+  <div class="head"><h1>${esc(p.title)}</h1>${loc ? `<div class="loc">📍 ${esc(loc)}</div>` : ''}${priceHtml}${soldTag}</div>
+  ${apprHtml}
   ${highlights.length ? `<div class="hl">${highlights.map((h: string) => `<span>✦ ${esc(h)}</span>`).join('')}</div>` : ''}
   <div class="desc">${esc(shortDesc)}${String(desc).length > 200 ? '…' : ''}</div>
   <div class="stats">
@@ -304,6 +333,7 @@ async function sendLead(){
   b.disabled=false;
 }
 </script>
+${LOGC_SCRIPT}
 </body>
 </html>`;
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, s-maxage=60' } });
@@ -326,6 +356,11 @@ Deno.serve(async (req) => {
           await svc.rpc('log_wa_request', { p_code: lastSeg, p_source: 'invite_page', p_property: null }).then(() => {}, () => {});
           return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
         }
+        if (body.action === 'contact_click') {
+          const ch = 'contact_' + String(body.channel ?? 'other').replace(/[^a-z_]/gi, '').slice(0, 16);
+          await svc.rpc('log_share_event', { p_ref: lastSeg, p_property: null, p_event: 'click', p_channel: ch }).then(() => {}, () => {});
+          return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+        }
         return new Response(JSON.stringify({ ok: false }), { headers: { 'Content-Type': 'application/json' } });
       }
       return await renderInvite(lastSeg, lang, siteBase0);
@@ -339,6 +374,12 @@ Deno.serve(async (req) => {
       if (body.action === 'wa_intent') {
         const ref = (url.searchParams.get('ref') ?? '').trim();
         if (ref) await svc.rpc('log_wa_request', { p_code: ref, p_source: 'share_page', p_property: propertyId }).then(() => {}, () => {});
+        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      if (body.action === 'contact_click') {
+        const ref = (url.searchParams.get('ref') ?? String(body.ref ?? '')).trim();
+        const ch = 'contact_' + String(body.channel ?? 'other').replace(/[^a-z_]/gi, '').slice(0, 16);
+        if (ref) await svc.rpc('log_share_event', { p_ref: ref, p_property: propertyId, p_event: 'click', p_channel: ch }).then(() => {}, () => {});
         return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
       }
       const { data } = await svc.rpc('share_capture_lead', {

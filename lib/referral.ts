@@ -106,43 +106,45 @@ export function brochureLink(propertyId: string, refCode?: string | null, src = 
 export interface PromoterCard {
   name?: string | null;
   promoterId?: string | null;   // partner_code, e.g. JA-P-0001
+  refCode?: string | null;      // referral_code, e.g. JA-REF-00001 — drives attribution
   designation?: string | null;
   mobile?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
   verified?: boolean;
 }
 
 /**
- * Share text for a property.
- *
- * A plain buyer sends the listing. A verified promoter sends the listing plus
- * their digital-card details and referral link, so whoever opens it knows who
- * sent it and the lead is attributed back to them.
+ * Premium branded share message (owner spec 29-07 §5). Every field is built
+ * from the LOGGED-IN sharer's live profile at share time — never hardcoded.
+ * The link is the branded /s/ page carrying their referral code, so previews
+ * are rich and every resulting action is attributed back to them.
  */
 export function propertyShareMessage(
   property: { id: string; title: string; price?: string | null; location?: string | null; highlights?: string[] },
   promoter?: PromoterCard | null
 ): string {
-  const lines: string[] = ["🏡 " + property.title];
-  if (property.price) lines.push(property.price);
-  if (property.location) lines.push("📍 " + property.location);
-  if (property.highlights?.length) {
-    lines.push("", ...property.highlights.slice(0, 4).map((h) => "• " + h));
-  }
-
-  const ref = promoter?.verified ? promoter.promoterId ?? null : null;
-  lines.push("", propertyLink(property.id, ref));
+  const ref = promoter?.refCode ?? (promoter?.verified ? promoter?.promoterId : null) ?? null;
+  const lines: string[] = ["🏡 Jamin Bazaar", `Project: ${property.title}`];
+  if (property.location) lines.push(`📍 ${property.location}`);
+  if (property.price) lines.push(`💰 ${property.price}`);
+  for (const h of (property.highlights ?? []).slice(0, 4)) lines.push(`✅ ${h}`);
+  lines.push(
+    "",
+    "📖 View project details, download the brochure, or schedule a site visit using my personalized link below.",
+    "",
+    propertyLink(property.id, ref),
+  );
 
   if (promoter?.verified && promoter.name) {
-    lines.push(
-      "",
-      "— — —",
-      `${promoter.name}${promoter.designation ? ` · ${promoter.designation}` : ""}`,
-      "✅ Verified Jamin Bazaar Partner" + (promoter.promoterId ? ` · ${promoter.promoterId}` : ""),
-    );
+    lines.push("", "Shared by", promoter.name,
+      "✅ Verified Jamin Bazaar Promoter" + (promoter.promoterId ? ` · ${promoter.promoterId}` : ""));
     if (promoter.mobile) lines.push(`📞 +${promoter.mobile.replace(/^\+/, "")}`);
-    if (ref) lines.push(`Ref: ${ref}`);
+    if (promoter.whatsapp || promoter.mobile) lines.push(`💬 WhatsApp: +${(promoter.whatsapp ?? promoter.mobile ?? "").replace(/^\+/, "")}`);
+    if (promoter.email) lines.push(`📧 ${promoter.email}`);
+    lines.push("📲 Scan the QR code on the page for instant access.");
   }
 
-  lines.push("", "JAMIN BAZAAR · Signature for Fortune");
+  lines.push("", "Jamin Bazaar · Signature for Fortune");
   return lines.join("\n");
 }

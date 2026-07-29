@@ -68,7 +68,10 @@ export function ReferralSharing() {
       {
         name: profile?.full_name,
         promoterId: profile?.partner_code,
+        refCode: code,
         mobile: profile?.mobile,
+        whatsapp: profile?.mobile,
+        email: profile?.email,
         verified: profile?.partner_status === "verified",
       }
     );

@@ -23,7 +23,7 @@ import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useCompare } from "@/lib/compare";
 import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
-import { propertyShareMessage } from "@/lib/referral";
+import { propertyShareMessage, brochureLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
@@ -216,20 +216,27 @@ export default function PropertyDetail() {
         {
           name: profile?.full_name,
           promoterId: profile?.partner_code,
+          refCode: profile?.referral_code ?? profile?.partner_code ?? profile?.member_code,
           mobile: profile?.mobile,
+          whatsapp: profile?.mobile,
+          email: profile?.email,
           verified: profile?.partner_status === "verified",
         }
       ),
     });
   }
 
+  /** Dynamic brochure (spec 29-07): always the /b/ endpoint — a fresh PDF is
+   *  generated from the sharer's LIVE profile (verified promoters get their
+   *  contact page; super admins get the corporate page). The endpoint logs the
+   *  attributed download itself, so no local insert. */
   async function onBrochure() {
     if (!property?.brochure_url) {
       Alert.alert("Brochure", "No brochure uploaded for this property yet.");
       return;
     }
-    if (profile) await supabase.from("brochure_downloads").insert({ property_id: id, user_id: profile.id });
-    await WebBrowser.openBrowserAsync(property.brochure_url);
+    const ref = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
+    await WebBrowser.openBrowserAsync(brochureLink(property.id, ref, "app"));
   }
 
   function onSiteVisit() {
@@ -827,6 +834,9 @@ function LocationTab({ property, onMap }: { property: Property; onMap: () => voi
 }
 
 function LegalTab({ property }: { property: Property }) {
+  const { profile } = useAuth();
+  // ref for personalized brochure downloads from the Documents list
+  const docRef = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
   const approvals = Object.entries(property.approvals ?? {}).filter(([, v]) => v).map(([k]) => k.toUpperCase());
   const legal = property.legal ?? {};
   const docs = property.documents ?? [];
@@ -862,7 +872,9 @@ function LegalTab({ property }: { property: Property }) {
         <Card>
           <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 8 }}>Documents</Text>
           {docs.map((d, i) => (
-            <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(d.url)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
+            // Brochure documents route through the dynamic /b/ endpoint so the
+            // downloaded PDF always carries the sharer's live contact page.
+            <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(d.url === property.brochure_url ? brochureLink(property.id, docRef, "app") : d.url)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
               <Ionicons name="document-text" size={18} color={colors.brand} />
               <Text style={{ flex: 1, color: colors.ink, fontSize: 13 }}>{d.label}</Text>
               {d.size ? <Text style={{ color: colors.inkFaint, fontSize: 11 }}>{d.size}</Text> : null}
