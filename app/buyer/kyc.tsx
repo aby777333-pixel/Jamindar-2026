@@ -76,15 +76,37 @@ export default function BuyerKyc() {
   const setPhone10 = (k: keyof Form) => (v: string) =>
     setForm((f) => ({ ...f, [k]: v.replace(/\D/g, "").slice(0, 10) }));
 
-  async function pickDoc(kind: keyof Form) {
+  /** Owner request 29-07: documents can be CAPTURED with the camera, not only
+   *  chosen from the gallery — most users photograph the card in the moment. */
+  function pickDoc(kind: keyof Form) {
+    Alert.alert("Add document", "How would you like to attach it?", [
+      { text: "Take photo", onPress: () => captureDoc(kind, "camera") },
+      { text: "Choose from gallery", onPress: () => captureDoc(kind, "library") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function captureDoc(kind: keyof Form, source: "camera" | "library") {
     if (!profile?.id) return;
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const perm =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission needed", "Please allow photo access to attach your document.");
+        Alert.alert(
+          source === "camera" ? "Camera access needed" : "Photo access needed",
+          source === "camera"
+            ? "Please allow camera access so you can photograph your document. You can enable it under Settings → Apps → Jamin Bazaar → Permissions."
+            : "Please allow photo access to attach your document.",
+        );
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, base64: true });
+      const opts = { quality: 0.6 as const, base64: true };
+      const res =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync(opts)
+          : await ImagePicker.launchImageLibraryAsync(opts);
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
       if (!asset.base64) {

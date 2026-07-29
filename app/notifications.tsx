@@ -11,7 +11,31 @@ import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import type { AppNotification } from "@/lib/types";
 
-const ICON: Record<string, string> = { kyc: "shield-checkmark", info: "notifications", lead: "call", visit: "calendar" };
+const ICON: Record<string, string> = {
+  kyc: "shield-checkmark", info: "notifications", lead: "call", visit: "calendar",
+  partner: "ribbon", submission: "document-text", withdrawal_request: "wallet",
+  withdrawal_update: "wallet", callback: "call",
+};
+
+/** Owner report 29-07: notification cards were static. Every row now opens the
+ *  screen that lets you act on it — the property behind an enquiry, the KYC
+ *  status, the wallet for a payout, the visit list, and so on. Falls back to a
+ *  sensible destination per type when the row carries no specific target. */
+function destinationFor(n: AppNotification): string | null {
+  const meta = (n.meta ?? {}) as Record<string, any>;
+  if (meta.property_id) return `/property/${meta.property_id}`;
+  switch (n.type) {
+    case "kyc": return "/buyer/kyc";
+    case "partner": return "/promoter";
+    case "lead":
+    case "callback": return "/promoter/leads";
+    case "visit": return "/visits";
+    case "withdrawal_request": return "/admin/withdrawals";
+    case "withdrawal_update": return "/promoter/income";
+    case "submission": return "/admin/properties";
+    default: return null;
+  }
+}
 
 export default function Notifications() {
   const router = useRouter();
@@ -71,21 +95,29 @@ export default function Notifications() {
         <Loading />
       ) : visible.length > 0 ? (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {visible.map((n) => (
-            <Card key={n.id} style={{ marginBottom: 10, flexDirection: "row", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name={(ICON[n.type] ?? "notifications") as any} size={20} color={colors.brand} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ flex: 1, fontWeight: "600", color: colors.ink, fontSize: T.small.fontSize + 1 }}>{n.title}</Text>
-                  {!n.read_at ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand }} /> : null}
+          {visible.map((n) => {
+            const to = destinationFor(n);
+            return (
+              <Card
+                key={n.id}
+                onPress={to ? () => router.push(to as never) : undefined}
+                style={{ marginBottom: 10, flexDirection: "row", gap: 12, alignItems: "center" }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name={(ICON[n.type] ?? "notifications") as any} size={20} color={colors.brand} />
                 </View>
-                {n.body ? <Text style={{ color: colors.inkSoft, fontSize: T.small.fontSize, lineHeight: 19, marginTop: 3 }}>{n.body}</Text> : null}
-                <Text style={{ color: colors.inkFaint, fontSize: 11, marginTop: 5 }}>{timeAgo(n.created_at)}</Text>
-              </View>
-            </Card>
-          ))}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ flex: 1, fontWeight: "600", color: colors.ink, fontSize: T.small.fontSize + 1 }}>{n.title}</Text>
+                    {!n.read_at ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand }} /> : null}
+                  </View>
+                  {n.body ? <Text style={{ color: colors.inkSoft, fontSize: T.small.fontSize, lineHeight: 19, marginTop: 3 }}>{n.body}</Text> : null}
+                  <Text style={{ color: colors.inkFaint, fontSize: 11, marginTop: 5 }}>{timeAgo(n.created_at)}</Text>
+                </View>
+                {to ? <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} /> : null}
+              </Card>
+            );
+          })}
         </ScrollView>
       ) : (
         <Empty title="No notifications yet" subtitle="Updates on your KYC, enquiries and visits will appear here." />

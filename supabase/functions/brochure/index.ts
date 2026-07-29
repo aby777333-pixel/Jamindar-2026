@@ -79,6 +79,12 @@ async function fetchImage(doc: any, url: string): Promise<any | null> {
   }
 }
 
+/** Link-preview crawlers (WhatsApp, Telegram, FB, Slack, X…). A 302 to a PDF
+ *  gives them nothing to show, which is why shared brochure links looked bare
+ *  (owner report 29-07). Bots get a small branded OG page instead; humans keep
+ *  the instant download. */
+const BOT_RE = /(whatsapp|telegram|facebookexternalhit|facebot|twitterbot|slackbot|linkedinbot|discordbot|skypeuripreview|embedly|pinterest|redditbot|googlebot|bingbot|vkshare|w3c_validator|preview)/i;
+
 Deno.serve(async (req) => {
   let original = '';
   try {
@@ -88,6 +94,46 @@ Deno.serve(async (req) => {
     const ref = (url.searchParams.get('ref') ?? '').trim();
     const channel = (url.searchParams.get('src') ?? 'web').slice(0, 24);
     if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return new Response('Not found', { status: 404 });
+
+    // ── rich preview for link crawlers (no PDF generation, no attribution) ──
+    if (BOT_RE.test(req.headers.get('user-agent') ?? '')) {
+      const { data: pv } = await svc.rpc('share_page_data', { p_property: propertyId, p_ref: ref || null });
+      const d0 = pv as any;
+      if (d0?.ok) {
+        const p0 = d0.property, c0 = d0.config ?? {};
+        const base0 = c0.site_base ?? 'https://merry-begonia-4c3cd1.netlify.app';
+        const brand0 = c0.brand_name ?? 'Jamin Bazaar';
+        const who = d0.promoter?.name ? ` · shared by ${d0.promoter.name}` : '';
+        const loc0 = [p0.city, p0.district, p0.state].filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(', ');
+        const img0 = Array.isArray(p0.images) && p0.images.length ? String(p0.images[0]) : `${base0}/jamindar.jpg`;
+        const esc0 = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
+        const href = `${base0}/b/${propertyId}${ref ? `?ref=${encodeURIComponent(ref)}&src=${encodeURIComponent(channel)}` : ''}`;
+        const title0 = `${p0.title} — Brochure${loc0 ? ` · ${loc0}` : ''}`;
+        const desc0 = `Download the ${brand0} project brochure for ${p0.title}${loc0 ? `, ${loc0}` : ''}${who}.`;
+        const html0 = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc0(title0)}</title>
+<meta name="description" content="${esc0(desc0)}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="${esc0(brand0)}">
+<meta property="og:title" content="${esc0(title0)}">
+<meta property="og:description" content="${esc0(desc0)}">
+<meta property="og:image" content="${esc0(img0)}">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="${esc0(href)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc0(title0)}">
+<meta name="twitter:description" content="${esc0(desc0)}">
+<meta name="twitter:image" content="${esc0(img0)}">
+<meta name="theme-color" content="#17171b">
+<meta http-equiv="refresh" content="0;url=${esc0(href)}">
+</head><body style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#17171b;color:#fff;padding:40px;text-align:center">
+<p>Opening the ${esc0(brand0)} brochure for <b>${esc0(p0.title)}</b>…</p>
+<p><a href="${esc0(href)}" style="color:#e7bc45">Tap here if the download does not start.</a></p>
+</body></html>`;
+        return new Response(html0, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, s-maxage=300' } });
+      }
+    }
 
     const { data } = await svc.rpc('share_page_data', { p_property: propertyId, p_ref: ref || null });
     const d = data as any;
@@ -283,6 +329,18 @@ Deno.serve(async (req) => {
     const out = await doc.save();
     const up = await svc.storage.from('property-media').upload(cachePath, out, { contentType: 'application/pdf', upsert: true });
     if (up.error) return redirect(original);
+
+    // Storage hygiene (owner 29-07): each profile/brochure change mints a new
+    // hash, so older copies for this same person+property are dead weight —
+    // generated PDFs were already 76% of the bucket. Drop superseded versions
+    // (never the one just written). Best-effort: failure must not break a download.
+    try {
+      const { data: siblings } = await svc.storage.from('property-media').list(dir, { limit: 100 });
+      const stale = (siblings ?? [])
+        .filter((f: any) => f.name.startsWith(`${String(keyBase).replace(/[^A-Za-z0-9-]/g, '')}-`) && f.name !== base)
+        .map((f: any) => `${dir}/${f.name}`);
+      if (stale.length) await svc.storage.from('property-media').remove(stale);
+    } catch (_) { /* housekeeping only */ }
 
     await logDownload(person.id);
     return redirect(STORAGE_PUBLIC + cachePath);

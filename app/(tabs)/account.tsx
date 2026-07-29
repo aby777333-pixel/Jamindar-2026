@@ -1,6 +1,7 @@
+import { useCallback } from "react";
 import { Text, View, Pressable, Alert, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, type Href } from "expo-router";
+import { useRouter, useFocusEffect, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import { Badge } from "@/components/premium";
@@ -22,10 +23,20 @@ const ID_LABEL: Record<string, string> = { buyer: "Buyer ID", promoter: "Promote
 
 export default function Account() {
   const router = useRouter();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const role = useEffectiveRole();
   const { data: unread = 0 } = useUnreadMessages(!!profile?.id);
   useRealtimeInbox(!!profile?.id);
+
+  // Owner report 29-07: an admin approval (KYC / partner verification) changed
+  // the DB but the screen kept showing the cached "under review" state until a
+  // re-login. Re-reading the profile whenever this tab regains focus makes
+  // approvals appear as soon as the user comes back to it.
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile().catch(() => {});
+    }, [refreshProfile]),
+  );
 
   const rows: { icon: string; label: string; badge?: number; onPress: () => void }[] = [
     { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
