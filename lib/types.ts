@@ -163,6 +163,8 @@ export interface Property {
   videos: string[];
   virtual_tour_url: string | null;
   brochure_url: string | null;
+  /** Thumbnail for the brochure (page 1). Falls back to images[0]. */
+  brochure_cover_url: string | null;
   nearby_landmarks: { label: string; distance?: string }[];
   promoter_id: string | null;
   is_featured: boolean;

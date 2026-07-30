@@ -467,6 +467,80 @@ window.upToField=(key,accept)=>{
 function txt(label,key){return `<div><label>${label}</label><textarea data-k="${key}">${esc(CUR[key]??"")}</textarea></div>`;}
 function chips(label,key,opts){return `<label>${label}</label><div class="chips" data-chips="${key}">${opts.map(o=>`<div class="chip ${CUR[key]===o?'on':''}" data-v="${o}">${o.replace(/_/g," ")}</div>`).join("")}</div>`;}
 
+/**
+ * Brochure cover — the thumbnail the app shows before opening the PDF.
+ *
+ * "Generate from brochure" renders page 1 with pdf.js in this browser and
+ * uploads it using the admin's own session, because only a super_admin may
+ * write to property-media. Doing it here means no service key ever leaves the
+ * server and the owner gets a real snapshot of the brochure in one click.
+ */
+function brochureCoverField(){
+  const cover=CUR.brochure_cover_url||"";
+  return `<div><label>Brochure cover (shown before the PDF opens)</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input data-k="brochure_cover_url" value="${esc(cover)}" placeholder="Generate from the brochure, or paste/upload an image" style="flex:1;min-width:0"/>
+      <button class="btn grey sm" type="button" style="flex:none" onclick="upToField('brochure_cover_url','image/*')">⬆ Upload</button>
+      <button class="btn sm" id="gen_cover" type="button" style="flex:none">✦ From brochure</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+      <img id="cover_prev" src="${esc(cover)}" alt="" style="${cover?"":"display:none;"}height:92px;border:1px solid var(--line,#e7e8ee);border-radius:8px;background:#fff"/>
+      <span class="muted" style="font-size:11px">Without a cover the app falls back to the first property photo, so the brochure is never unreachable.</span>
+    </div></div>`;
+}
+
+/** Render page 1 of the brochure to a JPEG and upload it. */
+async function generateBrochureCover(btn){
+  const url=($(`#drawer [data-k="brochure_url"]`)?.value||"").trim();
+  if(!url) return toast("Add the brochure PDF first");
+  if(!CUR.id) return toast("Save the property first");
+  btn.disabled=true; const label=btn.textContent; btn.textContent="Rendering…";
+  try{
+    if(!window.pdfjsLib){
+      // Self-hosted on purpose: pdf.js needs a *same-origin* worker. A CDN URL
+      // cannot be used — browsers refuse to construct a Worker from another
+      // origin, and getDocument() then hangs for ever with no error.
+      const m=await import("./vendor/pdfjs/pdf.min.mjs");
+      m.GlobalWorkerOptions.workerSrc="./vendor/pdfjs/pdf.worker.min.mjs";
+      window.pdfjsLib=m;
+    }
+    const pdf=await window.pdfjsLib.getDocument({
+      url,
+      // Fetched over plain CORS (not a Worker), so a CDN is fine here. Only
+      // matters for brochures that rely on the PDF standard fonts.
+      cMapUrl:"https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/cmaps/", cMapPacked:true,
+      standardFontDataUrl:"https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/standard_fonts/",
+    }).promise;
+    const page=await pdf.getPage(1);
+    // ~1000 px tall is plenty for a 108 px thumbnail on a retina phone
+    const base=page.getViewport({scale:1});
+    const viewport=page.getViewport({scale:Math.min(2.5,1000/base.height)});
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.round(viewport.width); canvas.height=Math.round(viewport.height);
+    // pdf.js drives its canvas render loop with requestAnimationFrame, which the
+    // browser stops firing while a tab is hidden — the render then waits rather
+    // than failing. Say so instead of leaving the button stuck on "Rendering…".
+    const task=page.render({canvasContext:canvas.getContext("2d"),viewport});
+    const outcome=await Promise.race([
+      task.promise.then(()=>"done"),
+      new Promise(r=>setTimeout(()=>r("stalled"),60000)),
+    ]);
+    if(outcome==="stalled"){ task.cancel(); throw new Error("Rendering stalled — keep this tab open and visible, then try again"); }
+    const blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",0.86));
+    if(!blob) throw new Error("Could not render the first page");
+
+    btn.textContent="Uploading…";
+    const path=`${CUR.id}/links/brochure-cover-${Date.now()}.jpg`;
+    const {error}=await sb.storage.from("property-media").upload(path,blob,{contentType:"image/jpeg",upsert:true});
+    if(error) throw error;
+    const pub=sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+    const field=$(`#drawer [data-k="brochure_cover_url"]`); if(field) field.value=pub;
+    const prev=$("#cover_prev"); if(prev){ prev.src=pub; prev.style.display=""; }
+    toast(`Cover made from page 1 of ${pdf.numPages} — press Save to apply`);
+  }catch(e){ toast(e.message||"Could not generate the cover"); }
+  finally{ btn.disabled=false; btn.textContent=label; }
+}
+
 function planPreview(p){
   const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
   if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
@@ -627,7 +701,7 @@ function renderEditor(){
       <div><label>Ownership</label><input data-legal="ownership" value="${esc(legal.ownership||"")}"/></div>
       <div><label>Encumbrance</label><input data-legal="encumbrance" value="${esc(legal.encumbrance||"")}"/></div></div></div>
     <div class="sec"><h4>Media links & loan</h4><div class="grid2">
-      ${fldUp("Brochure (PDF)","brochure_url","application/pdf")}${fldUp("Master plan image","master_plan_url","image/*")}
+      ${fldUp("Brochure (PDF)","brochure_url","application/pdf")}${brochureCoverField()}${fldUp("Master plan image","master_plan_url","image/*")}
       ${fldUp("360° tour (video or link)","virtual_tour_url","video/*")}${fld("Loan details","loan_details","80-90% bank loan arranged")}
       ${fld("Encumbrance status","encumbrance_status","Nil")}</div>
       <div class="muted" style="font-size:11.5px;margin:4px 0 8px">Upload a file or paste a URL — either works. Shared brochures automatically carry the sharer's own contact page.</div>
@@ -654,6 +728,7 @@ function renderEditor(){
   $("#drawer").querySelectorAll("[data-chips]").forEach(g=>g.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{g.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");}));
   $("#drawer").querySelectorAll("[data-appr] .chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
   $("#drawer").querySelectorAll("[data-tgl]").forEach(t=>t.onclick=()=>t.classList.toggle("on"));
+  const gc=$("#gen_cover"); if(gc) gc.onclick=()=>generateBrochureCover(gc);
   bindPlotGrid();
   loadPlotHolds();
   if(CUR.id) loadMedia();
@@ -816,7 +891,7 @@ window.saveProperty = async ()=>{
     project_name:g("project_name").trim()||null, location_text:g("location_text").trim()||null, total_project_value:num("total_project_value"),
     referral_direct_per_sqft:num("referral_direct_per_sqft"), referral_indirect_per_sqft:num("referral_indirect_per_sqft"), referral_indirect_levels:num("referral_indirect_levels"),
     nearby_defaults:(()=>{const o={};document.querySelectorAll('#drawer [data-near]').forEach(e=>o[e.dataset.near]=e.value.trim());return o;})(),
-    brochure_url:g("brochure_url").trim()||null, master_plan_url:g("master_plan_url").trim()||null, virtual_tour_url:g("virtual_tour_url").trim()||null,
+    brochure_url:g("brochure_url").trim()||null, brochure_cover_url:g("brochure_cover_url").trim()||null, master_plan_url:g("master_plan_url").trim()||null, virtual_tour_url:g("virtual_tour_url").trim()||null,
     loan_eligible:$(`#drawer [data-tgl="loan_eligible"]`).classList.contains("on"), loan_details:g("loan_details").trim()||null, encumbrance_status:g("encumbrance_status").trim()||null,
     plot_layout:mergePlotLayout(CUR.plot_layout,g("_plot_layout")),
     nearby_places:g("_nearby").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[name,distance,duration,category]=l.split("|").map(x=>x.trim());const r={name};if(distance)r.distance=distance;if(duration)r.duration=duration;if(category)r.category=category;return r;}).filter(r=>r.name),

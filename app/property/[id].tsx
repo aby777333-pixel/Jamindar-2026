@@ -29,6 +29,7 @@ import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
 import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
 import { MiniMap } from "@/components/MiniMap";
+import { BrochureSheet } from "@/components/BrochureSheet";
 import { PlotSheet, mapLinks } from "@/components/PlotSheet";
 import { PlotFilters, applyPlotFilters, EMPTY_FILTERS, type PlotFilterState } from "@/components/PlotFilters";
 
@@ -67,6 +68,7 @@ export default function PropertyDetail() {
   const [showBefore, setShowBefore] = useState(false);
   const [fullscreen, setFullscreen] = useState<number | null>(null);
   const [visitOpen, setVisitOpen] = useState(false);
+  const [brochureOpen, setBrochureOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [videoIndex, setVideoIndex] = useState(0);
@@ -299,11 +301,18 @@ export default function PropertyDetail() {
    *  generated from the sharer's LIVE profile (verified promoters get their
    *  contact page; super admins get the corporate page). The endpoint logs the
    *  attributed download itself, so no local insert. */
-  async function onBrochure() {
+  /** Show what the brochure looks like before sending anyone to a 5.9 MB PDF. */
+  function onBrochure() {
     if (!property?.brochure_url) {
       Alert.alert("Brochure", "No brochure uploaded for this property yet.");
       return;
     }
+    setBrochureOpen(true);
+  }
+
+  async function openBrochureFile() {
+    if (!property?.brochure_url) return;
+    setBrochureOpen(false);
     const ref = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
     await WebBrowser.openBrowserAsync(brochureLink(property.id, ref, "app"));
   }
@@ -654,6 +663,15 @@ export default function PropertyDetail() {
           </View>
         </View>
       </Modal>
+      {property ? (
+        <BrochureSheet
+          visible={brochureOpen}
+          property={property}
+          onClose={() => setBrochureOpen(false)}
+          onOpen={openBrochureFile}
+        />
+      ) : null}
+
       <SiteVisitSheet
         visible={visitOpen}
         onClose={() => setVisitOpen(false)}
