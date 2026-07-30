@@ -470,6 +470,55 @@ function chips(label,key,opts){return `<label>${label}</label><div class="chips"
 function renderEditor(){
   const legal=CUR.legal||{}, inv=CUR.investment||{}, seo=CUR.seo||{};
   const plotLines=(CUR.plot_layout||[]).map(r=>[r.plot??r.plot_no??"",r.size_sqft??"",r.facing??"",r.status??"available"].join("|")).join("\n");
+  // The textarea only carries plot|sqft|facing|status, but a plot row can hold
+  // much more — Edappadi's rows carry the traced plan geometry (block, poly,
+  // at, clipped) that draws the interactive site plan. Rebuilding the array
+  // from the textarea alone would silently delete all of it on the next save,
+  // so merge onto the existing row for that plot and only overwrite the four
+  // fields the editor actually owns.
+  // Read-only site plan, drawn from the traced geometry on the property. Shows
+  // the admin exactly what a buyer sees while they edit statuses, so a typo in
+  // the schedule is obvious. Geometry is never edited here — it is regenerated
+  // from the approved DTCP drawing.
+  function planPreview(p){
+    const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
+    if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
+    const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2"};
+    const LINE={available:"#14A05A",reserved:"#9C7D1A",booked:"#A61B10",sold:"#2E2E2E",blocked:"#86868B"};
+    const TXT={available:"#14A05A",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#86868B"};
+    const pts=r=>r.map(q=>q.join(",")).join(" ");
+    let s=`<svg viewBox="${g.viewBox.join(" ")}" style="width:100%;max-height:420px" preserveAspectRatio="xMidYMid meet">`;
+    s+=`<polygon points="${pts(g.boundary)}" fill="#ececE8"/>`;
+    if(g.osr&&g.osr.polygon) s+=`<polygon points="${pts(g.osr.polygon)}" fill="#eef5ea" stroke="#5b8c3a" stroke-width="0.5" stroke-dasharray="2.5 1.8"/>`;
+    if(g.existingRoad&&g.existingRoad.quad) s+=`<polygon points="${pts(g.existingRoad.quad)}" fill="#f4efdc" stroke="#7a6b32" stroke-width="0.6"/>`;
+    s+=`<polygon points="${pts(g.boundary)}" fill="none" stroke="#d0402f" stroke-width="1.9" stroke-linejoin="round"/>`;
+    (g.roads||[]).forEach(r=>{const b=r.band,cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
+      s+=`<text x="${cx}" y="${cy+1.2}" font-size="4" fill="#86868B" text-anchor="middle"${r.rotate?` transform="rotate(${r.rotate} ${cx} ${cy})"`:""}>${esc(r.label)}</text>`;});
+    rows.forEach(r=>{ if(!r.poly||!r.at) return;
+      const st=(r.status||"available").toLowerCase();
+      s+=`<g><title>Plot ${esc(r.plot)} — ${esc(st)}</title>`+
+         `<polygon points="${pts(r.poly)}" fill="${FILL[st]||"#fff"}" stroke="${LINE[st]||"#14A05A"}" stroke-width="0.9"/>`+
+         `<text x="${r.at[0]}" y="${r.at[1]+1.6}" font-size="6" font-weight="700" text-anchor="middle" fill="${TXT[st]||"#14A05A"}">${esc(r.plot)}</text></g>`;});
+    s+="</svg>";
+    const n=rows.length, avail=rows.filter(r=>(r.status||"available")==="available").length;
+    return `<div style="margin-top:8px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
+      <div style="font-size:12px;opacity:.7;margin-bottom:6px">Site plan preview — ${avail} of ${n} available${g.approvalNo?` · DTCP ${esc(g.approvalNo)}`:""}</div>
+      ${s}
+      <div style="font-size:11px;opacity:.6;margin-top:6px">Traced from the approved drawing. Editing the schedule above repaints this; the plan outline itself is not editable here.</div>
+    </div>`;
+  }
+
+  function mergePlotLayout(existing, text){
+    const prev={}; (existing||[]).forEach(r=>{ const k=String(r.plot??r.plot_no??"").trim(); if(k) prev[k]=r; });
+    return String(text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+      const[plot,size,facing,status]=l.split("|").map(x=>x.trim());
+      if(!plot) return null;
+      const r=Object.assign({},prev[plot]||{},{plot,status:status||"available"});
+      if(size) r.size_sqft=Number(size)||null; else delete r.size_sqft;
+      if(facing) r.facing=facing; else delete r.facing;
+      return r;
+    }).filter(Boolean);
+  }
   const beforeLines=(CUR.before_images||[]).join("\n");
   const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
@@ -526,7 +575,8 @@ function renderEditor(){
       <div class="muted" style="font-size:11.5px;margin:4px 0 8px">Upload a file or paste a URL — either works. Shared brochures automatically carry the sharer's own contact page.</div>
       <div class="switch">Loan eligible <div class="tgl ${CUR.loan_eligible?'on':''}" data-tgl="loan_eligible"><b></b></div></div></div>
     <div class="sec"><h4>Plot schedule & nearby places</h4>
-      <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea></div>
+      <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea>
+        ${planPreview(CUR)}</div>
       <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div>
       <div><label>Before-development photos (completed projects — one image URL per line, powers the app's Before/After toggle)</label><textarea data-k="_before_images" placeholder="https://…/before-1.jpg">${esc(beforeLines)}</textarea></div></div>
     <div class="sec"><h4>Investment</h4><div class="grid3">
@@ -585,7 +635,7 @@ window.saveProperty = async ()=>{
     nearby_defaults:(()=>{const o={};document.querySelectorAll('#drawer [data-near]').forEach(e=>o[e.dataset.near]=e.value.trim());return o;})(),
     brochure_url:g("brochure_url").trim()||null, master_plan_url:g("master_plan_url").trim()||null, virtual_tour_url:g("virtual_tour_url").trim()||null,
     loan_eligible:$(`#drawer [data-tgl="loan_eligible"]`).classList.contains("on"), loan_details:g("loan_details").trim()||null, encumbrance_status:g("encumbrance_status").trim()||null,
-    plot_layout:g("_plot_layout").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[plot,size,facing,status]=l.split("|").map(x=>x.trim());const r={plot,status:status||"available"};if(size)r.size_sqft=Number(size)||null;if(facing)r.facing=facing;return r;}).filter(r=>r.plot),
+    plot_layout:mergePlotLayout(CUR.plot_layout,g("_plot_layout")),
     nearby_places:g("_nearby").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[name,distance,duration,category]=l.split("|").map(x=>x.trim());const r={name};if(distance)r.distance=distance;if(duration)r.duration=duration;if(category)r.category=category;return r;}).filter(r=>r.name),
     before_images:g("_before_images").split("\n").map(l=>l.trim()).filter(Boolean),
   };

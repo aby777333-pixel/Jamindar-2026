@@ -27,6 +27,7 @@ import { propertyShareMessage, brochureLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
+import { PlotPlan, PlotDetailCard, PlotTotals, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
 
 type TabKey =
   | "overview" | "photos" | "videos" | "master_plan"
@@ -766,11 +767,25 @@ function InlineVideo({ uri, height }: { uri: string; height: number }) {
 }
 
 function MasterPlanTab({ property }: { property: Property }) {
-  const plots = property.plot_layout ?? [];
+  const plots: PlotRow[] = property.plot_layout ?? [];
   const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
   const [zoom, setZoom] = useState(false);
+  const [picked, setPicked] = useState<PlotRow | null>(null);
+
+  // Traced site plan, when this property has one. Falls back to the master-plan
+  // image below for properties that only have a scan.
+  const plan = property.plot_plan as PlotPlanGeometry | null;
+  const interactive = !!plan?.boundary?.length && plots.some((p) => p.poly);
+
   return (
     <View style={{ gap: 14 }}>
+      {interactive ? (
+        <>
+          <PlotTotals plots={plots} />
+          <PlotPlan geometry={plan!} plots={plots} onSelect={setPicked} />
+          {picked ? <PlotDetailCard plot={picked} /> : null}
+        </>
+      ) : null}
       {property.master_plan_url ? (
         <>
           {/* contain, not cover: a layout drawing must never be cropped */}
@@ -805,10 +820,10 @@ function MasterPlanTab({ property }: { property: Property }) {
             onClose={() => setZoom(false)}
           />
         </>
-      ) : (
+      ) : interactive ? null : (
         <EmptyNote label="Master plan image not available for this property." />
       )}
-      {plots.length > 0 ? (
+      {plots.length > 0 && !interactive ? (
         <Card>
           <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 10 }}>Plot availability</Text>
           <View style={{ flexDirection: "row", gap: 16 }}>

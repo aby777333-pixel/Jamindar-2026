@@ -53,6 +53,9 @@ export default function PropertyEdit() {
     near_bus_stand: "", near_railway_station: "", near_school: "", near_college: "", near_hospital: "",
   });
   const [aiBusy, setAiBusy] = useState(false);
+  // Plot rows exactly as loaded. The editor's textarea only round-trips four
+  // fields, so save() merges onto these to keep everything else on the row.
+  const [plotRows, setPlotRows] = useState<any[]>([]);
   const set = (k: keyof typeof f) => (v: any) => setF((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export default function PropertyEdit() {
     supabase.from("properties").select("*").eq("id", id).maybeSingle().then(({ data }) => {
       const p = data as Property | null;
       if (p) {
+        setPlotRows(((p.plot_layout ?? []) as any[]));
         setF({
           title: p.title ?? "", property_type: p.property_type, status: p.status, project_phase: p.project_phase,
           is_featured: !!p.is_featured, price: p.price?.toString() ?? "", area_value: p.area_value?.toString() ?? "",
@@ -107,10 +111,24 @@ export default function PropertyEdit() {
       if (f.inv_appreciation.trim()) investment.appreciation = f.inv_appreciation.trim();
       const documents = linesToArr(f.documents).map((l) => { const [label, url, size] = l.split("|").map((x) => x.trim()); return { label, url, ...(size ? { size } : {}) }; }).filter((d) => d.url);
       const nearby_places = linesToArr(f.nearby_places).map((l) => { const [name, distance, duration, category] = l.split("|").map((x) => x.trim()); return { name, ...(distance ? { distance } : {}), ...(duration ? { duration } : {}), ...(category ? { category } : {}) }; }).filter((n) => n.name);
+      // The textarea only carries plot|sqft|facing|status, but a plot row can
+      // hold much more — Edappadi's rows carry the traced plan geometry (block,
+      // poly, at, clipped) that draws the interactive site plan. Rebuilding the
+      // array from the textarea alone would silently delete all of it on save,
+      // so merge onto the existing row and overwrite only what the editor owns.
+      const prevPlots: Record<string, Record<string, unknown>> = {};
+      for (const r of plotRows) {
+        const k = String(r?.plot ?? r?.plot_no ?? "").trim();
+        if (k) prevPlots[k] = r;
+      }
       const plot_layout = linesToArr(f.plot_layout).map((l) => {
         const [plot, size, facing, status] = l.split("|").map((x) => x.trim());
-        return { plot, ...(size ? { size_sqft: Number(size) || null } : {}), ...(facing ? { facing } : {}), status: status || "available" };
-      }).filter((r) => r.plot);
+        if (!plot) return null;
+        const r: Record<string, unknown> = { ...(prevPlots[plot] ?? {}), plot, status: status || "available" };
+        if (size) r.size_sqft = Number(size) || null; else delete r.size_sqft;
+        if (facing) r.facing = facing; else delete r.facing;
+        return r;
+      }).filter(Boolean);
 
       const payload: Record<string, unknown> = {
         title: f.title.trim(), property_type: f.property_type, status: f.status, project_phase: f.project_phase,

@@ -165,7 +165,38 @@ export interface Property {
   created_at: string;
   // ── property experience (migration 0010) ──
   master_plan_url: string | null;
-  plot_layout: { plot_no: string; status?: string }[];
+  /**
+   * Plot schedule. The editors write `plot`; `plot_no` is only there for the
+   * oldest rows. Properties with a traced site plan also carry the drawn
+   * outline per plot (`poly`/`at`/`clipped`) — display geometry only, quoted
+   * sizes always come from `size_sqft` / `size_sqm`.
+   */
+  plot_layout: {
+    plot: string;
+    /** legacy key, still read as a fallback */
+    plot_no?: string;
+    status?: string;
+    size_sqft?: number | null;
+    facing?: string;
+    block?: string;
+    size_sqm?: number;
+    dim_m?: string;
+    poly?: [number, number][];
+    at?: [number, number];
+    clipped?: boolean;
+  }[];
+  /** Traced site-plan geometry for the interactive plot map (migration 0064). */
+  plot_plan: {
+    viewBox: [number, number, number, number];
+    boundary: [number, number][];
+    osr?: { polygon?: [number, number][]; label?: string; areaSqm?: number };
+    existingRoad?: { quad?: [number, number][]; label?: string };
+    roads?: { label: string; band: [number, number, number, number]; rotate?: number }[];
+    dimensions?: { label: string; from: [number, number]; to: [number, number] }[];
+    metresPerUnit?: number;
+    approvalNo?: string;
+    scale?: string;
+  } | null;
   documents: { label: string; url: string; size?: string }[];
   drone_videos: string[];
   rera_number: string | null;
