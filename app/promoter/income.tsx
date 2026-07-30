@@ -223,7 +223,7 @@ export default function SalesIncome() {
     setWdBusy(true);
     try {
       const details = wdMethod === "bank"
-        ? { holder: wdFields.holder ?? "", account: wdFields.account ?? "", ifsc: wdFields.ifsc ?? "" }
+        ? { holder: wdFields.holder ?? "", bank: wdFields.bank ?? "", account: wdFields.account ?? "", ifsc: wdFields.ifsc ?? "" }
         : { upi: wdFields.upi ?? "" };
       const { data, error } = await supabase.rpc("bazaar_request_withdrawal", {
         p_amount: amt, p_method: wdMethod, p_details: details,
@@ -244,7 +244,7 @@ export default function SalesIncome() {
   function openWithdraw() {
     const last = w?.last_details ?? {};
     setWdMethod(last.method === "upi" ? "upi" : "bank");
-    setWdFields({ holder: last.holder ?? "", account: last.account ?? "", ifsc: last.ifsc ?? "", upi: last.upi ?? "" });
+    setWdFields({ holder: last.holder ?? "", bank: last.bank ?? "", account: last.account ?? "", ifsc: last.ifsc ?? "", upi: last.upi ?? "" });
     setWdOpen(true);
   }
 
@@ -358,7 +358,7 @@ export default function SalesIncome() {
                   </View>
                   {wdMethod === "bank" ? (
                     <View style={{ gap: space.xs }}>
-                      {([["holder", "Account holder name"], ["account", "Account number"], ["ifsc", "IFSC code"]] as const).map(([k, ph]) => (
+                      {([["holder", "Account holder name"], ["bank", "Bank name"], ["account", "Account number"], ["ifsc", "IFSC code"]] as const).map(([k, ph]) => (
                         <TextInput
                           key={k}
                           value={wdFields[k] ?? ""}

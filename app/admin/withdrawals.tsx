@@ -83,9 +83,23 @@ export default function AdminWithdrawals() {
     );
   }
 
+  // Someone remits real money off this line, so show it in the order a bank
+  // form asks for it and with readable labels rather than raw keys. Anything
+  // unrecognised still shows, so a new field can never go silently missing.
+  const DETAIL_LABELS: [string, string][] = [
+    ["holder", "Account holder"],
+    ["bank", "Bank"],
+    ["account", "A/c no."],
+    ["ifsc", "IFSC"],
+    ["upi", "UPI"],
+  ];
   const detailLine = (r: Row) => {
     const d = r.details ?? {};
-    const parts = Object.entries(d).filter(([k, v]) => v && k !== "method").map(([k, v]) => `${k}: ${v}`);
+    const known = new Set(DETAIL_LABELS.map(([k]) => k));
+    const parts = [
+      ...DETAIL_LABELS.filter(([k]) => d[k]).map(([k, label]) => `${label}: ${d[k]}`),
+      ...Object.entries(d).filter(([k, v]) => v && k !== "method" && !known.has(k)).map(([k, v]) => `${k}: ${v}`),
+    ];
     return parts.length ? parts.join(" · ") : "No payment details given";
   };
 
