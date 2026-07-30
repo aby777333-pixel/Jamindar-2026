@@ -467,6 +467,103 @@ window.upToField=(key,accept)=>{
 function txt(label,key){return `<div><label>${label}</label><textarea data-k="${key}">${esc(CUR[key]??"")}</textarea></div>`;}
 function chips(label,key,opts){return `<label>${label}</label><div class="chips" data-chips="${key}">${opts.map(o=>`<div class="chip ${CUR[key]===o?'on':''}" data-v="${o}">${o.replace(/_/g," ")}</div>`).join("")}</div>`;}
 
+function planPreview(p){
+  const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
+  if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
+  const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2"};
+  const LINE={available:"#14A05A",reserved:"#9C7D1A",booked:"#A61B10",sold:"#2E2E2E",blocked:"#86868B"};
+  const TXT={available:"#14A05A",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#86868B"};
+  const pts=r=>r.map(q=>q.join(",")).join(" ");
+  let s=`<svg viewBox="${g.viewBox.join(" ")}" style="width:100%;max-height:420px" preserveAspectRatio="xMidYMid meet">`;
+  s+=`<polygon points="${pts(g.boundary)}" fill="#ececE8"/>`;
+  if(g.osr&&g.osr.polygon) s+=`<polygon points="${pts(g.osr.polygon)}" fill="#eef5ea" stroke="#5b8c3a" stroke-width="0.5" stroke-dasharray="2.5 1.8"/>`;
+  if(g.existingRoad&&g.existingRoad.quad) s+=`<polygon points="${pts(g.existingRoad.quad)}" fill="#f4efdc" stroke="#7a6b32" stroke-width="0.6"/>`;
+  s+=`<polygon points="${pts(g.boundary)}" fill="none" stroke="#d0402f" stroke-width="1.9" stroke-linejoin="round"/>`;
+  (g.roads||[]).forEach(r=>{const b=r.band,cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
+    s+=`<text x="${cx}" y="${cy+1.2}" font-size="4" fill="#86868B" text-anchor="middle"${r.rotate?` transform="rotate(${r.rotate} ${cx} ${cy})"`:""}>${esc(r.label)}</text>`;});
+  rows.forEach(r=>{ if(!r.poly||!r.at) return;
+    const st=(r.status||"available").toLowerCase();
+    s+=`<g><title>Plot ${esc(r.plot)} — ${esc(st)}</title>`+
+       `<polygon points="${pts(r.poly)}" fill="${FILL[st]||"#fff"}" stroke="${LINE[st]||"#14A05A"}" stroke-width="0.9"/>`+
+       `<text x="${r.at[0]}" y="${r.at[1]+1.6}" font-size="6" font-weight="700" text-anchor="middle" fill="${TXT[st]||"#14A05A"}">${esc(r.plot)}</text></g>`;});
+  s+="</svg>";
+  const n=rows.length, avail=rows.filter(r=>(r.status||"available")==="available").length;
+  return `<div style="margin-top:8px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
+    <div style="font-size:12px;opacity:.7;margin-bottom:6px">Site plan preview — ${avail} of ${n} available${g.approvalNo?` · DTCP ${esc(g.approvalNo)}`:""}</div>
+    ${s}
+    <div style="font-size:11px;opacity:.6;margin-top:6px">Traced from the approved drawing. Editing the schedule above repaints this; the plan outline itself is not editable here.</div>
+  </div>`;
+}
+
+// Per-plot commercial and attribute editor. Everything the buyer's plot sheet
+// can show has a control here (admin-parity rule).
+//
+// It saves on its own button rather than with the property, because the plot
+// schedule textarea above also writes plot_layout — two writers on one column
+// would race and the last one would win. Saving here updates CUR and rewrites
+// the textarea, so a later property save merges onto the same rows.
+const PLOT_GRID_FIELDS_DEF = [
+  ["price", "Price ₹"], ["offer_price", "Offer ₹"], ["booking_amount", "Booking ₹"],
+  ["registration_charges", "Reg. ₹"], ["development_charges", "Dev. ₹"],
+];
+function plotGrid(p){
+  const rows=(p&&p.plot_layout)||[];
+  if(!rows.length) return "";
+  const blocks=[...new Set(rows.map(r=>r.block).filter(Boolean))];
+  const statuses=["available","reserved","booked","sold","blocked"];
+  const money=v=>(v===null||v===undefined||v==="")?"":String(v);
+  return `<div id="plotgrid" style="margin-top:10px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Plot pricing &amp; status</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">
+      <select id="pg_block" class="inp" style="max-width:150px">
+        <option value="">Apply to every plot</option>
+        ${blocks.map(b=>`<option value="${esc(b)}">Block ${esc(b)} only</option>`).join("")}
+      </select>
+      ${PLOT_GRID_FIELDS_DEF.map(([k,l])=>`<input id="pg_${k}" class="inp" type="number" min="0" placeholder="${l}" style="max-width:118px" />`).join("")}
+      <select id="pg_status" class="inp" style="max-width:130px"><option value="">Status…</option>${statuses.map(s=>`<option value="${s}">${s}</option>`).join("")}</select>
+      <button id="pg_apply" type="button" class="btn btn-sm">Apply</button>
+    </div>
+    <div style="max-height:340px;overflow:auto">
+    <table style="font-size:12px"><thead><tr>
+      <th>Plot</th><th>Blk</th><th>Status</th>
+      ${PLOT_GRID_FIELDS_DEF.map(([,l])=>`<th>${l}</th>`).join("")}
+      <th>Facing</th><th>Road m</th><th>Corner</th><th>Total</th>
+    </tr></thead><tbody>
+    ${rows.map(r=>{
+      const st=(r.status||"available").toLowerCase();
+      const tot=(Number(r.offer_price||r.price)||0)+(Number(r.registration_charges)||0)+(Number(r.development_charges)||0);
+      return `<tr data-pg="${esc(r.plot)}">
+        <td><b>${esc(r.plot)}</b></td>
+        <td class="muted">${esc(r.block||"")}</td>
+        <td><select class="inp pg_f" data-f="status" style="height:30px;width:104px">${statuses.map(s=>`<option value="${s}"${s===st?" selected":""}>${s}</option>`).join("")}</select></td>
+        ${PLOT_GRID_FIELDS_DEF.map(([k])=>`<td><input class="inp pg_f" data-f="${k}" type="number" min="0" style="height:30px;width:96px" value="${esc(money(r[k]))}" /></td>`).join("")}
+        <td><select class="inp pg_f" data-f="facing" style="height:30px;width:90px">${["","North","South","East","West"].map(f=>`<option value="${f}"${f===(r.facing||"")?" selected":""}>${f||"—"}</option>`).join("")}</select></td>
+        <td><input class="inp pg_f" data-f="road_m" type="number" step="0.5" min="0" style="height:30px;width:70px" value="${esc(money(r.road_m))}" /></td>
+        <td style="text-align:center"><input type="checkbox" class="pg_f" data-f="corner"${r.corner?" checked":""} /></td>
+        <td class="muted pg_total">${tot?("₹"+tot.toLocaleString("en-IN")):"—"}</td>
+      </tr>`;}).join("")}
+    </tbody></table></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+      <button id="pg_save" type="button" class="btn btn-sm">Save plot pricing</button>
+      <span class="muted" style="font-size:11px">Saves immediately. Sizes, block and the plan outline come from the approved drawing and are not editable.</span>
+    </div>
+  </div>`;
+}
+
+function mergePlotLayout(existing, text){
+  const prev={}; (existing||[]).forEach(r=>{ const k=String(r.plot??r.plot_no??"").trim(); if(k) prev[k]=r; });
+  return String(text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const[plot,size,facing,status]=l.split("|").map(x=>x.trim());
+    if(!plot) return null;
+    const r=Object.assign({},prev[plot]||{},{plot,status:status||"available"});
+    if(size) r.size_sqft=Number(size)||null; else delete r.size_sqft;
+    if(facing) r.facing=facing; else delete r.facing;
+    return r;
+  }).filter(Boolean);
+}
+const PLOT_GRID_FIELDS = PLOT_GRID_FIELDS_DEF.map(([k]) => k);
+
+
 function renderEditor(){
   const legal=CUR.legal||{}, inv=CUR.investment||{}, seo=CUR.seo||{};
   const plotLines=(CUR.plot_layout||[]).map(r=>[r.plot??r.plot_no??"",r.size_sqft??"",r.facing??"",r.status??"available"].join("|")).join("\n");
@@ -480,45 +577,6 @@ function renderEditor(){
   // the admin exactly what a buyer sees while they edit statuses, so a typo in
   // the schedule is obvious. Geometry is never edited here — it is regenerated
   // from the approved DTCP drawing.
-  function planPreview(p){
-    const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
-    if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
-    const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2"};
-    const LINE={available:"#14A05A",reserved:"#9C7D1A",booked:"#A61B10",sold:"#2E2E2E",blocked:"#86868B"};
-    const TXT={available:"#14A05A",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#86868B"};
-    const pts=r=>r.map(q=>q.join(",")).join(" ");
-    let s=`<svg viewBox="${g.viewBox.join(" ")}" style="width:100%;max-height:420px" preserveAspectRatio="xMidYMid meet">`;
-    s+=`<polygon points="${pts(g.boundary)}" fill="#ececE8"/>`;
-    if(g.osr&&g.osr.polygon) s+=`<polygon points="${pts(g.osr.polygon)}" fill="#eef5ea" stroke="#5b8c3a" stroke-width="0.5" stroke-dasharray="2.5 1.8"/>`;
-    if(g.existingRoad&&g.existingRoad.quad) s+=`<polygon points="${pts(g.existingRoad.quad)}" fill="#f4efdc" stroke="#7a6b32" stroke-width="0.6"/>`;
-    s+=`<polygon points="${pts(g.boundary)}" fill="none" stroke="#d0402f" stroke-width="1.9" stroke-linejoin="round"/>`;
-    (g.roads||[]).forEach(r=>{const b=r.band,cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
-      s+=`<text x="${cx}" y="${cy+1.2}" font-size="4" fill="#86868B" text-anchor="middle"${r.rotate?` transform="rotate(${r.rotate} ${cx} ${cy})"`:""}>${esc(r.label)}</text>`;});
-    rows.forEach(r=>{ if(!r.poly||!r.at) return;
-      const st=(r.status||"available").toLowerCase();
-      s+=`<g><title>Plot ${esc(r.plot)} — ${esc(st)}</title>`+
-         `<polygon points="${pts(r.poly)}" fill="${FILL[st]||"#fff"}" stroke="${LINE[st]||"#14A05A"}" stroke-width="0.9"/>`+
-         `<text x="${r.at[0]}" y="${r.at[1]+1.6}" font-size="6" font-weight="700" text-anchor="middle" fill="${TXT[st]||"#14A05A"}">${esc(r.plot)}</text></g>`;});
-    s+="</svg>";
-    const n=rows.length, avail=rows.filter(r=>(r.status||"available")==="available").length;
-    return `<div style="margin-top:8px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
-      <div style="font-size:12px;opacity:.7;margin-bottom:6px">Site plan preview — ${avail} of ${n} available${g.approvalNo?` · DTCP ${esc(g.approvalNo)}`:""}</div>
-      ${s}
-      <div style="font-size:11px;opacity:.6;margin-top:6px">Traced from the approved drawing. Editing the schedule above repaints this; the plan outline itself is not editable here.</div>
-    </div>`;
-  }
-
-  function mergePlotLayout(existing, text){
-    const prev={}; (existing||[]).forEach(r=>{ const k=String(r.plot??r.plot_no??"").trim(); if(k) prev[k]=r; });
-    return String(text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
-      const[plot,size,facing,status]=l.split("|").map(x=>x.trim());
-      if(!plot) return null;
-      const r=Object.assign({},prev[plot]||{},{plot,status:status||"available"});
-      if(size) r.size_sqft=Number(size)||null; else delete r.size_sqft;
-      if(facing) r.facing=facing; else delete r.facing;
-      return r;
-    }).filter(Boolean);
-  }
   const beforeLines=(CUR.before_images||[]).join("\n");
   const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
@@ -576,7 +634,8 @@ function renderEditor(){
       <div class="switch">Loan eligible <div class="tgl ${CUR.loan_eligible?'on':''}" data-tgl="loan_eligible"><b></b></div></div></div>
     <div class="sec"><h4>Plot schedule & nearby places</h4>
       <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea>
-        ${planPreview(CUR)}</div>
+        ${planPreview(CUR)}
+        ${plotGrid(CUR)}</div>
       <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div>
       <div><label>Before-development photos (completed projects — one image URL per line, powers the app's Before/After toggle)</label><textarea data-k="_before_images" placeholder="https://…/before-1.jpg">${esc(beforeLines)}</textarea></div></div>
     <div class="sec"><h4>Investment</h4><div class="grid3">
@@ -594,7 +653,76 @@ function renderEditor(){
   $("#drawer").querySelectorAll("[data-chips]").forEach(g=>g.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{g.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");}));
   $("#drawer").querySelectorAll("[data-appr] .chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
   $("#drawer").querySelectorAll("[data-tgl]").forEach(t=>t.onclick=()=>t.classList.toggle("on"));
+  bindPlotGrid();
   if(CUR.id) loadMedia();
+}
+
+/** Reads the grid back into plot rows, keeping every key it does not own. */
+function collectPlotGrid(){
+  const prev={}; (CUR.plot_layout||[]).forEach(r=>{const k=String(r.plot??r.plot_no??"").trim(); if(k) prev[k]=r;});
+  return [...$("#drawer").querySelectorAll("tr[data-pg]")].map(tr=>{
+    const key=tr.dataset.pg;
+    const out=Object.assign({}, prev[key]||{}, {plot:key});
+    tr.querySelectorAll(".pg_f").forEach(el=>{
+      const f=el.dataset.f;
+      if(f==="corner"){ if(el.checked) out.corner=true; else delete out.corner; return; }
+      const v=String(el.value??"").trim();
+      if(v==="") { if(f!=="status") delete out[f]; return; }
+      out[f] = (f==="status"||f==="facing") ? v : Number(v);
+    });
+    return out;
+  });
+}
+
+function bindPlotGrid(){
+  const grid=$("#plotgrid"); if(!grid) return;
+
+  const retotal=(tr)=>{
+    const val=f=>Number(tr.querySelector(`.pg_f[data-f="${f}"]`)?.value||0)||0;
+    const t=(val("offer_price")||val("price"))+val("registration_charges")+val("development_charges");
+    const cell=tr.querySelector(".pg_total");
+    if(cell) cell.textContent = t ? "₹"+t.toLocaleString("en-IN") : "—";
+  };
+  grid.querySelectorAll("tr[data-pg]").forEach(tr=>
+    tr.querySelectorAll(".pg_f").forEach(el=>el.addEventListener("input",()=>retotal(tr))));
+
+  $("#pg_apply").onclick=()=>{
+    const block=$("#pg_block").value;
+    const status=$("#pg_status").value;
+    const vals=PLOT_GRID_FIELDS.map(k=>[k,$(`#pg_${k}`).value.trim()]).filter(([,v])=>v!=="");
+    if(!vals.length && !status) return toast("Enter an amount or pick a status first");
+    let n=0;
+    grid.querySelectorAll("tr[data-pg]").forEach(tr=>{
+      const rowBlock=tr.children[1].textContent.trim();
+      if(block && rowBlock!==block) return;
+      vals.forEach(([k,v])=>{ const el=tr.querySelector(`.pg_f[data-f="${k}"]`); if(el) el.value=v; });
+      if(status){ const el=tr.querySelector('.pg_f[data-f="status"]'); if(el) el.value=status; }
+      retotal(tr); n++;
+    });
+    toast(`Applied to ${n} plot${n===1?"":"s"} — press Save plot pricing`);
+  };
+
+  $("#pg_save").onclick=async (e)=>{
+    const btn=e.currentTarget; btn.disabled=true; btn.textContent="Saving…";
+    try{
+      const rows=collectPlotGrid();
+      if(!CUR.id) throw new Error("Save the property first");
+      const avail=rows.filter(r=>(r.status||"available")==="available").length;
+      const {error}=await sb.from("properties")
+        .update({plot_layout:rows, plots_total:rows.length, plots_available:avail})
+        .eq("id",CUR.id);
+      if(error) throw error;
+      // keep the in-memory copy and the schedule textarea in step, so a later
+      // property save merges onto these rows instead of reverting them
+      CUR.plot_layout=rows; CUR.plots_total=rows.length; CUR.plots_available=avail;
+      const ta=$(`#drawer [data-k="_plot_layout"]`);
+      if(ta) ta.value=rows.map(r=>[r.plot,r.size_sqft??"",r.facing??"",r.status??"available"].join("|")).join("\n");
+      const pv=$("#plotgrid")?.parentElement?.querySelector("svg");
+      if(pv) pv.outerHTML=planPreview(CUR).match(/<svg[\s\S]*<\/svg>/)?.[0]||pv.outerHTML;
+      toast(`Saved — ${avail} of ${rows.length} available`);
+    }catch(err){ toast(err.message||"Save failed"); }
+    finally{ btn.disabled=false; btn.textContent="Save plot pricing"; }
+  };
 }
 window.scrollMedia = ()=>$("#media-sec")?.scrollIntoView({behavior:"smooth"});
 
