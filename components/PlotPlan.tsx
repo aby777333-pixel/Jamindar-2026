@@ -93,6 +93,7 @@ function PlanSvg({
   selected,
   visible,
   vb,
+  survey,
   onPick,
 }: {
   geometry: PlotPlanGeometry;
@@ -100,8 +101,13 @@ function PlanSvg({
   selected: string | null;
   visible?: Set<string>;
   vb: { x: number; y: number; w: number; h: number };
+  /** Survey view restores the approval drawing's own layer colours. */
+  survey: boolean;
   onPick: (p: PlotRow) => void;
 }) {
+  const ground = survey ? "#D99F6F" : "#ECECE8";
+  const osrFill = survey ? "#E8F0E2" : "#EEF5EA";
+  const siteW = survey ? 2.2 : 1.9;
   return (
     <Svg
       width="100%"
@@ -111,14 +117,14 @@ function PlanSvg({
     >
       {/* Everything inside the sanctioned boundary that is not a plot or the
           OSR is road, exactly as the sheet colours it. */}
-      <Polygon points={pointsOf(geometry.boundary)} fill="#ECECE8" />
+      <Polygon points={pointsOf(geometry.boundary)} fill={ground} />
       {geometry.osr?.polygon ? (
-        <Polygon points={pointsOf(geometry.osr.polygon)} fill="#EEF5EA" stroke="#5B8C3A" strokeWidth={0.5} strokeDasharray="2.5 1.8" />
+        <Polygon points={pointsOf(geometry.osr.polygon)} fill={osrFill} stroke="#5B8C3A" strokeWidth={0.5} strokeDasharray="2.5 1.8" />
       ) : null}
       {geometry.existingRoad?.quad ? (
         <Polygon points={pointsOf(geometry.existingRoad.quad)} fill="#F4EFDC" stroke="#7A6B32" strokeWidth={0.6} />
       ) : null}
-      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#D0402F" strokeWidth={1.9} strokeLinejoin="round" />
+      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#D0402F" strokeWidth={siteW} strokeLinejoin="round" />
 
       {geometry.roads?.map((r, i) => {
         const cx = (r.band[0] + r.band[2]) / 2;
@@ -175,10 +181,10 @@ function PlanSvg({
             <Polygon
               points={pointsOf(p.poly)}
               fill={isSel ? "#2F6BFF" : FILL[status] ?? "#FFFFFF"}
-              stroke={isSel ? "#1B4FD8" : STROKE[status] ?? colors.success}
+              stroke={isSel ? "#1B4FD8" : survey && status === "available" ? "#1F1F1D" : STROKE[status] ?? colors.success}
               strokeWidth={isSel ? 2.4 : 0.9}
             />
-            <SvgText x={cx} y={cy - 0.8} fontSize={6.6} fontWeight="700" fill={isSel ? "#FFFFFF" : LABEL[status] ?? colors.success} textAnchor="middle">
+            <SvgText x={cx} y={cy - 0.8} fontSize={6.6} fontWeight="700" fill={isSel ? "#FFFFFF" : survey && status === "available" ? "#1F1F1D" : LABEL[status] ?? colors.success} textAnchor="middle">
               {p.plot}
             </SvgText>
             {p.size_sqft ? (
@@ -273,6 +279,7 @@ export function PlotPlan({
   const fit = () => ({ x: base[0], y: base[1], w: base[2], h: base[3] });
   const [vb, setVb] = useState(fit);
   const [full, setFull] = useState(false);
+  const [survey, setSurvey] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const start = useRef(vb);
   const pinch = useRef<{ dist: number; w: number; h: number; x: number; y: number } | null>(null);
@@ -319,6 +326,14 @@ export function PlotPlan({
     [vb, base],
   );
 
+  function zoomBy(factor: number) {
+    setVb((v) => {
+      const w = clamp(v.w / factor, base[2] / MAX_ZOOM, base[2] / MIN_ZOOM);
+      const h = w * (base[3] / base[2]);
+      return { x: v.x + (v.w - w) / 2, y: v.y + (v.h - h) / 2, w, h };
+    });
+  }
+
   function pick(p: PlotRow) {
     setSelected(p.plot);
     onSelect?.(p);
@@ -334,8 +349,27 @@ export function PlotPlan({
       }}
       {...pan.panHandlers}
     >
-      <PlanSvg geometry={geometry} plots={plots} selected={selected} visible={visible} vb={vb} onPick={pick} />
+      <PlanSvg geometry={geometry} plots={plots} selected={selected} visible={visible} vb={vb} survey={survey} onPick={pick} />
       <PlanChrome scale={geometry.scale} />
+
+      {/* Survey view puts the drawing back into its own layer colours, so the
+          plan can be checked against the approved sheet at a glance. */}
+      <Pressable
+        onPress={() => setSurvey((v) => !v)}
+        style={{
+          position: "absolute", left: 10, top: 10, flexDirection: "row", alignItems: "center", gap: 7,
+          backgroundColor: colors.surface, borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
+          borderColor: survey ? colors.gold : colors.border,
+        }}
+      >
+        <Ionicons name={survey ? "checkbox" : "square-outline"} size={13} color={survey ? colors.goldDark : colors.inkFaint} />
+        <Text style={{ fontSize: 11, fontWeight: "600", color: survey ? colors.goldDark : colors.inkFaint }}>Survey view</Text>
+      </Pressable>
+
+      <View style={{ position: "absolute", left: 10, bottom: 10, gap: 6 }}>
+        <Pressable onPress={() => zoomBy(1.4)} style={stepStyle}><Ionicons name="add" size={17} color={colors.ink} /></Pressable>
+        <Pressable onPress={() => zoomBy(1 / 1.4)} style={stepStyle}><Ionicons name="remove" size={17} color={colors.ink} /></Pressable>
+      </View>
 
       <View style={{ position: "absolute", right: 10, bottom: 10, gap: 6 }}>
         {zoomed ? (
@@ -371,6 +405,17 @@ export function PlotPlan({
   );
 }
 
+const stepStyle = {
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  backgroundColor: colors.surface,
+  borderWidth: 1,
+  borderColor: colors.border,
+};
+
 const pillStyle = {
   flexDirection: "row" as const,
   alignItems: "center" as const,
@@ -381,6 +426,27 @@ const pillStyle = {
   borderRadius: 999,
 };
 const pillText = { color: "#fff", fontSize: 11.5, fontWeight: "700" as const };
+
+/** Colour key for the plan. */
+export function PlotLegend() {
+  const items: [string, string][] = [
+    ["available", "Available"],
+    ["reserved", "On hold"],
+    ["booked", "Booked"],
+    ["sold", "Sold"],
+    ["blocked", "Not released"],
+  ];
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 2 }}>
+      {items.map(([k, label]) => (
+        <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ width: 13, height: 13, borderRadius: 4, backgroundColor: FILL[k], borderWidth: 1.4, borderColor: STROKE[k] }} />
+          <Text style={{ fontSize: 11.5, color: colors.inkFaint }}>{label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 /** Availability totals across the schedule. */
 export function PlotTotals({ plots }: { plots: PlotRow[] }) {

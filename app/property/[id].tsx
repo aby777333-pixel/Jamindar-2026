@@ -27,8 +27,9 @@ import { propertyShareMessage, brochureLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
-import { PlotPlan, PlotTotals, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
-import { PlotSheet } from "@/components/PlotSheet";
+import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
+import { MiniMap } from "@/components/MiniMap";
+import { PlotSheet, mapLinks } from "@/components/PlotSheet";
 import { PlotFilters, applyPlotFilters, EMPTY_FILTERS, type PlotFilterState } from "@/components/PlotFilters";
 
 type TabKey =
@@ -768,6 +769,44 @@ function InlineVideo({ uri, height }: { uri: string; height: number }) {
   );
 }
 
+/**
+ * Layout-level location card. The same four destinations appear on each plot
+ * sheet, but a buyer studying the plan wants to place the site first, before
+ * picking a plot.
+ */
+function WhereItIs({ property }: { property: Property }) {
+  const links = mapLinks(property);
+  if (!links) return null;
+  const open = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => {});
+  const btns: [string, string, string][] = [
+    ["map-outline", "Map", links.maps],
+    ["globe-outline", "Satellite", links.satellite],
+    ["eye-outline", "Street view", links.streetView],
+    ["earth-outline", "Earth", links.earth],
+  ];
+  return (
+    <Card>
+      <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", color: colors.inkFaint, marginBottom: 10 }}>
+        Where it is
+      </Text>
+      <MiniMap lat={Number(property.lat)} lng={Number(property.lng)} onPress={() => open(links.maps)} />
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+        {btns.map(([icon, label, url]) => (
+          <Pressable
+            key={label}
+            onPress={() => open(url)}
+            style={{ flexGrow: 1, flexBasis: "45%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 11, backgroundColor: colors.surface }}
+          >
+            <Ionicons name={icon as any} size={15} color={colors.ink} />
+            <Text style={{ fontSize: 12.5, fontWeight: "600", color: colors.ink }}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={{ fontSize: 11, color: colors.inkFaint, textAlign: "center", marginTop: 9 }}>{links.coords}</Text>
+    </Card>
+  );
+}
+
 function MasterPlanTab({ property }: { property: Property }) {
   const plots: PlotRow[] = property.plot_layout ?? [];
   const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
@@ -795,6 +834,8 @@ function MasterPlanTab({ property }: { property: Property }) {
             visible={filtering ? matched : undefined}
             onSelect={(p) => { setPicked(p); setSheetOpen(true); }}
           />
+          <PlanColourKey />
+          <WhereItIs property={property} />
           <PlotSheet
             visible={sheetOpen}
             plot={picked}
