@@ -204,6 +204,25 @@ export default function PropertyDetail() {
     if (property?.id) logActivity("property_viewed", { property_id: property.id });
   }, [property?.id]);
 
+  // Plot statuses live inside properties.plot_layout, so one subscription to
+  // this property's row is enough to repaint the plan the moment anyone else
+  // holds or an admin confirms a plot. `properties` is already in the realtime
+  // publication, so nothing had to be enabled for this.
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`property-${id}-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "properties", filter: `id=eq.${id}` },
+        () => qc.invalidateQueries({ queryKey: ["property", id] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, qc]);
+
   const { data: similar } = useQuery({
     queryKey: ["similar", id, property?.property_type],
     enabled: !!property,
@@ -842,7 +861,6 @@ function MasterPlanTab({ property }: { property: Property }) {
             property={property}
             shareUrl={property.brochure_url ?? undefined}
             onClose={() => setSheetOpen(false)}
-            onBook={() => { setSheetOpen(false); }}
           />
         </>
       ) : null}

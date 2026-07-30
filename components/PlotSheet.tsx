@@ -2,11 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 
 import { colors } from "../lib/theme";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../lib/store";
 import { formatINR } from "../lib/format";
 import type { Property } from "../lib/types";
 import type { PlotRow } from "./PlotPlan";
@@ -110,20 +113,58 @@ export function PlotSheet({
   property,
   shareUrl,
   onClose,
-  onBook,
 }: {
   visible: boolean;
   plot: PlotRow | null;
   property: Property;
   shareUrl?: string;
   onClose: () => void;
-  onBook?: (p: PlotRow) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [showQR, setShowQR] = useState(false);
+  // Hold flow. Jamin Bazaar takes money by bank transfer and UPI — there is no
+  // gateway — so this reserves the plot and hands off to the sales desk rather
+  // than pretending to take a payment.
+  const [step, setStep] = useState<"detail" | "confirm" | "done">("detail");
+  const [method, setMethod] = useState<"bank" | "upi">("bank");
+  const [busy, setBusy] = useState(false);
+  const [held, setHeld] = useState<{ ref: string; expiresAt: string; amount: number | null } | null>(null);
+  const { profile } = useAuth();
+  const qc = useQueryClient();
 
   const links = useMemo(() => mapLinks(property), [property]);
   if (!plot) return null;
+
+  function close() {
+    setStep("detail");
+    setHeld(null);
+    onClose();
+  }
+
+  async function placeHold() {
+    if (!plot) return;
+    if (!profile?.id) {
+      Alert.alert("Sign in first", "Please sign in so we can hold this plot in your name.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("hold_plot", {
+        p_property: property.id, p_plot: plot.plot, p_method: method, p_note: null,
+      });
+      if (error) throw error;
+      const r = data as { ref: string; expiresAt: string; amount: number | null };
+      setHeld(r);
+      setStep("done");
+      // repaint the plan for everyone looking at this property
+      qc.invalidateQueries({ queryKey: ["property", property.id] });
+      qc.invalidateQueries({ queryKey: ["properties"] });
+    } catch (e: any) {
+      Alert.alert("Could not hold this plot", e?.message ?? "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const status = (plot.status ?? "available").toLowerCase();
   const price = num(plot.offer_price) ?? num(plot.price);
@@ -152,7 +193,7 @@ export function PlotSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <Pressable style={{ flex: 1 }} onPress={close} />
         <View style={{ maxHeight: "88%", backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 16 + insets.bottom }}>
           <View style={{ alignSelf: "center", width: 38, height: 4, borderRadius: 3, backgroundColor: colors.border, marginBottom: 12 }} />
 
@@ -164,11 +205,75 @@ export function PlotSheet({
             <View style={{ borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, backgroundColor: `${STATUS_TINT[status] ?? colors.inkFaint}1A` }}>
               <Text style={{ fontSize: 11, fontWeight: "700", color: STATUS_TINT[status] ?? colors.inkFaint }}>{STATUS_LABEL[status] ?? status}</Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4 }}>
+            <Pressable onPress={close} hitSlop={10} style={{ padding: 4 }}>
               <Ionicons name="close" size={22} color={colors.inkFaint} />
             </Pressable>
           </View>
 
+          {step === "confirm" ? (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={{ fontSize: 21, fontWeight: "800", color: colors.ink, marginTop: 8 }}>Reserve this plot?</Text>
+              <View style={{ marginTop: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, backgroundColor: colors.surfaceAlt, flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+                <Text style={{ fontSize: 12.5, color: colors.inkFaint }}>Booking amount</Text>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink }}>
+                  {num(plot.booking_amount) ? formatINR(num(plot.booking_amount)!) : "As advised"}
+                </Text>
+              </View>
+
+              <Section title="How you'll pay" />
+              {([["bank", "Bank transfer", "NEFT / RTGS / IMPS to the company account"],
+                 ["upi", "UPI", "Pay from any UPI app"]] as const).map(([k, label, hint]) => (
+                <Pressable
+                  key={k}
+                  onPress={() => setMethod(k)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 11, borderWidth: 1, borderRadius: 14, padding: 13, marginBottom: 8, borderColor: method === k ? colors.gold : colors.border, backgroundColor: method === k ? colors.goldSoft : colors.surface }}
+                >
+                  <Ionicons name={method === k ? "radio-button-on" : "radio-button-off"} size={19} color={method === k ? colors.goldDark : colors.inkFaint} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.ink }}>{label}</Text>
+                    <Text style={{ fontSize: 11.5, color: colors.inkFaint }}>{hint}</Text>
+                  </View>
+                </Pressable>
+              ))}
+
+              <Text style={{ fontSize: 11.5, color: colors.inkFaint, lineHeight: 18, marginTop: 4 }}>
+                We hold plot {plot.plot} for you for 48 hours. No money is taken here — our team
+                contacts you with the account details, and the plot is confirmed once your transfer
+                lands. If it does not, the hold lapses and the plot returns to sale.
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 18, marginBottom: 8 }}>
+                <Pressable onPress={() => setStep("detail")} style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 14, alignItems: "center" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.ink }}>Back</Text>
+                </Pressable>
+                <Pressable onPress={placeHold} disabled={busy} style={{ flex: 2, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#1B1405" }}>{busy ? "Holding…" : "Hold this plot"}</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          ) : step === "done" && held ? (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ alignItems: "center", paddingVertical: 18 }}>
+                <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: colors.goldSoft, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="checkmark" size={31} color={colors.goldDark} />
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, marginTop: 12 }}>Plot {plot.plot} is held for you</Text>
+                <Text style={{ fontSize: 13, color: colors.inkFaint, marginTop: 4 }}>Reference {held.ref}</Text>
+              </View>
+              <Row label="Plot" value={`${plot.plot}${plot.block ? ` · Block ${plot.block}` : ""}`} />
+              <Row label="Booking amount" value={held.amount ? formatINR(held.amount) : "As advised"} />
+              <Row label="Method" value={method === "upi" ? "UPI" : "Bank transfer"} />
+              <Row label="Held until" value={new Date(held.expiresAt).toLocaleString("en-IN")} />
+              <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19, marginTop: 14 }}>
+                Our team has been notified and will contact you with the account details. Quote
+                reference {held.ref} with your transfer. The plot shows as On hold to everyone else
+                until then.
+              </Text>
+              <Pressable onPress={close} style={{ marginTop: 20, marginBottom: 8, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
+                <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Done</Text>
+              </Pressable>
+            </ScrollView>
+          ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 6, marginBottom: 4 }}>
               <Text style={{ fontSize: price ? 27 : 18, fontWeight: "800", color: price ? colors.ink : colors.inkFaint, letterSpacing: -0.5 }}>
@@ -320,13 +425,14 @@ export function PlotSheet({
               {approvalNo ? ` (application ${approvalNo})` : ""}.
             </Text>
           </ScrollView>
+          )}
 
-          {status === "available" && onBook ? (
+          {step === "detail" && status === "available" ? (
             <Pressable
-              onPress={() => onBook(plot)}
+              onPress={() => setStep("confirm")}
               style={{ marginTop: 12, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
             >
-              <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Enquire about plot {plot.plot}</Text>
+              <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Book plot {plot.plot}</Text>
             </Pressable>
           ) : null}
         </View>

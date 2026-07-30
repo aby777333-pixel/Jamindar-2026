@@ -635,6 +635,7 @@ function renderEditor(){
     <div class="sec"><h4>Plot schedule & nearby places</h4>
       <div><label>Plot schedule (plot|sqft|facing|status — one per line)</label><textarea data-k="_plot_layout" placeholder="1|2582|North|available">${esc(plotLines)}</textarea>
         ${planPreview(CUR)}
+        <div id="plotholds"></div>
         ${plotGrid(CUR)}</div>
       <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div>
       <div><label>Before-development photos (completed projects — one image URL per line, powers the app's Before/After toggle)</label><textarea data-k="_before_images" placeholder="https://…/before-1.jpg">${esc(beforeLines)}</textarea></div></div>
@@ -654,7 +655,61 @@ function renderEditor(){
   $("#drawer").querySelectorAll("[data-appr] .chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
   $("#drawer").querySelectorAll("[data-tgl]").forEach(t=>t.onclick=()=>t.classList.toggle("on"));
   bindPlotGrid();
+  loadPlotHolds();
   if(CUR.id) loadMedia();
+}
+
+/**
+ * Live holds on this property. A buyer tapping Book now reserves the plot and
+ * the money arrives by bank transfer or UPI out-of-band, so this is where a
+ * hold becomes a booking — or goes back on sale if the transfer never lands.
+ */
+async function loadPlotHolds(){
+  const box=$("#plotholds"); if(!box||!CUR.id) return;
+  const {data,error}=await sb.from("plot_holds")
+    .select("id,ref,plot,amount,method,status,expires_at,created_at,buyer_id")
+    .eq("property_id",CUR.id).order("created_at",{ascending:false}).limit(50);
+  if(error){ box.innerHTML=""; return; }
+  const rows=data||[];
+  if(!rows.length){
+    box.innerHTML=`<div style="margin-top:10px;font-size:11px;opacity:.6">No plot holds yet. A buyer reserving a plot in the app appears here with a reference.</div>`;
+    return;
+  }
+  const live=rows.filter(r=>r.status==="held").length;
+  box.innerHTML=`<div style="margin-top:10px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Plot holds${live?` — ${live} awaiting payment`:""}</div>
+    <table style="font-size:12px"><thead><tr><th>Ref</th><th>Plot</th><th>Amount</th><th>Method</th><th>Status</th><th>Held until</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr data-hold="${r.id}" data-holdplot="${esc(r.plot)}">
+      <td class="mono">${esc(r.ref)}</td>
+      <td><b>${esc(r.plot)}</b></td>
+      <td>${r.amount?("₹"+Number(r.amount).toLocaleString("en-IN")):"—"}</td>
+      <td class="muted">${r.method==="upi"?"UPI":"Bank transfer"}</td>
+      <td>${esc(r.status)}</td>
+      <td class="muted">${r.expires_at?new Date(r.expires_at).toLocaleString("en-IN"):"—"}</td>
+      <td style="white-space:nowrap">${r.status==="held"
+        ? '<button class="btn btn-sm hold_ok">Payment received</button> <button class="btn btn-sm hold_no" style="background:#fee;color:#c00">Release</button>'
+        : '<span class="muted">—</span>'}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="muted" style="font-size:11px;margin-top:6px">Confirming marks the plot Booked for every buyer immediately. Recording the sale for commission stays in Earnings.</div>
+  </div>`;
+
+  box.querySelectorAll("tr[data-hold]").forEach(tr=>{
+    const plot=tr.dataset.holdplot;
+    const act=async (status,confirmMsg,btn)=>{
+      if(!confirm(confirmMsg)) return;
+      btn.disabled=true;
+      const {error}=await sb.rpc("admin_set_plot_status",{p_property:CUR.id,p_plot:plot,p_status:status});
+      if(error){ btn.disabled=false; return toast(error.message); }
+      const {data}=await sb.from("properties").select("plot_layout,plots_available").eq("id",CUR.id).maybeSingle();
+      if(data){ CUR.plot_layout=data.plot_layout; CUR.plots_available=data.plots_available; }
+      toast(status==="booked"?`Plot ${plot} booked`:`Plot ${plot} back on sale`);
+      loadPlotHolds();
+    };
+    tr.querySelector(".hold_ok")?.addEventListener("click",e=>
+      act("booked",`Mark plot ${plot} as Booked? Every buyer's map updates immediately.`,e.currentTarget));
+    tr.querySelector(".hold_no")?.addEventListener("click",e=>
+      act("available",`Release the hold on plot ${plot} and put it back on sale?`,e.currentTarget));
+  });
 }
 
 /** Reads the grid back into plot rows, keeping every key it does not own. */
