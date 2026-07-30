@@ -63,9 +63,74 @@ export interface CommunityComment {
   created_at: string;
   mine: boolean;
   author: CommunityAuthor;
+  // ── threading & moderation (migration 0068) ──
+  /** null for a top-level comment; otherwise the comment being replied to. */
+  parent_id?: string | null;
+  /** who this reply is answering — drives the "Replying to Arun" line. */
+  reply_to_name?: string | null;
+  edited?: boolean;
+  edited_at?: string | null;
+  /** soft-deleted, kept only as an anchor for replies underneath it. */
+  deleted?: boolean;
+  is_admin_reply?: boolean;
+  /** true for your own comments, and for admins on anyone's. */
+  can_manage?: boolean;
 }
 
-export type CommunityPostDetail = CommunityPost & { comments_list: CommunityComment[]; status?: string };
+export type CommunityPostDetail = CommunityPost & {
+  comments_list: CommunityComment[];
+  status?: string;
+  comments_locked?: boolean;
+  pinned_comment_id?: string | null;
+  pinned_by?: string | null;
+  can_pin?: boolean;
+  is_admin?: boolean;
+};
+
+/** A comment plus the replies hanging off it. */
+export interface CommunityThread {
+  comment: CommunityComment;
+  replies: CommunityComment[];
+}
+
+/**
+ * Turn the flat comment array into threads.
+ *
+ * The RPC deliberately returns a flat list so older builds keep rendering it;
+ * the shape is rebuilt here. Replies nested more than one level deep are
+ * lifted to their top-level ancestor so a long chain still reads as one
+ * conversation rather than marching off the right edge of a phone.
+ */
+export function buildCommunityThreads(
+  comments: CommunityComment[],
+  pinnedId?: string | null,
+): CommunityThread[] {
+  const byId = new Map(comments.map((c) => [c.id, c]));
+  const rootOf = (c: CommunityComment): string => {
+    const seen = new Set<string>();
+    let cur = c;
+    while (cur.parent_id && byId.has(cur.parent_id) && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      cur = byId.get(cur.parent_id)!;
+    }
+    return cur.id;
+  };
+
+  const threads = new Map<string, CommunityThread>();
+  for (const c of comments) {
+    if (!c.parent_id || !byId.has(c.parent_id)) threads.set(c.id, { comment: c, replies: [] });
+  }
+  for (const c of comments) {
+    if (!c.parent_id || !byId.has(c.parent_id)) continue;
+    threads.get(rootOf(c))?.replies.push(c);
+  }
+
+  // A deleted comment with no surviving replies is not worth a tombstone.
+  const list = [...threads.values()].filter((t) => !t.comment.deleted || t.replies.length > 0);
+  if (!pinnedId) return list;
+  const i = list.findIndex((t) => t.comment.id === pinnedId || t.replies.some((r) => r.id === pinnedId));
+  return i > 0 ? [list[i], ...list.slice(0, i), ...list.slice(i + 1)] : list;
+}
 
 export async function fetchCommunityFeed(before?: string): Promise<CommunityPost[]> {
   const { data, error } = await supabase.rpc("community_feed", {
@@ -98,9 +163,43 @@ export async function createCommunityPost(input: { body: string; media: Communit
   return data as string;
 }
 
-export async function addCommunityComment(postId: string, body: string): Promise<void> {
-  const { error } = await supabase.rpc("add_community_comment", { p_post: postId, p_body: body });
+/** Post a comment, or a reply when `parentId` is given (§2 — it stays on this post). */
+export async function addCommunityComment(postId: string, body: string, parentId?: string | null): Promise<void> {
+  const { error } = await supabase.rpc("add_community_comment", {
+    p_post: postId,
+    p_body: body,
+    p_parent: parentId ?? null,
+  });
   if (error) throw error;
+}
+
+/** Update a comment in place — never creates a second one (§1). */
+export async function editCommunityComment(commentId: string, body: string): Promise<void> {
+  const { error } = await supabase.rpc("edit_community_comment", { p_id: commentId, p_body: body });
+  if (error) throw error;
+}
+
+export async function deleteCommunityComment(commentId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_community_comment", { p_id: commentId });
+  if (error) throw error;
+}
+
+/** Pin one reply beneath a post — post owner or admin only (§3). */
+export async function pinCommunityComment(postId: string, commentId: string): Promise<void> {
+  const { error } = await supabase.rpc("pin_community_comment", { p_post: postId, p_comment: commentId });
+  if (error) throw error;
+}
+
+export async function unpinCommunityComment(postId: string): Promise<void> {
+  const { error } = await supabase.rpc("unpin_community_comment", { p_post: postId });
+  if (error) throw error;
+}
+
+/** Ask the Jamin admin about this specific post (§4). */
+export async function askCommunityAdmin(postId: string, question: string): Promise<string> {
+  const { data, error } = await supabase.rpc("ask_community_admin", { p_post: postId, p_question: question });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function toggleCommunityLike(postId: string, liked: boolean): Promise<void> {
