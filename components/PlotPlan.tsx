@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useRef, useState } from "react";
-import { PanResponder, Pressable, ScrollView, Text, View } from "react-native";
-import Svg, { G, Line, Polygon, Rect, Text as SvgText } from "react-native-svg";
+import { Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
 
 import { colors } from "../lib/theme";
 
@@ -10,9 +11,9 @@ import { colors } from "../lib/theme";
  *
  * The plan is drawn from geometry traced out of the sanctioned approval drawing,
  * so it can be checked against the legal sheet rather than redrawn by eye. Every
- * quoted size and area comes from the plot schedule (`plot_layout`), never from
- * these coordinates — the drawn rectangles are set out to fill each row band and
- * read a little off the quoted metres.
+ * quoted size and area comes from the plot schedule, never from these
+ * coordinates — the drawn rectangles are set out to fill each row band and read
+ * a little off the quoted metres.
  *
  * Zoom drives the SVG viewBox rather than a View transform, so the vector is
  * re-rasterised at every level and stays sharp however far the buyer goes in.
@@ -26,6 +27,13 @@ export interface PlotRow {
   block?: string;
   size_sqm?: number;
   dim_m?: string;
+  road_m?: number;
+  corner?: boolean;
+  price?: number | null;
+  offer_price?: number | null;
+  booking_amount?: number | null;
+  registration_charges?: number | null;
+  development_charges?: number | null;
   /** Outline as the sheet draws it — already clipped to the site boundary. */
   poly?: [number, number][];
   /** Label anchor (polygon centroid). */
@@ -40,6 +48,7 @@ export interface PlotPlanGeometry {
   existingRoad?: { quad?: [number, number][]; label?: string };
   roads?: { label: string; band: [number, number, number, number]; rotate?: number }[];
   dimensions?: { label: string; from: [number, number]; to: [number, number] }[];
+  amenities?: { kind: string; label: string; at?: [number, number] }[];
   metresPerUnit?: number;
   approvalNo?: string;
   scale?: string;
@@ -66,13 +75,7 @@ const LABEL: Record<string, string> = {
   sold: "#FFFFFF",
   blocked: colors.inkFaint,
 };
-const STATUS_TEXT: Record<string, string> = {
-  available: "Available",
-  reserved: "Reserved",
-  booked: "Booked",
-  sold: "Sold",
-  blocked: "Not released",
-};
+const BADGE: Record<string, string> = { reserved: "HELD", booked: "BOOKED", sold: "SOLD" };
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 7;
@@ -84,23 +87,198 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
+function PlanSvg({
+  geometry,
+  plots,
+  selected,
+  visible,
+  vb,
+  onPick,
+}: {
+  geometry: PlotPlanGeometry;
+  plots: PlotRow[];
+  selected: string | null;
+  visible?: Set<string>;
+  vb: { x: number; y: number; w: number; h: number };
+  onPick: (p: PlotRow) => void;
+}) {
+  return (
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox={`${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      {/* Everything inside the sanctioned boundary that is not a plot or the
+          OSR is road, exactly as the sheet colours it. */}
+      <Polygon points={pointsOf(geometry.boundary)} fill="#ECECE8" />
+      {geometry.osr?.polygon ? (
+        <Polygon points={pointsOf(geometry.osr.polygon)} fill="#EEF5EA" stroke="#5B8C3A" strokeWidth={0.5} strokeDasharray="2.5 1.8" />
+      ) : null}
+      {geometry.existingRoad?.quad ? (
+        <Polygon points={pointsOf(geometry.existingRoad.quad)} fill="#F4EFDC" stroke="#7A6B32" strokeWidth={0.6} />
+      ) : null}
+      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#D0402F" strokeWidth={1.9} strokeLinejoin="round" />
+
+      {geometry.roads?.map((r, i) => {
+        const cx = (r.band[0] + r.band[2]) / 2;
+        const cy = (r.band[1] + r.band[3]) / 2;
+        return (
+          <SvgText key={`road-${i}`} x={cx} y={cy + 1.2} fontSize={4} fill={colors.inkFaint} textAnchor="middle"
+            transform={r.rotate ? `rotate(${r.rotate} ${cx} ${cy})` : undefined}>
+            {r.label}
+          </SvgText>
+        );
+      })}
+
+      {geometry.osr?.polygon && geometry.osr.label ? (
+        <G>
+          <SvgText x={251} y={327} fontSize={6} fontWeight="700" fill="#5B8C3A" textAnchor="middle">{geometry.osr.label}</SvgText>
+          {geometry.osr.areaSqm ? (
+            <SvgText x={251} y={336} fontSize={4} fill="#5B8C3A" textAnchor="middle">
+              {`${geometry.osr.areaSqm.toLocaleString("en-IN")} Sq.m`}
+            </SvgText>
+          ) : null}
+        </G>
+      ) : null}
+
+      {geometry.dimensions?.map((d, i) => {
+        const rad = Math.atan2(d.to[1] - d.from[1], d.to[0] - d.from[0]);
+        const tx = Math.cos(rad + Math.PI / 2) * 2.4;
+        const ty = Math.sin(rad + Math.PI / 2) * 2.4;
+        const mx = (d.from[0] + d.to[0]) / 2;
+        const my = (d.from[1] + d.to[1]) / 2;
+        let deg = (rad * 180) / Math.PI;
+        if (deg > 90 || deg < -90) deg += 180; // keep the label upright
+        return (
+          <G key={`dim-${i}`}>
+            <Line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
+            {[d.from, d.to].map((e, k) => (
+              <Line key={k} x1={e[0] - tx} y1={e[1] - ty} x2={e[0] + tx} y2={e[1] + ty} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
+            ))}
+            <SvgText x={mx} y={my - 2.6} fontSize={4.2} fill={colors.inkFaint} textAnchor="middle" transform={`rotate(${deg.toFixed(2)} ${mx} ${my})`}>
+              {d.label}
+            </SvgText>
+          </G>
+        );
+      })}
+
+      {plots.map((p) => {
+        if (!p.poly || !p.at) return null;
+        const status = (p.status ?? "available").toLowerCase();
+        const isSel = selected === p.plot;
+        const dim = visible ? !visible.has(p.plot) : false;
+        const [cx, cy] = p.at;
+        const badge = BADGE[status];
+        return (
+          <G key={p.plot} opacity={dim ? 0.18 : 1} onPress={dim ? undefined : () => onPick(p)}>
+            <Polygon
+              points={pointsOf(p.poly)}
+              fill={isSel ? "#2F6BFF" : FILL[status] ?? "#FFFFFF"}
+              stroke={isSel ? "#1B4FD8" : STROKE[status] ?? colors.success}
+              strokeWidth={isSel ? 2.4 : 0.9}
+            />
+            <SvgText x={cx} y={cy - 0.8} fontSize={6.6} fontWeight="700" fill={isSel ? "#FFFFFF" : LABEL[status] ?? colors.success} textAnchor="middle">
+              {p.plot}
+            </SvgText>
+            {p.size_sqft ? (
+              <SvgText x={cx} y={cy + 6} fontSize={3.1}
+                fill={isSel ? "#FFFFFF" : status === "available" ? colors.inkFaint : "rgba(255,255,255,0.85)"} textAnchor="middle">
+                {`${p.size_sqft} ft²`}
+              </SvgText>
+            ) : null}
+            {/* state marks, placed off the label anchor so they stay inside a clipped plot */}
+            {badge ? (
+              <SvgText x={cx} y={cy + 11.4} fontSize={2.7} fontWeight="700" fill="#FFFFFF" textAnchor="middle">{badge}</SvgText>
+            ) : null}
+            {status === "booked" || status === "sold" ? (
+              <G>
+                <Rect x={cx - 2} y={cy - 10.1} width={4} height={3.2} rx={0.7} fill="#FFFFFF" opacity={0.92} />
+                <Path d={`M${cx - 1.2} ${cy - 10.1} v-1.1 a1.2 1.2 0 0 1 2.4 0 v1.1`} fill="none" stroke="#FFFFFF" strokeWidth={0.55} />
+              </G>
+            ) : null}
+            {status === "reserved" ? (
+              <G>
+                <Circle cx={cx} cy={cy - 8.6} r={2} fill="none" stroke="#FFFFFF" strokeWidth={0.55} />
+                <Path d={`M${cx} ${cy - 9.8} v1.2 h1.1`} fill="none" stroke="#FFFFFF" strokeWidth={0.55} />
+              </G>
+            ) : null}
+          </G>
+        );
+      })}
+
+      {geometry.amenities?.map((a, i) =>
+        a.at ? (
+          <G key={`am-${i}`}>
+            <Circle cx={a.at[0]} cy={a.at[1]} r={4.4} fill={colors.surface} stroke={colors.goldDark} strokeWidth={0.7} />
+            <SvgText x={a.at[0]} y={a.at[1] + 1.9} fontSize={4.4} fill={colors.goldDark} textAnchor="middle">
+              {a.kind === "entrance" ? "⌂" : "❋"}
+            </SvgText>
+          </G>
+        ) : null,
+      )}
+
+      {/* Scale bar, sized from the sheet's own overall dimensions so it can
+          never disagree with the printed callouts. */}
+      {geometry.metresPerUnit ? (
+        <G>
+          <Rect x={46} y={628} width={10 / geometry.metresPerUnit} height={2.6} fill={colors.ink} />
+          <Rect x={46 + 10 / geometry.metresPerUnit} y={628} width={10 / geometry.metresPerUnit} height={2.6} fill="none" stroke={colors.ink} strokeWidth={0.4} />
+          {[0, 1, 2].map((k) => (
+            <SvgText key={k} x={46 + (10 / geometry.metresPerUnit!) * k} y={626.4} fontSize={3.4} fill={colors.inkFaint} textAnchor="middle">
+              {String(k * 10)}
+            </SvgText>
+          ))}
+          <SvgText x={46 + 10 / geometry.metresPerUnit} y={634.4} fontSize={3.4} fill={colors.inkFaint} textAnchor="middle">metres</SvgText>
+        </G>
+      ) : null}
+    </Svg>
+  );
+}
+
+/** North point and the sheet's scale note, as drawing chrome over the plan. */
+function PlanChrome({ scale }: { scale?: string }) {
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", right: 10, top: 10, alignItems: "center", gap: 5 }}>
+      <Svg width={20} height={34} viewBox="0 0 24 40">
+        <Circle cx={12} cy={30} r={6.5} fill="none" stroke={colors.ink} strokeWidth={1.1} />
+        <SvgText x={12} y={33} fontSize={8} fontWeight="700" fill={colors.ink} textAnchor="middle">N</SvgText>
+        <Polygon points="12,2 17,20 12,16" fill={colors.ink} />
+        <Polygon points="12,2 7,20 12,16" fill="none" stroke={colors.ink} strokeWidth={1.2} />
+      </Svg>
+      {scale ? (
+        <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 3 }}>
+          <Text style={{ fontSize: 9.5, fontWeight: "700", letterSpacing: 0.6, color: colors.inkFaint }}>{scale}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function PlotPlan({
   geometry,
   plots,
   height = 380,
+  visible,
   onSelect,
 }: {
   geometry: PlotPlanGeometry;
   plots: PlotRow[];
   height?: number;
+  /** Plot numbers to keep prominent; everything else dims. Undefined = all. */
+  visible?: Set<string>;
   onSelect?: (p: PlotRow) => void;
 }) {
   const base = geometry.viewBox;
-  const [vb, setVb] = useState({ x: base[0], y: base[1], w: base[2], h: base[3] });
+  const fit = () => ({ x: base[0], y: base[1], w: base[2], h: base[3] });
+  const [vb, setVb] = useState(fit);
+  const [full, setFull] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const start = useRef(vb);
   const pinch = useRef<{ dist: number; w: number; h: number; x: number; y: number } | null>(null);
   const size = useRef({ w: 1, h: 1 });
+  const insets = useSafeAreaInsets();
+  const win = useWindowDimensions();
 
   const pan = useMemo(
     () =>
@@ -141,204 +319,68 @@ export function PlotPlan({
     [vb, base],
   );
 
+  function pick(p: PlotRow) {
+    setSelected(p.plot);
+    onSelect?.(p);
+  }
+
   const zoomed = vb.w < base[2] - 0.5;
+
+  const body = (h: number) => (
+    <View
+      style={{ height: h, borderRadius: full ? 0 : 16, overflow: "hidden", backgroundColor: "#FCFCFA", borderWidth: full ? 0 : 1, borderColor: colors.border }}
+      onLayout={(e) => {
+        size.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
+      }}
+      {...pan.panHandlers}
+    >
+      <PlanSvg geometry={geometry} plots={plots} selected={selected} visible={visible} vb={vb} onPick={pick} />
+      <PlanChrome scale={geometry.scale} />
+
+      <View style={{ position: "absolute", right: 10, bottom: 10, gap: 6 }}>
+        {zoomed ? (
+          <Pressable onPress={() => setVb(fit())} style={pillStyle}>
+            <Ionicons name="contract" size={13} color="#fff" />
+            <Text style={pillText}>Fit</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={() => setFull((v) => !v)} style={pillStyle}>
+          <Ionicons name={full ? "close" : "expand"} size={13} color="#fff" />
+          <Text style={pillText}>{full ? "Close" : "Full"}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <View>
-      <View
-        style={{ height, borderRadius: 16, overflow: "hidden", backgroundColor: "#FCFCFA", borderWidth: 1, borderColor: colors.border }}
-        onLayout={(e) => {
-          size.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
-        }}
-        {...pan.panHandlers}
-      >
-        <Svg
-          width="100%"
-          height="100%"
-          viewBox={`${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {/* Everything inside the sanctioned boundary that is not a plot or the
-              OSR is road, exactly as the sheet colours it. */}
-          <Polygon points={pointsOf(geometry.boundary)} fill="#ECECE8" />
-          {geometry.osr?.polygon ? (
-            <Polygon
-              points={pointsOf(geometry.osr.polygon)}
-              fill="#EEF5EA"
-              stroke="#5B8C3A"
-              strokeWidth={0.5}
-              strokeDasharray="2.5 1.8"
-            />
-          ) : null}
-          {geometry.existingRoad?.quad ? (
-            <Polygon points={pointsOf(geometry.existingRoad.quad)} fill="#F4EFDC" stroke="#7A6B32" strokeWidth={0.6} />
-          ) : null}
-          <Polygon
-            points={pointsOf(geometry.boundary)}
-            fill="none"
-            stroke="#D0402F"
-            strokeWidth={1.9}
-            strokeLinejoin="round"
-          />
-
-          {geometry.roads?.map((r, i) => {
-            const cx = (r.band[0] + r.band[2]) / 2;
-            const cy = (r.band[1] + r.band[3]) / 2;
-            return (
-              <SvgText
-                key={`road-${i}`}
-                x={cx}
-                y={cy + 1.2}
-                fontSize={4}
-                fill={colors.inkFaint}
-                textAnchor="middle"
-                transform={r.rotate ? `rotate(${r.rotate} ${cx} ${cy})` : undefined}
-              >
-                {r.label}
-              </SvgText>
-            );
-          })}
-
-          {geometry.dimensions?.map((d, i) => {
-            const rad = Math.atan2(d.to[1] - d.from[1], d.to[0] - d.from[0]);
-            const tx = Math.cos(rad + Math.PI / 2) * 2.4;
-            const ty = Math.sin(rad + Math.PI / 2) * 2.4;
-            const mx = (d.from[0] + d.to[0]) / 2;
-            const my = (d.from[1] + d.to[1]) / 2;
-            let deg = (rad * 180) / Math.PI;
-            if (deg > 90 || deg < -90) deg += 180; // keep the label upright
-            return (
-              <G key={`dim-${i}`}>
-                <Line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
-                {[d.from, d.to].map((e, k) => (
-                  <Line key={k} x1={e[0] - tx} y1={e[1] - ty} x2={e[0] + tx} y2={e[1] + ty} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
-                ))}
-                <SvgText x={mx} y={my - 2.6} fontSize={4.2} fill={colors.inkFaint} textAnchor="middle" transform={`rotate(${deg.toFixed(2)} ${mx} ${my})`}>
-                  {d.label}
-                </SvgText>
-              </G>
-            );
-          })}
-
-          {plots.map((p) => {
-            if (!p.poly || !p.at) return null;
-            const status = (p.status ?? "available").toLowerCase();
-            const isSel = selected === p.plot;
-            const [cx, cy] = p.at;
-            return (
-              <G
-                key={p.plot}
-                onPress={() => {
-                  setSelected(p.plot);
-                  onSelect?.(p);
-                }}
-              >
-                <Polygon
-                  points={pointsOf(p.poly)}
-                  fill={isSel ? "#2F6BFF" : FILL[status] ?? "#FFFFFF"}
-                  stroke={isSel ? "#1B4FD8" : STROKE[status] ?? colors.success}
-                  strokeWidth={isSel ? 2.2 : 0.9}
-                />
-                <SvgText
-                  x={cx}
-                  y={cy - 0.8}
-                  fontSize={6.6}
-                  fontWeight="700"
-                  fill={isSel ? "#FFFFFF" : LABEL[status] ?? colors.success}
-                  textAnchor="middle"
-                >
-                  {p.plot}
-                </SvgText>
-                {p.size_sqft ? (
-                  <SvgText
-                    x={cx}
-                    y={cy + 6}
-                    fontSize={3.1}
-                    fill={isSel ? "#FFFFFF" : status === "available" ? colors.inkFaint : "rgba(255,255,255,0.85)"}
-                    textAnchor="middle"
-                  >
-                    {`${p.size_sqft} ft²`}
-                  </SvgText>
-                ) : null}
-              </G>
-            );
-          })}
-
-          {/* Scale bar, sized from the sheet's own overall dimensions so it can
-              never disagree with the printed callouts. */}
-          {geometry.metresPerUnit ? (
-            <G>
-              <Rect x={46} y={628} width={10 / geometry.metresPerUnit} height={2.6} fill={colors.ink} />
-              <Rect
-                x={46 + 10 / geometry.metresPerUnit}
-                y={628}
-                width={10 / geometry.metresPerUnit}
-                height={2.6}
-                fill="none"
-                stroke={colors.ink}
-                strokeWidth={0.4}
-              />
-              {[0, 1, 2].map((k) => (
-                <SvgText key={k} x={46 + (10 / geometry.metresPerUnit!) * k} y={626.4} fontSize={3.4} fill={colors.inkFaint} textAnchor="middle">
-                  {String(k * 10)}
-                </SvgText>
-              ))}
-              <SvgText x={46 + 10 / geometry.metresPerUnit} y={634.4} fontSize={3.4} fill={colors.inkFaint} textAnchor="middle">
-                metres
-              </SvgText>
-            </G>
-          ) : null}
-        </Svg>
-
-        {zoomed ? (
-          <Pressable
-            onPress={() => setVb({ x: base[0], y: base[1], w: base[2], h: base[3] })}
-            style={{
-              position: "absolute", right: 10, bottom: 10, flexDirection: "row", alignItems: "center", gap: 5,
-              backgroundColor: "rgba(0,0,0,0.62)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-            }}
-          >
-            <Ionicons name="contract" size={13} color="#fff" />
-            <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "700" }}>Fit plan</Text>
-          </Pressable>
-        ) : null}
-      </View>
-
+      {body(height)}
       <Text style={{ fontSize: 11.5, color: colors.inkFaint, marginTop: 8, lineHeight: 17 }}>
         Pinch to zoom, drag to pan, tap any plot for its details. Plan traced from the sanctioned
         approval drawing{geometry.approvalNo ? ` (${geometry.approvalNo})` : ""}; sizes are quoted
         from the plot schedule.
       </Text>
+
+      {/* Full screen reuses the same body, so pan/zoom state carries across. */}
+      <Modal visible={full} animationType="fade" onRequestClose={() => setFull(false)}>
+        <View style={{ flex: 1, backgroundColor: "#FCFCFA", paddingTop: insets.top, paddingBottom: insets.bottom }}>
+          {body(win.height - insets.top - insets.bottom)}
+        </View>
+      </Modal>
     </View>
   );
 }
 
-/** Compact detail card for the tapped plot. */
-export function PlotDetailCard({ plot }: { plot: PlotRow }) {
-  const status = (plot.status ?? "available").toLowerCase();
-  const rows: [string, string][] = [
-    ["Plot", plot.plot],
-    ...(plot.block ? ([["Block", plot.block]] as [string, string][]) : []),
-    ...(plot.size_sqft ? ([["Area", `${plot.size_sqft.toLocaleString("en-IN")} ft²`]] as [string, string][]) : []),
-    ...(plot.size_sqm ? ([["Area (m²)", `${plot.size_sqm} m²`]] as [string, string][]) : []),
-    ...(plot.dim_m ? ([["Dimensions", `${plot.dim_m} m`]] as [string, string][]) : []),
-    ...(plot.facing ? ([["Facing", plot.facing]] as [string, string][]) : []),
-    ["Status", STATUS_TEXT[status] ?? status],
-  ];
-  return (
-    <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, backgroundColor: colors.surface, gap: 2 }}>
-      {rows.map(([k, v]) => (
-        <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 }}>
-          <Text style={{ fontSize: 12.5, color: colors.inkFaint }}>{k}</Text>
-          <Text style={{ fontSize: 12.5, fontWeight: "700", color: k === "Status" ? (STROKE[status] ?? colors.ink) : colors.ink }}>{v}</Text>
-        </View>
-      ))}
-      <Text style={{ fontSize: 10.5, color: colors.inkFaint, marginTop: 6, lineHeight: 15 }}>
-        Facing is read from the plan and is not part of the DTCP approval.
-      </Text>
-    </View>
-  );
-}
+const pillStyle = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 5,
+  backgroundColor: "rgba(0,0,0,0.62)",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 999,
+};
+const pillText = { color: "#fff", fontSize: 11.5, fontWeight: "700" as const };
 
 /** Availability totals across the schedule. */
 export function PlotTotals({ plots }: { plots: PlotRow[] }) {
@@ -349,20 +391,37 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
   }, {} as Record<string, number>);
   const defs: [string, string][] = [
     ["available", "Available"],
-    ["reserved", "Reserved"],
+    ["reserved", "On hold"],
     ["booked", "Booked"],
     ["sold", "Sold"],
+    ["blocked", "Not released"],
   ];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+      <View style={totalBox}>
+        <Text style={[totalNum, { color: colors.ink }]}>{plots.length}</Text>
+        <Text style={totalLabel}>Total plots</Text>
+      </View>
       {defs.map(([k, label]) =>
         counts[k] ? (
-          <View key={k} style={{ minWidth: 84, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.surface }}>
-            <Text style={{ fontSize: 18, fontWeight: "800", color: STROKE[k] ?? colors.ink }}>{counts[k]}</Text>
-            <Text style={{ fontSize: 11, color: colors.inkFaint }}>{label}</Text>
+          <View key={k} style={totalBox}>
+            <Text style={[totalNum, { color: STROKE[k] ?? colors.ink }]}>{counts[k]}</Text>
+            <Text style={totalLabel}>{label}</Text>
           </View>
         ) : null,
       )}
     </ScrollView>
   );
 }
+
+const totalBox = {
+  minWidth: 88,
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: 12,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  backgroundColor: colors.surface,
+};
+const totalNum = { fontSize: 19, fontWeight: "800" as const };
+const totalLabel = { fontSize: 10.5, color: colors.inkFaint, textTransform: "uppercase" as const, letterSpacing: 0.4 };

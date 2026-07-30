@@ -150,6 +150,10 @@ export interface Property {
   lat: number | null;
   lng: number | null;
   gmaps_url: string | null;
+  /** Revenue identifiers — present on the table, previously missing here. */
+  taluk: string | null;
+  village: string | null;
+  survey_number: string | null;
   amenities: string[];
   approvals: Record<string, boolean>;
   vastu_facing: string | null;
@@ -181,6 +185,16 @@ export interface Property {
     block?: string;
     size_sqm?: number;
     dim_m?: string;
+    /** Width of the road this plot fronts, in metres. */
+    road_m?: number;
+    /** Not on the DTCP sheet — admin-set, never inferred. */
+    corner?: boolean;
+    // commercial, all optional until an admin prices the layout
+    price?: number | null;
+    offer_price?: number | null;
+    booking_amount?: number | null;
+    registration_charges?: number | null;
+    development_charges?: number | null;
     poly?: [number, number][];
     at?: [number, number];
     clipped?: boolean;

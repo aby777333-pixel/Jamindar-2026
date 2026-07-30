@@ -27,7 +27,9 @@ import { propertyShareMessage, brochureLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
-import { PlotPlan, PlotDetailCard, PlotTotals, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
+import { PlotPlan, PlotTotals, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
+import { PlotSheet } from "@/components/PlotSheet";
+import { PlotFilters, applyPlotFilters, EMPTY_FILTERS, type PlotFilterState } from "@/components/PlotFilters";
 
 type TabKey =
   | "overview" | "photos" | "videos" | "master_plan"
@@ -771,19 +773,36 @@ function MasterPlanTab({ property }: { property: Property }) {
   const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
   const [zoom, setZoom] = useState(false);
   const [picked, setPicked] = useState<PlotRow | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [filters, setFilters] = useState<PlotFilterState>(EMPTY_FILTERS);
 
   // Traced site plan, when this property has one. Falls back to the master-plan
   // image below for properties that only have a scan.
   const plan = property.plot_plan as PlotPlanGeometry | null;
   const interactive = !!plan?.boundary?.length && plots.some((p) => p.poly);
+  const matched = applyPlotFilters(plots, filters);
+  const filtering = matched.size !== plots.length;
 
   return (
     <View style={{ gap: 14 }}>
       {interactive ? (
         <>
           <PlotTotals plots={plots} />
-          <PlotPlan geometry={plan!} plots={plots} onSelect={setPicked} />
-          {picked ? <PlotDetailCard plot={picked} /> : null}
+          <PlotFilters plots={plots} value={filters} onChange={setFilters} matched={matched.size} />
+          <PlotPlan
+            geometry={plan!}
+            plots={plots}
+            visible={filtering ? matched : undefined}
+            onSelect={(p) => { setPicked(p); setSheetOpen(true); }}
+          />
+          <PlotSheet
+            visible={sheetOpen}
+            plot={picked}
+            property={property}
+            shareUrl={property.brochure_url ?? undefined}
+            onClose={() => setSheetOpen(false)}
+            onBook={() => { setSheetOpen(false); }}
+          />
         </>
       ) : null}
       {property.master_plan_url ? (
