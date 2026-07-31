@@ -147,6 +147,26 @@ function shell(opts: {
   h1{font-size:19px;margin:0 0 4px}
   h2{font-size:15px;margin:18px 0 8px}
   .hide{display:none!important}
+  /* Persistent, non-intrusive join prompt. Docked, never a modal, never
+     covering the reply controls — .wrap gets matching bottom padding. */
+  .joinbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--navy);color:#fff;
+           border-top:2px solid var(--gold);box-shadow:0 -8px 26px rgba(0,0,0,.20)}
+  .joinbar .in{max-width:720px;margin:0 auto;padding:10px 14px}
+  .joinbar .pill{display:flex;align-items:center;gap:10px}
+  .joinbar .mark{width:30px;height:30px;border-radius:8px;background:var(--gold);color:#1B1405;
+                 display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex:0 0 auto}
+  .joinbar b{font-size:14px;display:block;line-height:1.25}
+  .joinbar .sub{font-size:11.5px;color:#B9C0D2}
+  .joinbar .acts{margin-left:auto;display:flex;gap:6px;align-items:center;flex:0 0 auto}
+  .joinbar .mini{background:var(--gold);color:#1B1405;border:0;border-radius:10px;padding:9px 13px;
+                 font:inherit;font-weight:800;font-size:13px;cursor:pointer;text-decoration:none}
+  .joinbar .ghost{background:transparent;color:#B9C0D2;border:1px solid #38405C;border-radius:10px;
+                  padding:8px 10px;font:inherit;font-size:12px;cursor:pointer}
+  .joinbar ul{margin:10px 0 0;padding:0 0 0 2px;list-style:none;display:grid;gap:6px;
+              grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .joinbar li{font-size:12.5px;color:#D8DCE8;display:flex;gap:7px;align-items:flex-start}
+  .joinbar li span{color:var(--gold);font-weight:900;flex:0 0 auto}
+  body.hasjoin .wrap{padding-bottom:150px}
 </style>${opts.extraHead ?? ''}</head>
 <body>
 <header class="top"><div class="wrap">
@@ -154,6 +174,65 @@ function shell(opts: {
   <b>Jamin Community</b><span>Open to everyone</span>
 </div></header>
 <div class="wrap">${opts.body}</div>
+
+<div class="joinbar hide" id="joinbar"><div class="in">
+  <div class="pill">
+    <div class="mark">J</div>
+    <div><b>Join Jamin Bazaar</b><span class="sub" id="joinSub">Free — keep this conversation and pick up anywhere.</span></div>
+    <div class="acts">
+      <button class="ghost" id="joinMore" aria-expanded="false">Why?</button>
+      <a class="mini" id="joinGo" href="${APP_STORE}">Join</a>
+      <button class="ghost" id="joinX" aria-label="Dismiss">✕</button>
+    </div>
+  </div>
+  <ul class="hide" id="joinList">
+    <li><span>✓</span>Save your favourite properties</li>
+    <li><span>✓</span>Track enquiries and conversations</li>
+    <li><span>✓</span>Book site visits</li>
+    <li><span>✓</span>Connect directly with verified promoters</li>
+    <li><span>✓</span>Get instant property updates</li>
+    <li><span>✓</span>Access exclusive listings and offers</li>
+    <li><span>✓</span>Continue conversations across devices</li>
+  </ul>
+</div></div>
+
+<script>
+(function(){
+  var KEY='jaminJoinSnooze', SNOOZE=86400000; // a dismissal lasts a day, not forever
+  var bar=document.getElementById('joinbar'), list=document.getElementById('joinList'),
+      more=document.getElementById('joinMore'), go=document.getElementById('joinGo');
+  if(!bar) return;
+
+  // Carry the visitor back to exactly this page after registering, and keep the
+  // referral/campaign query so §9 attribution is not lost at the hand-off.
+  try{ go.href=${JSON.stringify(APP_STORE)}+'?next='+encodeURIComponent(location.href); }catch(e){}
+
+  function snoozedUntil(){ try{ return parseInt(localStorage.getItem(KEY)||'0',10)||0 }catch(e){ return 0 } }
+  function show(){ bar.classList.remove('hide'); document.body.classList.add('hasjoin') }
+  function hide(){ bar.classList.add('hide'); document.body.classList.remove('hasjoin') }
+
+  if(Date.now() > snoozedUntil()) show();
+
+  more.onclick=function(){
+    var open=list.classList.toggle('hide')===false;
+    more.setAttribute('aria-expanded', String(open));
+    more.textContent = open ? 'Hide' : 'Why?';
+  };
+  document.getElementById('joinX').onclick=function(){
+    try{ localStorage.setItem(KEY, String(Date.now()+SNOOZE)) }catch(e){}
+    hide();
+  };
+
+  // Reappears after meaningful engagement (a reply, a question, an enquiry) —
+  // a dismissal should not silence it once the visitor is clearly invested.
+  window.jaminJoinNudge=function(msg){
+    try{ localStorage.removeItem(KEY) }catch(e){}
+    if(msg) document.getElementById('joinSub').textContent=msg;
+    show(); list.classList.remove('hide');
+    more.setAttribute('aria-expanded','true'); more.textContent='Hide';
+  };
+})();
+</script>
 </body></html>`;
 }
 
@@ -458,6 +537,10 @@ async function pagePost(id: string, url: URL): Promise<Response> {
           .then(function(j){
             $('doneMsg').textContent=j.message||'Thank you.';
             show('step4');
+            // §8 — the visitor just engaged, so surface the join prompt again
+            // (clearing any earlier dismissal) without blocking what they did.
+            try{ window.jaminJoinNudge && window.jaminJoinNudge(
+              'Keep track of this — save it to a free Jamin account.') }catch(e){}
             if(action==='reply') setTimeout(function(){location.reload()},2500);
           })
           .catch(function(e){

@@ -211,7 +211,10 @@ window.sendOtp = async () => {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`,{method:"POST",headers:{"Content-Type":"application/json",apikey:ANON,Authorization:`Bearer ${ANON}`},body:JSON.stringify({mobile:m})});
     const j = await r.json(); if(!r.ok) throw new Error(j.error||"Failed");
     $("#step-mobile").style.display="none"; $("#step-otp").style.display="block";
-    $("#login-msg").textContent = j.delivered ? "OTP sent on WhatsApp." : (j.devCode? "Dev code: "+j.devCode : "OTP sent.");
+    // send-otp reports the channel it actually used (sms → WATI → MSG91), so say
+    // what really happened instead of always claiming WhatsApp.
+    const via = {sms:"SMS", whatsapp:"WhatsApp", msg91:"SMS"}[j.channel] || "SMS";
+    $("#login-msg").textContent = j.delivered ? `OTP sent by ${via}.` : (j.devCode? "Dev code: "+j.devCode : "OTP sent.");
     if(j.devCode) $("#otp").value=j.devCode;
   }catch(e){ $("#login-msg").textContent=e.message; }
 };
@@ -1365,7 +1368,17 @@ window.regPage=(d)=>{ __regPage+=d; renderRegistrations(); };
 async function renderCommunity(){
   const sub = window.__commSub || "posts";
   const chip=(v,l)=>`<button class="btn ${sub===v?'':'grey'} sm" onclick="commSub('${v}')">${l}</button>`;
-  let html = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip('posts','Posts')}${chip('contacts','Contact log')}${chip('reports','Reports')}</div>`;
+  // Postgres sends an unbounded block as the string "infinity", which
+  // new Date() turns into Invalid Date — so test for it before comparing,
+  // otherwise a permanently blocked member reads as active.
+  const isBlocked = a => {
+    const t = a?.community_blocked_until;
+    if(!t) return false;
+    if(String(t).toLowerCase().startsWith('infinity')) return true;
+    const d = new Date(t);
+    return !isNaN(d.getTime()) && d > new Date();
+  };
+  let html = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">${chip('posts','Posts')}${chip('comments','Comments & replies')}${chip('enquiries','Ask Admin')}${chip('visitors','Public visitors')}${chip('leads','Leads')}${chip('contacts','Contact log')}${chip('reports','Reports')}${chip('audit','Audit log')}</div>`;
   if(sub==='posts'){
     const { data } = await sb.from("community_posts")
       .select("*, author:profiles!community_posts_author_id_fkey(full_name,member_code,mobile)")
@@ -1385,7 +1398,20 @@ async function renderCommunity(){
         ${p.body?`<div style="font-size:13px;margin-top:8px;white-space:pre-wrap">${esc(p.body)}</div>`:""}
         ${media?`<div class="muted" style="font-size:12px;margin-top:6px">📎 ${media}</div>`:""}
         ${links?`<div class="muted" style="font-size:12px;margin-top:4px">🔗 ${links}</div>`:""}
-        <div class="toolbar" style="margin-top:10px;justify-content:flex-end">
+        <div class="toolbar" style="margin-top:8px;gap:6px;flex-wrap:wrap;align-items:center">
+          <span class="muted" style="font-size:11.5px">Who can see it:</span>
+          ${['public','members','private'].map(v=>
+            `<button class="btn ${p.visibility===v?'':'grey'} sm" onclick="commVis('${p.id}','${v}',${p.public_enabled!==false})">${v}</button>`).join("")}
+          <span class="pill ${p.public_enabled===false?'grey':'ok'}">${p.public_enabled===false?'public link off':'public link on'}</span>
+          <button class="btn ghost sm" onclick="commVis('${p.id}','${esc(p.visibility||'members')}',${p.public_enabled===false})">
+            ${p.public_enabled===false?'Enable public link':'Disable public link'}</button>
+          ${p.visibility==='public'&&p.public_enabled!==false
+            ? `<a class="btn ghost sm" href="https://merry-begonia-4c3cd1.netlify.app/c/${p.id}" target="_blank" rel="noopener">Open public page ↗</a>` : ""}
+          <button class="btn ghost sm" onclick="commLock('${p.id}',${!p.comments_locked})">
+            ${p.comments_locked?'🔒 Unlock replies':'Lock replies'}</button>
+          ${p.pinned_comment_id?`<button class="btn ghost sm" onclick="commUnpin('${p.id}')">Unpin reply</button>`:""}
+        </div>
+        <div class="toolbar" style="margin-top:8px;justify-content:flex-end">
           ${p.status!=='hidden'?`<button class="btn grey sm" onclick="commStatus('${p.id}','hidden')">Hide</button>`:""}
           ${p.status!=='published'?`<button class="btn sm" onclick="commStatus('${p.id}','published')">Restore</button>`:""}
           ${p.status!=='removed'?`<button class="btn ghost sm" onclick="commStatus('${p.id}','removed')">Remove</button>`:""}
@@ -1404,6 +1430,153 @@ async function renderCommunity(){
         <span class="muted" style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((r.raw_text||"").slice(0,120))}</span>
         <span class="muted" style="font-size:11.5px;white-space:nowrap">${esc(r.author?.full_name||"")} ${esc(r.author?.member_code||"")} · ${new Date(r.created_at).toLocaleString()}</span>
       </div>`).join("")}</div>` : `<div class="empty card">No contacts recorded yet.</div>`;
+  } else if(sub==='comments'){
+    const { data } = await sb.from("community_comments")
+      .select("*, author:profiles!community_comments_author_id_fkey(full_name,member_code,community_blocked_until), post:community_posts!community_comments_post_id_fkey(body,pinned_comment_id), guest:community_guests!community_comments_guest_id_fkey(name)")
+      .order("created_at",{ascending:false}).limit(200);
+    const rows = data||[];
+    html += `<div class="muted" style="font-size:12px;margin-bottom:8px">Every comment and threaded reply. Deleting is a soft delete — the text stays in the audit log.</div>`;
+    html += rows.length ? rows.map(c=>{
+      const who = c.author?.full_name || (c.guest?.name ? c.guest.name+" (visitor)" : "Member");
+      const st  = c.status==='deleted' ? 'red' : (c.is_admin_reply ? 'ok' : 'grey');
+      const pinned = c.post?.pinned_comment_id === c.id;
+      return `<div class="card" style="padding:12px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:13px">${esc(who)}</b>
+          ${c.is_admin_reply?`<span class="pill ok">ADMIN</span>`:""}
+          ${c.guest_id?`<span class="pill warn">visitor</span>`:""}
+          ${isBlocked(c.author)?`<span class="pill red">blocked</span>`:""}
+          ${pinned?`<span class="pill ok">📌 pinned</span>`:""}
+          ${c.parent_id?`<span class="pill grey">reply</span>`:""}
+          ${c.edited_at?`<span class="muted" style="font-size:11.5px">edited</span>`:""}
+          <span class="pill ${st}">${esc(c.status||'published')}</span>
+          <span class="muted" style="font-size:11.5px">${new Date(c.created_at).toLocaleString()}</span>
+        </div>
+        <div style="font-size:13px;margin-top:6px;white-space:pre-wrap">${esc(c.body||"")}</div>
+        ${c.post?.body?`<div class="muted" style="font-size:11.5px;margin-top:5px">on: ${esc(c.post.body.slice(0,90))}</div>`:""}
+        <div class="toolbar" style="margin-top:8px;justify-content:flex-end;gap:6px">
+          ${pinned
+            ? `<button class="btn ghost sm" onclick="commUnpin('${c.post_id}')">Unpin</button>`
+            : `<button class="btn grey sm" onclick="commPin('${c.post_id}','${c.id}')">Pin to post</button>`}
+          ${c.author_id ? (isBlocked(c.author)
+            ? `<button class="btn grey sm" onclick="commBlock('${c.author_id}',false)">Unblock author</button>`
+            : `<button class="btn ghost sm" onclick="commBlock('${c.author_id}',true)">Block author</button>`) : ""}
+          ${c.status!=='deleted'?`<button class="btn ghost sm" onclick="commDelComment('${c.id}')">Delete</button>`:""}
+        </div></div>`;
+    }).join("") : `<div class="empty card">No comments yet.</div>`;
+  } else if(sub==='enquiries'){
+    const { data } = await sb.from("community_admin_questions")
+      .select("*").order("created_at",{ascending:false}).limit(200);
+    const rows = data||[];
+    html += `<div class="muted" style="font-size:12px;margin-bottom:8px">Questions raised through “Ask Admin”. Answering posts an ADMIN-badged reply under the same post.</div>`;
+    html += rows.length ? rows.map(q=>`<div class="card" style="padding:14px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="pill ${q.status==='answered'?'ok':'warn'}">${esc(q.status||'open')}</span>
+          <b style="font-size:13px">${esc(q.asker_name||"Visitor")}</b>
+          <span class="muted" style="font-size:12px">${q.asker_phone?`+${esc(q.asker_phone)}`:""} ${q.asker_email?`· ${esc(q.asker_email)}`:""} · ${new Date(q.created_at).toLocaleString()}</span>
+        </div>
+        ${q.post_title?`<div class="muted" style="font-size:11.5px;margin-top:4px">on: ${esc(q.post_title)}</div>`:""}
+        <div style="font-size:13px;margin-top:8px;white-space:pre-wrap">${esc(q.question||"")}</div>
+        ${q.status!=='answered'?`
+          <div style="margin-top:10px;display:grid;gap:6px">
+            <textarea id="ans-${q.id}" rows="3" placeholder="Answer as Jamin Admin…"
+              style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;font:inherit"></textarea>
+            <label class="muted" style="font-size:12px;display:flex;gap:7px;align-items:center">
+              <input type="checkbox" id="pin-${q.id}"> Pin this answer to the top of the post
+            </label>
+            <div class="toolbar" style="justify-content:flex-end">
+              <button class="btn sm" onclick="commAnswer('${q.id}')">Post answer</button>
+            </div>
+          </div>`:`<div class="muted" style="font-size:11.5px;margin-top:8px">Answered ${q.answered_at?new Date(q.answered_at).toLocaleString():""}</div>`}
+      </div>`).join("") : `<div class="empty card">No questions yet.</div>`;
+  } else if(sub==='visitors'){
+    const { data } = await sb.from("community_guests")
+      .select("*, promoter:profiles!community_guests_promoter_id_fkey(full_name,member_code)")
+      .order("created_at",{ascending:false}).limit(300);
+    const rows = data||[];
+    window.__commGuests = rows;
+    html += `<div class="toolbar" style="margin-bottom:8px;gap:8px;align-items:center">
+      <span class="muted" style="font-size:12px;flex:1">OTP-verified public visitors. Consent is recorded exactly as given — never assumed.</span>
+      <button class="btn grey sm" onclick="commExportGuests()">⤓ Export CSV</button></div>`;
+    html += rows.length ? `<div class="card" style="padding:0">${rows.map(g=>`
+      <div style="padding:11px 14px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:13px">${esc(g.name||"Visitor")}</b>
+          <span class="muted" style="font-size:12px">${g.phone?`+${esc(g.phone)}`:""} ${g.email?`· ${esc(g.email)}`:""}</span>
+          <span class="pill ${g.phone_verified_at?'ok':'grey'}">${g.phone_verified_at?'verified':'unverified'}</span>
+          <span class="pill ${g.consent_marketing?'ok':'warn'}">${g.consent_marketing?'consented':'no marketing consent'}</span>
+          ${g.converted_user_id?`<span class="pill ok">joined the app</span>`:""}
+        </div>
+        <div class="muted" style="font-size:11.5px;margin-top:4px">
+          ${g.campaign?`campaign: ${esc(g.campaign)} · `:""}${g.referral_code?`ref: ${esc(g.referral_code)} · `:""}
+          ${g.promoter?`promoter: ${esc(g.promoter.full_name)} (${esc(g.promoter.member_code||"")}) · `:""}
+          ${new Date(g.created_at).toLocaleString()}
+        </div>
+        ${g.source_url?`<div class="muted" style="font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.source_url)}</div>`:""}
+      </div>`).join("")}</div>` : `<div class="empty card">No public visitors yet.</div>`;
+  } else if(sub==='leads'){
+    const [{data:leadRows},{data:promoRows},{data:guestRows}] = await Promise.all([
+      sb.from("leads").select("*, promoter:profiles!leads_promoter_id_fkey(full_name,member_code)")
+        .not("guest_id","is",null).order("created_at",{ascending:false}).limit(300),
+      sb.from("profiles").select("id,full_name,member_code").eq("role","promoter").order("full_name").limit(500),
+      sb.from("community_guests").select("id,consent_marketing,converted_user_id,phone_verified_at").limit(1000)
+    ]);
+    const leads=leadRows||[], promos=promoRows||[], guests=guestRows||[];
+    window.__commPromos = promos;
+    // §10 conversion analytics — the public funnel, end to end.
+    const nVis=guests.length,
+          nVer=guests.filter(g=>g.phone_verified_at).length,
+          nCon=guests.filter(g=>g.consent_marketing).length,
+          nApp=guests.filter(g=>g.converted_user_id).length,
+          nAss=leads.filter(l=>l.promoter_id).length,
+          pct=(a,b)=>b?Math.round(a*100/b)+"%":"—";
+    const stat=(l,v,s)=>`<div class="card" style="padding:12px;flex:1;min-width:120px">
+      <div class="muted" style="font-size:11.5px">${l}</div>
+      <div style="font-size:20px;font-weight:800;margin-top:2px">${v}</div>
+      ${s?`<div class="muted" style="font-size:11px">${s}</div>`:""}</div>`;
+    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      ${stat("Visitors",nVis,"reached the public pages")}
+      ${stat("OTP verified",nVer,pct(nVer,nVis)+" of visitors")}
+      ${stat("Marketing consent",nCon,pct(nCon,nVer)+" of verified")}
+      ${stat("Became app users",nApp,pct(nApp,nVer)+" conversion")}
+      ${stat("Leads",leads.length,nAss+" assigned")}</div>`;
+    html += leads.length ? leads.map(l=>`<div class="card" style="padding:13px;margin-bottom:9px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:13px">${esc(l.name||"Visitor")}</b>
+          <span class="muted" style="font-size:12px">${l.phone?`+${esc(l.phone)}`:""} ${l.email?`· ${esc(l.email)}`:""}</span>
+          <span class="pill ${l.status==='new'?'warn':'ok'}">${esc(l.status||"new")}</span>
+          <span class="pill ${l.consent_marketing?'ok':'grey'}">${l.consent_marketing?'consented':'no consent'}</span>
+          <span class="muted" style="font-size:11.5px">${new Date(l.created_at).toLocaleString()}</span>
+        </div>
+        <div class="muted" style="font-size:11.5px;margin-top:4px">
+          ${l.source?`source: ${esc(l.source)} · `:""}${l.campaign?`campaign: ${esc(l.campaign)} · `:""}
+          ${l.referral_code?`ref: ${esc(l.referral_code)}`:""}
+        </div>
+        ${l.notes?`<div style="font-size:12.5px;margin-top:6px;white-space:pre-wrap">${esc(l.notes)}</div>`:""}
+        <div class="toolbar" style="margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="muted" style="font-size:11.5px">Promoter:</span>
+          <b style="font-size:12px">${l.promoter?esc(l.promoter.full_name):"unassigned"}</b>
+          <select id="lp-${l.id}" style="padding:6px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12px">
+            <option value="">— choose promoter —</option>
+            ${promos.map(p=>`<option value="${p.id}" ${l.promoter_id===p.id?"selected":""}>${esc(p.full_name||"")} ${esc(p.member_code||"")}</option>`).join("")}
+          </select>
+          <button class="btn sm" onclick="commAssignLead('${l.id}')">Assign</button>
+        </div></div>`).join("") : `<div class="empty card">No community leads yet.</div>`;
+  } else if(sub==='audit'){
+    const { data } = await sb.from("community_audit")
+      .select("*, actor:profiles!community_audit_actor_id_fkey(full_name,member_code)")
+      .order("created_at",{ascending:false}).limit(300);
+    const rows = data||[];
+    html += `<div class="muted" style="font-size:12px;margin-bottom:8px">Every edit, delete, pin and moderation action — who did it, and what the text said before.</div>`;
+    html += rows.length ? `<div class="card" style="padding:0">${rows.map(a=>`
+      <div style="padding:11px 14px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="pill grey">${esc(a.action||"")}</span>
+          <span class="muted" style="font-size:12px">${esc(a.actor?.full_name||"system")} ${esc(a.actor?.member_code||"")} · ${new Date(a.created_at).toLocaleString()}</span>
+        </div>
+        ${a.before_body?`<div class="muted" style="font-size:11.5px;margin-top:4px">before: ${esc(String(a.before_body).slice(0,160))}</div>`:""}
+        ${a.after_body?`<div class="muted" style="font-size:11.5px">after: ${esc(String(a.after_body).slice(0,160))}</div>`:""}
+      </div>`).join("")}</div>` : `<div class="empty card">No audit entries yet.</div>`;
   } else {
     const { data } = await sb.from("community_reports")
       .select("*, reporter:profiles!community_reports_reporter_id_fkey(full_name,member_code), post:community_posts!community_reports_post_id_fkey(body,status)")
@@ -1431,6 +1604,73 @@ window.commStatus = async (id,status)=>{
 window.commResolve = async (id)=>{
   const { error } = await sb.from("community_reports").update({status:'resolved'}).eq("id",id);
   if(error) return toast(error.message); toast("Report resolved"); renderCommunity(); refreshBadges();
+};
+// §10 admin controls. Every one of these goes through a SECURITY DEFINER RPC —
+// the community tables are SELECT-only under RLS, so a direct table write here
+// would silently fail and leave a dead button.
+window.commVis = async (id,visibility,publicEnabled)=>{
+  const { error } = await sb.rpc("admin_set_community_visibility",
+    {p_post:id,p_visibility:visibility,p_public_enabled:publicEnabled});
+  if(error) return toast(error.message);
+  toast(`Visibility: ${visibility}${publicEnabled?"":" · public link off"}`); renderCommunity();
+};
+window.commLock = async (id,locked)=>{
+  const { error } = await sb.rpc("admin_lock_community_post",{p_post:id,p_locked:locked});
+  if(error) return toast(error.message);
+  toast(locked?"Replies locked":"Replies unlocked"); renderCommunity();
+};
+window.commPin = async (postId,commentId)=>{
+  const { error } = await sb.rpc("pin_community_comment",{p_post:postId,p_comment:commentId});
+  if(error) return toast(error.message); toast("Reply pinned"); renderCommunity();
+};
+window.commUnpin = async (postId)=>{
+  const { error } = await sb.rpc("unpin_community_comment",{p_post:postId});
+  if(error) return toast(error.message); toast("Reply unpinned"); renderCommunity();
+};
+window.commDelComment = async (id)=>{
+  if(!confirm("Are you sure you want to delete this comment?")) return;
+  const { error } = await sb.rpc("delete_community_comment",{p_id:id});
+  if(error) return toast(error.message); toast("Comment deleted"); renderCommunity();
+};
+window.commAnswer = async (qid)=>{
+  const box = document.getElementById("ans-"+qid);
+  const text = (box?.value||"").trim();
+  if(!text) return toast("Type an answer first");
+  const pin = !!document.getElementById("pin-"+qid)?.checked;
+  const { error } = await sb.rpc("admin_answer_community_question",
+    {p_question:qid,p_answer:text,p_pin:pin});
+  if(error) return toast(error.message);
+  toast(pin?"Answer posted and pinned":"Answer posted"); renderCommunity(); refreshBadges();
+};
+window.commBlock = async (userId,blocked)=>{
+  const reason = blocked ? prompt("Reason for blocking this member from the community?") : null;
+  if(blocked && reason===null) return;            // cancelled
+  const { error } = await sb.rpc("admin_block_community_user",
+    {p_user:userId,p_blocked:blocked,p_reason:reason,p_until:null});
+  if(error) return toast(error.message);
+  toast(blocked?"Member blocked from the community":"Member unblocked"); renderCommunity();
+};
+window.commAssignLead = async (leadId)=>{
+  const sel = document.getElementById("lp-"+leadId);
+  const promoter = sel?.value || "";
+  if(!promoter) return toast("Choose a promoter first");
+  const { error } = await sb.rpc("admin_assign_community_lead",{p_lead:leadId,p_promoter:promoter});
+  if(error) return toast(error.message);
+  toast("Lead assigned"); renderCommunity();
+};
+window.commExportGuests = ()=>{
+  const rows = window.__commGuests||[];
+  if(!rows.length) return toast("Nothing to export");
+  const cols = ["name","phone","email","phone_verified_at","consent_marketing","consent_at",
+                "campaign","referral_code","source_url","converted_user_id","created_at"];
+  const cell = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const csv = [cols.join(",")].concat(rows.map(r=>cols.map(c=>cell(r[c])).join(","))).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = `jamin-community-visitors-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  toast(`Exported ${rows.length} visitors`);
 };
 
 // ───────── site visits ─────────
