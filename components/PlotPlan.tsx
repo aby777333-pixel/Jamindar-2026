@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useRef, useState } from "react";
 import { Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from "react-native-svg";
 
 import { colors } from "../lib/theme";
 
@@ -55,7 +55,9 @@ export interface PlotPlanGeometry {
 }
 
 const FILL: Record<string, string> = {
-  available: "#FFFFFF",
+  // Warm white rather than pure white: a paper-white cell on a warm road wash
+  // reads as a hole punched in the sheet, not as a drawn plot.
+  available: "#FDFBF7",
   reserved: colors.gold,
   booked: "#D93025",
   sold: "#4A4A4A",
@@ -115,8 +117,12 @@ function PlanSvg({
   // paper; the sanctioned sheet washes it warm, which is what makes a layout
   // look like a drawing. Survey view keeps the sheet's own stronger ochre.
   const ground = survey ? "#D99F6F" : "#E3CCB2";
+  const groundLow = survey ? "#CE8F5D" : "#D9BFA1"; // shaded end of the wash
   const osrFill = survey ? "#E8F0E2" : "#D8E7CC";
   const siteW = survey ? 2.2 : 1.7;
+  // Ids must differ per layer state: the mini plan and the full-screen plan are
+  // two <Svg> trees in one document on web, and identical ids would collide.
+  const gid = survey ? "ground-survey" : "ground-plan";
   return (
     <Svg
       width="100%"
@@ -126,14 +132,25 @@ function PlanSvg({
     >
       {/* Everything inside the sanctioned boundary that is not a plot or the
           OSR is road, exactly as the sheet colours it. */}
-      <Polygon points={pointsOf(geometry.boundary)} fill={ground} />
+      <Defs>
+        {/* A whisper of shading across the wash — enough to stop the road
+            reading as one flat sheet of colour, not enough to notice. */}
+        <LinearGradient id={gid} x1="0" y1="0" x2="0.35" y2="1">
+          <Stop offset="0" stopColor={ground} />
+          <Stop offset="1" stopColor={groundLow} />
+        </LinearGradient>
+      </Defs>
+      <Polygon points={pointsOf(geometry.boundary)} fill={`url(#${gid})`} />
       {geometry.osr?.polygon ? (
         <Polygon points={pointsOf(geometry.osr.polygon)} fill={osrFill} stroke="#5B8C3A" strokeWidth={0.5} strokeDasharray="2.5 1.8" />
       ) : null}
       {geometry.existingRoad?.quad ? (
-        <Polygon points={pointsOf(geometry.existingRoad.quad)} fill="#F4EFDC" stroke="#7A6B32" strokeWidth={0.6} />
+        <Polygon points={pointsOf(geometry.existingRoad.quad)} fill="#EDE4CC" stroke="#8A7940" strokeWidth={0.5} />
       ) : null}
-      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#D0402F" strokeWidth={siteW} strokeLinejoin="round" />
+      {/* Kerb: a pale band laid under the boundary line so the red reads as an
+          edge of made ground rather than an outline drawn around a shape. */}
+      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#F3E7D8" strokeWidth={siteW + 1.6} strokeLinejoin="round" opacity={0.55} />
+      <Polygon points={pointsOf(geometry.boundary)} fill="none" stroke="#C4372A" strokeWidth={siteW} strokeLinejoin="round" />
 
       {geometry.roads?.map((r, i) => {
         const cx = (r.band[0] + r.band[2]) / 2;
