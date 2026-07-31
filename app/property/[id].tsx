@@ -25,6 +25,7 @@ import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
 import { propertyShareMessage, brochureLink, propertyLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
+import { IMG } from "@/lib/img";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
 import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry, PlotTitleBlock } from "@/components/PlotPlan";
@@ -406,7 +407,7 @@ export default function PropertyDetail() {
               >
                 {images.map((uri, i) => (
                   <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: 250 }}>
-                    <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+                    <Image source={{ uri: IMG.tile(uri) }} style={{ width: "100%", height: "100%" }} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -581,7 +582,7 @@ export default function PropertyDetail() {
                 <Pressable key={p.id} onPress={() => router.push(`/property/${p.id}`)}>
                   <Card style={{ marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                      {p.images?.[0] ? <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} /> : <Ionicons name="business" size={20} color={colors.inkFaint} />}
+                      {p.images?.[0] ? <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} /> : <Ionicons name="business" size={20} color={colors.inkFaint} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: "600", color: colors.ink }} numberOfLines={1}>{p.title}</Text>
@@ -758,7 +759,7 @@ function PhotosTab({ images, active, onSelect, onOpen }: { images: string[]; act
             onPress={() => { onSelect(i); onOpen(i); }}
             style={{ width: "48%", height: 120, borderRadius: 14, overflow: "hidden", borderWidth: i === active ? 2 : 0, borderColor: colors.brand }}
           >
-            <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+            <Image source={{ uri: IMG.tile(uri) }} style={{ width: "100%", height: "100%" }} />
           </Pressable>
         ))}
       </View>

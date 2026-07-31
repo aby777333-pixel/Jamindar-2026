@@ -22,6 +22,7 @@ import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
+import { IMG } from "@/lib/img";
 import { initials, greetingFor, formatINR } from "@/lib/format";
 import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
@@ -399,7 +400,7 @@ function HeroSlider({ items, onOpen }: { items: Property[]; onOpen: (p: Property
         {items.map((p) => (
           <Pressable key={p.id} onPress={() => onOpen(p)} style={{ width: W, height: H, backgroundColor: colors.navy }}>
             {p.images?.[0] ? (
-              <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+              <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             ) : null}
             <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.72)"]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
             <View style={{ position: "absolute", left: 14, right: 14, bottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 10 }}>

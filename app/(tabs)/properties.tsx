@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
+import { IMG } from "@/lib/img";
 import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
@@ -209,7 +210,7 @@ export default function Properties() {
               <Card style={{ padding: 0, overflow: "hidden", flexDirection: "row", height: CARD_H }}>
                 <View style={{ width: 110, height: "100%", backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
                   {p.images?.[0] ? (
-                    <Image source={{ uri: p.images[0] }} style={{ width: "100%", height: "100%" }} />
+                    <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} />
                   ) : (
                     <Ionicons name="image" size={28} color={colors.inkFaint} />
                   )}

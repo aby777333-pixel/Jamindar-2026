@@ -3,6 +3,7 @@ import { View, Text, Pressable, Image, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, space, type as T } from "@/lib/theme";
+import { IMG } from "@/lib/img";
 import { elevation } from "./ui";
 import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
@@ -38,7 +39,7 @@ export function GreetingHeader({
         }}
       >
         {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} />
+          <Image source={{ uri: IMG.avatar(avatarUrl) }} style={{ width: "100%", height: "100%" }} />
         ) : (
           <Text style={{ color: "#fff", fontWeight: "600", fontSize: T.small.fontSize + 1 }}>{initials}</Text>
         )}
@@ -405,7 +406,7 @@ export function VerifiedListingCard({
       <View style={{ height: 122 }}>
         {imgs.length > 0 ? (
           <>
-            <Image source={{ uri: imgs[Math.min(imgIdx, imgs.length - 1)] }} style={{ width: "100%", height: "100%" }} />
+            <Image source={{ uri: IMG.card(imgs[Math.min(imgIdx, imgs.length - 1)]) }} style={{ width: "100%", height: "100%" }} />
             {imgs.length > 1 ? (
               <View style={{ position: "absolute", bottom: 6, alignSelf: "center", flexDirection: "row", gap: 4 }}>
                 {imgs.slice(0, 6).map((_, i) => (

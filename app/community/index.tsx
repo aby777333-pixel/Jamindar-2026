@@ -8,6 +8,7 @@ import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
+import { IMG } from "@/lib/img";
 import { timeAgo } from "@/lib/format";
 import {
   fetchCommunityFeed,
@@ -59,6 +60,13 @@ export default function Community() {
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
           contentContainerStyle={{ padding: space.md, paddingBottom: 40 + insets.bottom, gap: space.sm }}
           showsVerticalScrollIndicator={false}
+          // Community cards are heavy — media, translate state, a menu each.
+          // Rendering only what is near the viewport keeps scrolling smooth on
+          // the mid-range phones most buyers use.
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={7}
+          removeClippedSubviews
           ListHeaderComponent={
             <View style={{ gap: space.sm, marginBottom: space.xs }}>
               {/* compose prompt */}
@@ -211,7 +219,7 @@ export function CommunityPostCard({
       {/* author row */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {post.author.avatar_url ? (
-          <Image source={{ uri: post.author.avatar_url }} style={{ width: 38, height: 38, borderRadius: 19 }} />
+          <Image source={{ uri: IMG.avatar(post.author.avatar_url) }} style={{ width: 38, height: 38, borderRadius: 19 }} />
         ) : (
           <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.navy, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>{initials}</Text>
@@ -376,12 +384,12 @@ export function CommunityMediaBlock({ media, onOpenVideos }: { media: CommunityM
     <View style={{ gap: 8 }}>
       {images.length > 0 ? (
         <View style={{ gap: 6 }}>
-          <Image source={{ uri: images[0].url }} style={{ width: "100%", height: 190, borderRadius: 12, backgroundColor: colors.surfaceSunken }} resizeMode="cover" />
+          <Image source={{ uri: IMG.tile(images[0].url) }} style={{ width: "100%", height: 190, borderRadius: 12, backgroundColor: colors.surfaceSunken }} resizeMode="cover" />
           {images.length > 1 ? (
             <View style={{ flexDirection: "row", gap: 6 }}>
               {images.slice(1, 4).map((m, i) => (
                 <View key={m.url} style={{ flex: 1, height: 74, borderRadius: 10, overflow: "hidden", backgroundColor: colors.surfaceSunken }}>
-                  <Image source={{ uri: m.url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                  <Image source={{ uri: IMG.tile(m.url) }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                   {i === 2 && images.length > 4 ? (
                     <View style={{ position: "absolute", inset: 0 as never, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" }}>
                       <Text style={{ color: "#fff", fontWeight: "800" }}>+{images.length - 4}</Text>
