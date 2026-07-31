@@ -216,6 +216,9 @@ export interface Property {
   documents: { label: string; url: string; size?: string }[];
   drone_videos: string[];
   rera_number: string | null;
+  /** Column has always existed; typed now so the "last updated" stamp on the
+   *  layout can show buyers how fresh prices and availability are. */
+  updated_at?: string | null;
   legal: { ownership?: string; encumbrance?: string; notes?: string } & Record<string, unknown>;
   investment: {
     roi?: string | number;

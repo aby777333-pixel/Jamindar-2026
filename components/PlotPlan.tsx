@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useRef, useState } from "react";
-import { Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Linking, Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from "react-native-svg";
 
@@ -574,8 +574,17 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
  * hardcoded, so editing the property in admin updates this.
  */
 export function PlotTitleBlock({
-  geometry, title, shareUrl,
-}: { geometry: PlotPlanGeometry; title?: string | null; shareUrl?: string | null }) {
+  geometry, title, shareUrl, updatedAt, approvalDocUrl, reraNumber,
+}: {
+  geometry: PlotPlanGeometry;
+  title?: string | null;
+  shareUrl?: string | null;
+  /** properties.updated_at — when this layout's data was last touched. */
+  updatedAt?: string | null;
+  /** The sanctioned drawing itself, so the application number is checkable. */
+  approvalDocUrl?: string | null;
+  reraNumber?: string | null;
+}) {
   const rows: [string, string][] = [];
   if (geometry.surveyNos) rows.push(["Survey nos.", geometry.surveyNos]);
   if (geometry.village || geometry.taluk) {
@@ -632,9 +641,40 @@ export function PlotTitleBlock({
           </View>
         ) : null}
       </View>
+      {/* A badge nobody can check is just decoration. Tapping opens the
+          sanctioned drawing itself, so the application number above can be
+          read against the real sheet. */}
+      {approvalDocUrl ? (
+        <Pressable
+          onPress={() => Linking.openURL(approvalDocUrl).catch(() => {})}
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 8,
+            paddingHorizontal: 12, paddingVertical: 11,
+            borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.successSoft,
+          }}
+        >
+          <Ionicons name="shield-checkmark" size={15} color={colors.success} />
+          <Text style={{ flex: 1, fontSize: 11.5, fontWeight: "700", color: colors.success }}>
+            Verified against the sanctioned drawing
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>Open ↗</Text>
+        </Pressable>
+      ) : null}
+
       {geometry.notes ? (
-        <Text style={{ fontSize: 10.5, color: colors.inkFaint, paddingHorizontal: 12, paddingBottom: 10, lineHeight: 15 }}>
+        <Text style={{ fontSize: 10.5, color: colors.inkFaint, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4, lineHeight: 15 }}>
           {geometry.notes}
+        </Text>
+      ) : null}
+
+      {/* Freshness and the statutory number, quietly, at the foot of the block
+          — the same place a printed sheet carries them. */}
+      {updatedAt || reraNumber ? (
+        <Text style={{ fontSize: 10, color: colors.inkFaint, paddingHorizontal: 12, paddingBottom: 10, paddingTop: geometry.notes ? 4 : 10, lineHeight: 15 }}>
+          {[
+            updatedAt ? `Prices and availability last updated ${new Date(updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : null,
+            reraNumber ? `RERA ${reraNumber}` : null,
+          ].filter(Boolean).join("  ·  ")}
         </Text>
       ) : null}
     </View>

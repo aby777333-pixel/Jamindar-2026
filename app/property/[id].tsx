@@ -882,6 +882,12 @@ function MasterPlanTab({ property }: { property: Property }) {
             geometry={plan!}
             title={property.title}
             shareUrl={propertyLink(property.id, profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null)}
+            updatedAt={property.updated_at}
+            reraNumber={property.rera_number}
+            approvalDocUrl={
+              (property.documents ?? []).find((d: any) =>
+                /dtcp|approv|layout/i.test(String(d?.label ?? "")))?.url ?? null
+            }
           />
           <WhereItIs property={property} />
           <PlotSheet

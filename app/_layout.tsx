@@ -20,10 +20,17 @@ import { applyAppFontGlobally } from "@/lib/fonts";
 import { initAcquisitionCapture } from "@/lib/acquisition";
 import { useTheme } from "@/lib/use-theme";
 import { colors } from "@/lib/theme";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 applyAppFontGlobally();
 const queryClient = new QueryClient();
+
+/** Expo Router renders this instead of its red developer box when a screen
+ *  below this layout throws. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return <AppErrorBoundary error={error} retry={retry} />;
+}
 
 export default function RootLayout() {
   const bootstrap = useAuth((s) => s.bootstrap);
