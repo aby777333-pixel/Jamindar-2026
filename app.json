@@ -27,6 +27,8 @@
         "backgroundColor": "#E11B22"
       },
       "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
         "RECORD_AUDIO",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -51,7 +53,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Jamindar needs access to your photos to upload KYC documents."
+          "photosPermission": "Jamindar needs access to your photos to upload KYC documents.",
+        "cameraPermission": "Jamin Bazaar uses your camera so you can take a photo or record a site clip for the community.",
+        "microphonePermission": "Jamin Bazaar needs your microphone to record sound with your video clips."
         }
       ],
       [

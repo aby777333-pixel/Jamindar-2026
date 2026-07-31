@@ -255,21 +255,17 @@ export interface PickedCommunityMedia {
 }
 
 /** Pick photos & videos from the phone and upload them. */
-export async function pickCommunityMedia(): Promise<PickedCommunityMedia> {
-  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) throw new Error("Please allow photo & video access.");
-  const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ["images", "videos"],
-    allowsMultipleSelection: true,
-    quality: 0.75,
-    base64: true,
-    selectionLimit: 8,
-  });
-  if (res.canceled) return { media: [], skipped: [] };
+/** Longest clip the camera will record, in seconds (owner: two minutes). */
+export const COMMUNITY_VIDEO_MAX_SECONDS = 120;
+
+/** Shared upload path for assets, however they were obtained. Gallery picks and
+ *  camera captures must behave identically — size limit, mime handling and
+ *  naming all live here so the two can never drift apart. */
+async function uploadPickedAssets(assets: ImagePicker.ImagePickerAsset[]): Promise<PickedCommunityMedia> {
   const uid = await currentUid();
   const out: PickedCommunityMedia = { media: [], skipped: [] };
   let n = 0;
-  for (const asset of res.assets) {
+  for (const asset of assets) {
     const isVideo = asset.type === "video";
     const size = await assetSize(asset.uri, asset.fileSize);
     if (size && size > MAX_UPLOAD_BYTES) {
@@ -283,6 +279,38 @@ export async function pickCommunityMedia(): Promise<PickedCommunityMedia> {
     out.media.push({ type: isVideo ? "video" : "image", url, name: asset.fileName ?? undefined });
   }
   return out;
+}
+
+export async function pickCommunityMedia(): Promise<PickedCommunityMedia> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!perm.granted) throw new Error("Please allow photo & video access.");
+  const res = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images", "videos"],
+    allowsMultipleSelection: true,
+    quality: 0.75,
+    base64: true,
+    selectionLimit: 8,
+  });
+  if (res.canceled) return { media: [], skipped: [] };
+  return uploadPickedAssets(res.assets);
+}
+
+/** Take a photo or record a clip right now, instead of picking one that already
+ *  exists. Clips are capped at COMMUNITY_VIDEO_MAX_SECONDS. */
+export async function captureCommunityMedia(kind: "photo" | "video"): Promise<PickedCommunityMedia> {
+  const cam = await ImagePicker.requestCameraPermissionsAsync();
+  if (!cam.granted) throw new Error("Please allow camera access to take a photo or video.");
+
+  const res = await ImagePicker.launchCameraAsync({
+    mediaTypes: kind === "video" ? ["videos"] : ["images"],
+    quality: 0.75,
+    // Only stills come back as base64 — a two-minute clip encoded that way
+    // would be enormous and is read from its uri instead.
+    base64: kind === "photo",
+    videoMaxDuration: COMMUNITY_VIDEO_MAX_SECONDS,
+  });
+  if (res.canceled) return { media: [], skipped: [] };
+  return uploadPickedAssets(res.assets);
 }
 
 /** Pick documents (PDF & any other format) and upload them. */

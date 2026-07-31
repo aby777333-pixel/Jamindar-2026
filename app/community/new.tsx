@@ -10,6 +10,8 @@ import { colors, space, type as T } from "@/lib/theme";
 import {
   createCommunityPost,
   pickCommunityMedia,
+  captureCommunityMedia,
+  COMMUNITY_VIDEO_MAX_SECONDS,
   pickCommunityDocuments,
   uploadVoiceNote,
   type CommunityMedia,
@@ -41,6 +43,36 @@ export default function NewCommunityPost() {
       warnSkipped(res.skipped);
     } catch (e: any) {
       Alert.alert("Couldn't add media", e?.message ?? "Please try again.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  /** Shoot something now rather than picking one that already exists. The
+   *  gallery tile is untouched — this sits beside it. */
+  async function captureMedia() {
+    Alert.alert("Camera", "What would you like to capture?", [
+      { text: "Take a photo", onPress: () => runCapture("photo") },
+      { text: `Record a video (up to ${Math.round(COMMUNITY_VIDEO_MAX_SECONDS / 60)} min)`, onPress: () => runCapture("video") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function runCapture(kind: "photo" | "video") {
+    setUploading("camera");
+    try {
+      const res = await captureCommunityMedia(kind);
+      setMedia((m) => [...m, ...res.media]);
+      // A long clip can outgrow the upload limit, so say why rather than
+      // dropping it silently.
+      if (res.skipped.length) {
+        Alert.alert(
+          "That clip is too large",
+          "Recorded video over 50 MB can't be uploaded. Record a shorter clip, or lower your camera's video resolution in its settings.",
+        );
+      }
+    } catch (e: any) {
+      Alert.alert("Couldn't use the camera", e?.message ?? "Please try again.");
     } finally {
       setUploading(null);
     }
@@ -113,6 +145,7 @@ export default function NewCommunityPost() {
 
   const attach: { key: string; icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; active?: boolean }[] = [
     { key: "media", icon: "images", label: "Photos & videos", onPress: addMedia },
+    { key: "camera", icon: "camera", label: "Camera", onPress: captureMedia },
     { key: "docs", icon: "document-attach", label: "PDF / files", onPress: addDocs },
     { key: "voice", icon: recording ? "stop-circle" : "mic", label: recording ? "Stop recording" : "Voice note", onPress: toggleVoice, active: recording },
   ];
