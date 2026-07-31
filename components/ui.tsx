@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,6 +7,7 @@ import {
   ViewStyle,
   ScrollView,
 } from "react-native";
+import Reanimated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -285,6 +286,59 @@ export function Loading({ label }: { label?: string }) {
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
       <ActivityIndicator color={colors.brand} size="large" />
       {label ? <Text style={{ color: colors.inkFaint, marginTop: 12 }}>{label}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * A single shimmering placeholder block.
+ *
+ * A spinner says "wait"; a skeleton says "this is what is arriving", which is
+ * most of the difference between an app that feels slow and one that feels
+ * considered. The pulse is driven on the UI thread by Reanimated, so it keeps
+ * moving even while the JS thread is busy parsing the response.
+ */
+export function Skeleton({
+  width = "100%", height = 14, radius = 8, style,
+}: { width?: number | string; height?: number; radius?: number; style?: any }) {
+  const pulse = useSharedValue(0.5);
+  useEffect(() => {
+    pulse.value = withRepeat(withTiming(1, { duration: 850 }), -1, true);
+    // Reanimated cancels the loop when the node unmounts; nothing to clean up.
+  }, [pulse]);
+  const animated = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return (
+    <Reanimated.View
+      style={[
+        { width: width as any, height, borderRadius: radius, backgroundColor: colors.surfaceSunken },
+        animated,
+        style,
+      ]}
+    />
+  );
+}
+
+/** Placeholder cards shaped like the list that is loading. */
+export function SkeletonList({ rows = 4, height = 96 }: { rows?: number; height?: number }) {
+  return (
+    <View style={{ gap: space.sm, padding: space.md }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            flexDirection: "row", gap: space.sm, padding: space.sm,
+            backgroundColor: colors.surface, borderRadius: 16,
+            borderWidth: 1, borderColor: colors.border,
+          }}
+        >
+          <Skeleton width={84} height={height - 24} radius={12} />
+          <View style={{ flex: 1, gap: 8, paddingVertical: 4 }}>
+            <Skeleton width="72%" height={13} />
+            <Skeleton width="45%" height={11} />
+            <Skeleton width="58%" height={11} />
+          </View>
+        </View>
+      ))}
     </View>
   );
 }

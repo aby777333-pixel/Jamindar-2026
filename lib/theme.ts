@@ -52,10 +52,29 @@ export const space = { xxs: 5, xs: 8, sm: 13, md: 21, lg: 34, xl: 55, xxl: 89 } 
 
 // Golden-ratio type scale, anchored on a 16px body. Each step ×/÷ φ.
 // line height = size × φ (rounded), per golden-ratio typography.
+/**
+ * The type ladder.
+ *
+ * The original six steps jumped 10 → 13 → 16, leaving no token for the sizes
+ * screens actually need. So screens hard-coded their own: an audit found ~460
+ * literal fontSize values across twenty distinct sizes (11, 11.5, 12, 12.5,
+ * 13.5, 14, 14.5, 15, 17, 19 …), which is what makes the app read as assembled
+ * rather than designed.
+ *
+ * `micro`, `callout` and `headline` fill those gaps so there is a token for
+ * every legitimate need and no reason left to hard-code. The six original
+ * steps are byte-for-byte unchanged, so nothing that already uses them moves.
+ *
+ * Use these everywhere. A literal fontSize in a screen is now a bug, with one
+ * exception: SVG drawings (PlotPlan) size text in drawing units, not points.
+ */
 export const type = {
   caption: { fontSize: 10, lineHeight: 16 },   // 16 ÷ φ
+  micro: { fontSize: 12, lineHeight: 18 },      // absorbs 11 / 11.5 / 12 / 12.5
   small: { fontSize: 13, lineHeight: 21 },      // between caption and body
+  callout: { fontSize: 15, lineHeight: 22 },    // absorbs 14 / 14.5 / 15
   body: { fontSize: 16, lineHeight: 26 },       // base
+  headline: { fontSize: 18, lineHeight: 26 },   // absorbs 17 / 18 / 19
   subhead: { fontSize: 20, lineHeight: 32 },    // 16 × √φ
   title: { fontSize: 26, lineHeight: 34 },      // 16 × φ
   hero: { fontSize: 33, lineHeight: 42 },       // 16 × φ^1.5

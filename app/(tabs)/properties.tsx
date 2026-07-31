@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Loading, Empty } from "@/components/ui";
+import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 import { formatArea, priceLabel } from "@/lib/format";
@@ -175,7 +175,9 @@ export default function Properties() {
       </ScrollView>
 
       {isLoading ? (
-        <Loading />
+        /* Skeleton cards shaped like the results, rather than a spinner on an
+           empty screen — the list appears to assemble instead of pop. */
+        <SkeletonList rows={5} height={CARD_H} />
       ) : list.length === 0 ? (
         /* Owner report 27-07: a phase tile with no projects looked like a dead
            end — the empty state now explains and offers a one-tap way out. */

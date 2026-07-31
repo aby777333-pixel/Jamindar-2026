@@ -5,7 +5,7 @@ import { useRouter, useFocusEffect, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
-import { Card, Loading, Empty } from "@/components/ui";
+import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
@@ -51,7 +51,7 @@ export default function Community() {
       </View>
 
       {isLoading ? (
-        <Loading label="Loading the community…" />
+        <SkeletonList rows={4} />
       ) : (
         <FlatList
           data={posts}
