@@ -4,6 +4,8 @@ import { Modal, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from "react-native-svg";
 
+import QRCode from "react-native-qrcode-svg";
+
 import { colors } from "../lib/theme";
 
 /**
@@ -52,6 +54,15 @@ export interface PlotPlanGeometry {
   metresPerUnit?: number;
   approvalNo?: string;
   scale?: string;
+  /** Title-block fields, as carried on properties.plot_plan. */
+  surveyNos?: string;
+  village?: string;
+  taluk?: string;
+  authority?: string;
+  totalPlots?: number;
+  /** Either a plain string, or the sheet's structured area statement rows. */
+  areaStatement?: string | { label?: string; area?: string | number }[];
+  notes?: string;
 }
 
 const FILL: Record<string, string> = {
@@ -242,6 +253,49 @@ function PlanSvg({
           </G>
         );
       })}
+
+      {/* Edge dimensions, on the SELECTED plot only. Every plot at once would
+          be 108 labels on a phone; a surveyor reads the sheet one plot at a
+          time and so does a buyer. Lengths are computed from the traced
+          geometry × metresPerUnit, not typed in, so they cannot drift from
+          the outline actually drawn. */}
+      {(() => {
+        const sel = plots.find((p) => p.plot === selected);
+        const mpu = geometry.metresPerUnit;
+        if (!sel?.poly || !sel.at || !mpu) return null;
+        const [ccx, ccy] = sel.at;
+        return sel.poly.map((pt, i) => {
+          const nxt = sel.poly![(i + 1) % sel.poly!.length];
+          const dx = nxt[0] - pt[0];
+          const dy = nxt[1] - pt[1];
+          const metres = Math.hypot(dx, dy) * mpu;
+          if (metres < 1) return null; // skip slivers from boundary clipping
+          const mx = (pt[0] + nxt[0]) / 2;
+          const my = (pt[1] + nxt[1]) / 2;
+          let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+          if (deg > 90 || deg < -90) deg += 180; // keep it upright
+          // push the label just outside the edge, away from the centroid
+          const ox = mx - ccx;
+          const oy = my - ccy;
+          const n = Math.hypot(ox, oy) || 1;
+          const lx = mx + (ox / n) * 2.4;
+          const ly = my + (oy / n) * 2.4;
+          return (
+            <SvgText
+              key={`edge-${i}`}
+              x={lx}
+              y={ly}
+              fontSize={3.1}
+              fontWeight="700"
+              fill="#1B4FD8"
+              textAnchor="middle"
+              transform={`rotate(${deg.toFixed(1)} ${lx} ${ly})`}
+            >
+              {metres.toFixed(2)}
+            </SvgText>
+          );
+        });
+      })()}
 
       {geometry.amenities?.map((a, i) =>
         a.at ? (
@@ -494,13 +548,13 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
   ];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-      <View style={totalBox}>
+      <View style={totalBox()}>
         <Text style={[totalNum, { color: colors.ink }]}>{plots.length}</Text>
         <Text style={totalLabel()}>Total plots</Text>
       </View>
       {defs.map(([k, label]) =>
         counts[k] ? (
-          <View key={k} style={totalBox}>
+          <View key={k} style={totalBox()}>
             <Text style={[totalNum, { color: STROKE[k] ?? colors.ink }]}>{counts[k]}</Text>
             <Text style={totalLabel()}>{label}</Text>
           </View>
@@ -510,7 +564,84 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
   );
 }
 
-const totalBox = {
+/**
+ * The sheet's title block.
+ *
+ * Every approval drawing carries one: who approved it, under which
+ * application, at what scale, over which survey numbers. Without it the plan
+ * is a picture; with it, it is a document a buyer can check against the
+ * sanctioned sheet. Every field is read from properties.plot_plan — nothing is
+ * hardcoded, so editing the property in admin updates this.
+ */
+export function PlotTitleBlock({
+  geometry, title, shareUrl,
+}: { geometry: PlotPlanGeometry; title?: string | null; shareUrl?: string | null }) {
+  const rows: [string, string][] = [];
+  if (geometry.surveyNos) rows.push(["Survey nos.", geometry.surveyNos]);
+  if (geometry.village || geometry.taluk) {
+    rows.push(["Village / Taluk", [geometry.village, geometry.taluk].filter(Boolean).join(" / ")]);
+  }
+  if (geometry.authority) rows.push(["Approving authority", geometry.authority]);
+  if (geometry.approvalNo) rows.push(["Application no.", geometry.approvalNo]);
+  if (geometry.scale) rows.push(["Scale", geometry.scale]);
+  if (geometry.totalPlots) rows.push(["Total plots", String(geometry.totalPlots)]);
+  // The sheet stores this as an array of {label, area} rows, so each becomes
+  // its own line. A plain string is still accepted. Rendering the array
+  // directly would have printed "[object Object]".
+  const area = geometry.areaStatement;
+  if (typeof area === "string" && area.trim()) {
+    rows.push(["Area", area]);
+  } else if (Array.isArray(area)) {
+    area.forEach((a) => {
+      if (a?.label && a?.area != null) rows.push([String(a.label), String(a.area)]);
+    });
+  }
+  if (!rows.length) return null;
+
+  return (
+    <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, overflow: "hidden" }}>
+      <View style={{ backgroundColor: colors.surfaceSunken, paddingHorizontal: 12, paddingVertical: 8 }}>
+        <Text style={{ fontSize: 9.5, fontWeight: "800", letterSpacing: 1, color: colors.inkFaint, textTransform: "uppercase" }}>
+          Approved layout — title block
+        </Text>
+        {title ? (
+          <Text style={{ fontSize: 13.5, fontWeight: "800", color: colors.ink, marginTop: 2 }} numberOfLines={2}>{title}</Text>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 4 }}>
+          {rows.map(([k, v], i) => (
+            <View
+              key={k}
+              style={{
+                flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 7,
+                borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border,
+              }}
+            >
+              <Text style={{ flex: 1, fontSize: 11.5, color: colors.inkFaint }}>{k}</Text>
+              <Text style={{ flex: 1.35, fontSize: 11.5, fontWeight: "700", color: colors.ink, textAlign: "right" }}>{v}</Text>
+            </View>
+          ))}
+        </View>
+        {shareUrl ? (
+          <View style={{ width: 96, alignItems: "center", justifyContent: "center", paddingVertical: 12, borderLeftWidth: 1, borderColor: colors.border }}>
+            <View style={{ backgroundColor: "#fff", padding: 5, borderRadius: 8 }}>
+              <QRCode value={shareUrl} size={62} />
+            </View>
+            <Text style={{ fontSize: 9, color: colors.inkFaint, marginTop: 6, textAlign: "center" }}>Scan for{"\n"}this layout</Text>
+          </View>
+        ) : null}
+      </View>
+      {geometry.notes ? (
+        <Text style={{ fontSize: 10.5, color: colors.inkFaint, paddingHorizontal: 12, paddingBottom: 10, lineHeight: 15 }}>
+          {geometry.notes}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+const totalBox = () => ({
   minWidth: 88,
   borderWidth: 1,
   borderColor: colors.border,
@@ -518,6 +649,6 @@ const totalBox = {
   paddingHorizontal: 12,
   paddingVertical: 8,
   backgroundColor: colors.surface,
-};
+});
 const totalNum = { fontSize: 19, fontWeight: "800" as const };
 const totalLabel = () => ({ fontSize: 10.5, color: colors.inkFaint, textTransform: "uppercase" as const, letterSpacing: 0.4 });

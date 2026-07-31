@@ -51,14 +51,19 @@ export default function RootLayout() {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded]);
 
-  // Load the saved appearance before the tree paints, so a member who chose
-  // dark never sees a white flash on launch.
+  // Load the saved appearance in the background.
+  //
+  // ⚠️ Deliberately NOT a render gate. Blocking the tree on this read meant a
+  // stored preference could white-screen the whole app if it never resolved —
+  // which is exactly what happened. The app now always paints with the default
+  // (light); if a saved "dark" arrives a moment later the store updates and the
+  // tree remounts. A brief light flash is a fair price for an app that cannot
+  // be held hostage by a preference lookup.
   const themeMode = useTheme((s) => s.mode);
-  const themeReady = useTheme((s) => s.ready);
   const hydrateTheme = useTheme((s) => s.hydrate);
   useEffect(() => { hydrateTheme(); }, [hydrateTheme]);
 
-  if (!fontsLoaded || !themeReady) return null;
+  if (!fontsLoaded) return null;
 
   return (
     // Remounting on `themeMode` is what repaints every screen: the palette is

@@ -23,11 +23,11 @@ import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useCompare } from "@/lib/compare";
 import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
-import { propertyShareMessage, brochureLink } from "@/lib/referral";
+import { propertyShareMessage, brochureLink, propertyLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
-import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry } from "@/components/PlotPlan";
+import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry, PlotTitleBlock } from "@/components/PlotPlan";
 import { MiniMap } from "@/components/MiniMap";
 import { BrochureSheet } from "@/components/BrochureSheet";
 import { PlotSheet, mapLinks } from "@/components/PlotSheet";
@@ -845,6 +845,9 @@ function WhereItIs({ property }: { property: Property }) {
 }
 
 function MasterPlanTab({ property }: { property: Property }) {
+  // The QR in the title block carries the sharer's referral code, exactly
+  // like every other share surface in the app.
+  const { profile } = useAuth();
   const plots: PlotRow[] = property.plot_layout ?? [];
   const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
   const [zoom, setZoom] = useState(false);
@@ -872,6 +875,14 @@ function MasterPlanTab({ property }: { property: Property }) {
             onSelect={(p) => { setPicked(p); setSheetOpen(true); }}
           />
           <PlanColourKey />
+          {/* The sheet's own title block — survey nos, authority, application
+              number, scale and a QR back to this layout. Everything is read
+              from properties.plot_plan, so admin edits flow straight through. */}
+          <PlotTitleBlock
+            geometry={plan!}
+            title={property.title}
+            shareUrl={propertyLink(property.id, profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null)}
+          />
           <WhereItIs property={property} />
           <PlotSheet
             visible={sheetOpen}
