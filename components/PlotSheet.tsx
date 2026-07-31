@@ -95,21 +95,53 @@ function Section({ title }: { title: string }) {
   );
 }
 
-function Action({ icon, label, onPress, grid }: { icon: any; label: string; onPress: () => void; grid?: boolean }) {
+/** Accent pairs, matching the {bg, fg} tiles used on the home screen. Colour
+ *  carries meaning here — each action keeps the same hue everywhere it appears,
+ *  so the eye learns "gold = a document", "blue = a map". */
+const ACCENT = {
+  map:      { bg: "#E7EFFD", fg: "#2B62C4" },
+  satellite:{ bg: "#E4F3EC", fg: "#1B7A4E" },
+  street:   { bg: "#F0EAFB", fg: "#6A45C0" },
+  earth:    { bg: "#E6F1F6", fg: "#1F6C86" },
+  brochure: { bg: "#FCE9E8", fg: "#C4342A" },
+  video:    { bg: "#F3E9FA", fg: "#7B3FA8" },
+  doc:      { bg: "#FBF0DC", fg: "#A9741A" },
+  share:    { bg: "#E4F3EC", fg: "#1B7A4E" },
+  qr:       { bg: "#E9EBF3", fg: "#37415F" },
+  copy:     { bg: "#EDEEF1", fg: "#4B5563" },
+} as const;
+
+function Action({
+  icon, label, onPress, grid, accent,
+}: {
+  icon: any; label: string; onPress: () => void; grid?: boolean;
+  accent?: { bg: string; fg: string };
+}) {
   return (
     <Pressable
       onPress={onPress}
       style={{
-        flexDirection: "row", alignItems: "center", gap: 6,
+        flexDirection: "row", alignItems: "center", gap: 8,
         borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
-        borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9,
+        borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8,
         // `grid` lays the item out as one half of an even two-column row, so a
-        // set of four reads as a tidy 2x2 instead of wrapping 3 + 1.
-        ...(grid ? { flexGrow: 1, flexBasis: "46%", justifyContent: "center" } : null),
+        // set of four reads as a tidy 2x2 instead of wrapping 3 + 1, and every
+        // row lines up down the sheet instead of ending ragged.
+        ...(grid ? { flexGrow: 1, flexBasis: "46%" } : null),
       }}
     >
-      <Ionicons name={icon} size={14} color={colors.ink} />
-      <Text style={{ fontSize: 12.5, color: colors.ink, fontWeight: "600" }}>{label}</Text>
+      <View
+        style={{
+          width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center",
+          backgroundColor: accent?.bg ?? colors.surfaceAlt,
+        }}
+      >
+        <Ionicons name={icon} size={14} color={accent?.fg ?? colors.ink} />
+      </View>
+      {/* One line, ellipsised: a long document title must not break the grid. */}
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: 12.5, color: colors.ink, fontWeight: "600" }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -349,10 +381,10 @@ export function PlotSheet({
               <>
                 <Section title="See the site" />
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  <Action grid icon="map-outline" label="Map" onPress={() => WebBrowser.openBrowserAsync(links.maps).catch(() => {})} />
-                  <Action grid icon="globe-outline" label="Satellite" onPress={() => WebBrowser.openBrowserAsync(links.satellite).catch(() => {})} />
-                  <Action grid icon="eye-outline" label="Street view" onPress={() => WebBrowser.openBrowserAsync(links.streetView).catch(() => {})} />
-                  <Action grid icon="earth-outline" label="Earth" onPress={() => WebBrowser.openBrowserAsync(links.earth).catch(() => {})} />
+                  <Action grid accent={ACCENT.map} icon="map-outline" label="Map" onPress={() => WebBrowser.openBrowserAsync(links.maps).catch(() => {})} />
+                  <Action grid accent={ACCENT.satellite} icon="globe-outline" label="Satellite" onPress={() => WebBrowser.openBrowserAsync(links.satellite).catch(() => {})} />
+                  <Action grid accent={ACCENT.street} icon="eye-outline" label="Street view" onPress={() => WebBrowser.openBrowserAsync(links.streetView).catch(() => {})} />
+                  <Action grid accent={ACCENT.earth} icon="earth-outline" label="Earth" onPress={() => WebBrowser.openBrowserAsync(links.earth).catch(() => {})} />
                 </View>
                 <Text style={{ fontSize: 11, color: colors.inkFaint, marginTop: 7 }}>Site pin {links.coords}</Text>
               </>
@@ -400,10 +432,10 @@ export function PlotSheet({
               <>
                 <Section title="Documents & media" />
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {property.brochure_url ? <Action icon="document-text-outline" label="Brochure" onPress={() => WebBrowser.openBrowserAsync(property.brochure_url!).catch(() => {})} /> : null}
-                  {videos.length ? <Action icon="videocam-outline" label={`Videos (${videos.length})`} onPress={() => WebBrowser.openBrowserAsync(videos[0]).catch(() => {})} /> : null}
+                  {property.brochure_url ? <Action grid accent={ACCENT.brochure} icon="document-text-outline" label="Brochure" onPress={() => WebBrowser.openBrowserAsync(property.brochure_url!).catch(() => {})} /> : null}
+                  {videos.length ? <Action grid accent={ACCENT.video} icon="videocam-outline" label={`Videos (${videos.length})`} onPress={() => WebBrowser.openBrowserAsync(videos[0]).catch(() => {})} /> : null}
                   {(property.documents ?? []).map((d, i) => (
-                    <Action key={i} icon="folder-open-outline" label={d.label || "Document"} onPress={() => WebBrowser.openBrowserAsync(d.url).catch(() => {})} />
+                    <Action key={i} grid accent={ACCENT.doc} icon="folder-open-outline" label={d.label || "Document"} onPress={() => WebBrowser.openBrowserAsync(d.url).catch(() => {})} />
                   ))}
                 </View>
               </>
@@ -418,10 +450,12 @@ export function PlotSheet({
 
             <Section title="Enquire" />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <Action icon="share-social-outline" label="Share" onPress={share} />
-              <Action icon="qr-code-outline" label="QR" onPress={() => setShowQR((v) => !v)} />
+              <Action grid accent={ACCENT.share} icon="share-social-outline" label="Share" onPress={share} />
+              <Action grid accent={ACCENT.qr} icon="qr-code-outline" label="QR" onPress={() => setShowQR((v) => !v)} />
               {link ? (
                 <Action
+                  grid
+                  accent={ACCENT.copy}
                   icon="copy-outline"
                   label="Copy link"
                   onPress={async () => {
