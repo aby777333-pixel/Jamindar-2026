@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, type Href } from "expo-router";
+import { useRouter, useLocalSearchParams, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Button, Card } from "@/components/ui";
@@ -31,7 +31,15 @@ type Q = {
   max: number | null;
   step: number | null;
   show_if: { key: string; any?: string[] } | null;
+  /** Questions sharing a group_key are asked together on one screen (0071). */
+  group_key?: string | null;
+  group_title?: string | null;
+  group_help?: string | null;
+  /** 1 = before the home screen, 2 = asked later inside the app. */
+  phase?: number | null;
 };
+/** One screen: a titled set of questions asked together. */
+type Group = { key: string; title: string | null; help: string | null; items: Q[] };
 type Answers = Record<string, any>;
 type Match = {
   id: string; title: string; city: string | null; price: number | null;
@@ -42,6 +50,12 @@ const asArray = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v == n
 
 export default function BuyerQuestionnaire() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ phase?: string }>();
+  // ?phase=1 is the short set shown right after signup; ?phase=2 is the rest.
+  // With no parameter every question is shown — that is the path taken when
+  // somebody deliberately opens Buyer preferences, and it keeps those screens
+  // complete instead of hiding half the questions from them.
+  const phase = params.phase === "1" ? 1 : params.phase === "2" ? 2 : null;
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,19 +83,38 @@ export default function BuyerQuestionnaire() {
     return () => { cancelled = true; };
   }, [profile?.id]);
 
-  // Conditional questions: only ask what is still relevant (show_if).
+  // Conditional questions: only ask what is still relevant (show_if), and only
+  // the phase we are running. Phase 1 is the short set that stands between a
+  // new buyer and the home screen; phase 2 is asked later, from inside the app
+  // (/buyer/onboarding?phase=2), so nobody faces the whole list at signup.
   const visible = useMemo(
     () => questions.filter((q) => {
+      if (phase !== null && (q.phase ?? 1) !== phase) return false;
       if (!q.show_if?.key) return true;
       const got = asArray(answers[q.show_if.key]);
       const want = q.show_if.any ?? [];
       return want.length === 0 ? got.length > 0 : got.some((g) => want.includes(g));
     }),
-    [questions, answers],
+    [questions, answers, phase],
   );
 
-  const q = visible[step];
-  const total = visible.length || 1;
+  // Ask one GROUP per screen instead of one question per screen. Consecutive
+  // questions sharing a group_key travel together; anything without a group
+  // still gets its own screen, so a question the admin adds later behaves
+  // exactly as it did before it is given a group.
+  const groups = useMemo<Group[]>(() => {
+    const out: Group[] = [];
+    for (const item of visible) {
+      const gk = item.group_key || `__solo_${item.key}`;
+      const last = out[out.length - 1];
+      if (last && last.key === gk) last.items.push(item);
+      else out.push({ key: gk, title: item.group_title ?? null, help: item.group_help ?? null, items: [item] });
+    }
+    return out;
+  }, [visible]);
+
+  const group = groups[step];
+  const total = groups.length || 1;
   const answered = (key: string) => {
     const v = answers[key];
     return Array.isArray(v) ? v.length > 0 : v != null && String(v).trim() !== "";
@@ -177,7 +210,7 @@ export default function BuyerQuestionnaire() {
     );
   }
 
-  if (!q) {
+  if (!group) {
     // No questions configured (admin disabled them all) — never block the user.
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
@@ -189,8 +222,11 @@ export default function BuyerQuestionnaire() {
     );
   }
 
-  const canAdvance = !q.required || answered(q.key);
-  const isLast = step === visible.length - 1;
+  // A step advances once every REQUIRED question on it is answered; optional
+  // ones stay optional, exactly as when each had its own screen.
+  const canAdvance = group.items.every((item) => !item.required || answered(item.key));
+  const allOptional = group.items.every((item) => !item.required);
+  const isLast = step === groups.length - 1;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
@@ -209,9 +245,32 @@ export default function BuyerQuestionnaire() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space.xl }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={{ fontSize: 23, fontWeight: "800", color: colors.ink, lineHeight: 30 }}>{q.question}</Text>
-        {q.help ? <Text style={{ color: colors.inkFaint, marginTop: 8, fontSize: T.small.fontSize }}>{q.help}</Text> : null}
+        <Text style={{ fontSize: 23, fontWeight: "800", color: colors.ink, lineHeight: 30 }}>
+          {group.title ?? group.items[0].question}
+        </Text>
+        {(group.help ?? (group.items.length === 1 ? group.items[0].help : null)) ? (
+          <Text style={{ color: colors.inkFaint, marginTop: 8, fontSize: T.small.fontSize }}>
+            {group.help ?? group.items[0].help}
+          </Text>
+        ) : null}
         <View style={{ height: space.md }} />
+
+        {group.items.map((q, qi) => (
+          <View key={q.key} style={{ marginBottom: qi === group.items.length - 1 ? 0 : space.lg }}>
+            {/* With several questions on one screen each needs its own label.
+                A lone ungrouped question already used its text as the heading,
+                so labelling it again would just repeat it. */}
+            {group.title ? (
+              <>
+                <Text style={{ fontSize: T.body.fontSize, fontWeight: "700", color: colors.inkSoft, marginBottom: 6 }}>
+                  {q.question}
+                  {q.required ? <Text style={{ color: colors.brand }}> *</Text> : null}
+                </Text>
+                {q.help ? (
+                  <Text style={{ color: colors.inkFaint, marginBottom: 8, fontSize: T.caption.fontSize + 1 }}>{q.help}</Text>
+                ) : null}
+              </>
+            ) : null}
 
         {/* choice types — cards with accent + checkmark */}
         {["single_select", "multi_select", "dropdown", "radio", "checkbox"].includes(q.answer_type) ? (
@@ -308,6 +367,8 @@ export default function BuyerQuestionnaire() {
             }}
           />
         ) : null}
+          </View>
+        ))}
       </ScrollView>
 
       <View style={{ padding: space.md, paddingBottom: space.lg, gap: space.xs }}>
@@ -317,7 +378,7 @@ export default function BuyerQuestionnaire() {
           loading={saving}
           disabled={!canAdvance}
         />
-        {!q.required ? (
+        {allOptional ? (
           <Pressable onPress={() => (isLast ? finish() : setStep((s) => s + 1))} style={{ alignItems: "center", paddingVertical: 10 }}>
             <Text style={{ color: colors.inkFaint, fontWeight: "600", fontSize: T.small.fontSize }}>Not sure yet — skip this</Text>
           </Pressable>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View, Alert, Pressable, Image, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
 import { Field } from "@/components/Field";
@@ -138,7 +138,10 @@ export default function ProfileSetup() {
       if (profile.role === "promoter") await ensurePromoterProfile(profile.id, name.trim());
       const updated = await refreshProfile();
 
-      if (updated?.role === "buyer") router.replace("/buyer/onboarding");
+      // Straight after signup ask only the short phase-1 set (three grouped
+      // steps) so the home screen is a few taps away, not eighteen. The rest
+      // are asked later from Buyer preferences.
+      if (updated?.role === "buyer") router.replace("/buyer/onboarding?phase=1" as Href);
       else router.replace("/(tabs)/home");
     } catch (e: any) {
       Alert.alert("Couldn't save profile", e?.message ?? "");

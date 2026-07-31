@@ -2236,6 +2236,22 @@ window.quizEdit=(id)=>{
       <div class="switch">Required <div class="tgl ${q.required?"on":""}" data-qtgl="required"><b></b></div></div>
       <div class="switch">Active (visible in app) <div class="tgl ${q.active?"on":""}" data-qtgl="active"><b></b></div></div>
     </div>
+    <div class="sec"><h4>Screen grouping</h4>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">
+        Questions sharing a <b>group key</b> are asked together on one screen instead of one at a time.
+        Leave the group key empty to give this question a screen of its own.
+        <b>When asked</b> decides whether it stands between signup and the home screen, or waits until
+        the buyer is already inside the app.</div>
+      <div class="grid2">
+        <div><label>Group key</label><input data-qk="group_key" value="${esc(q.group_key||"")}" placeholder="budget"/></div>
+        <div><label>When asked</label><select data-qk="phase">
+          <option value="1"${Number(q.phase||1)===1?" selected":""}>1 — during signup</option>
+          <option value="2"${Number(q.phase||1)===2?" selected":""}>2 — later, inside the app</option>
+        </select></div>
+      </div>
+      <div><label>Group heading (shown once per screen)</label><input data-qk="group_title" value="${esc(q.group_title||"")}" placeholder="Your budget"/></div>
+      <div><label>Group helper text</label><input data-qk="group_help" value="${esc(q.group_help||"")}" placeholder="Approximate is fine — you can change this any time."/></div>
+    </div>
     <div class="sec"><h4>Answer choices</h4>
       <div class="muted" style="font-size:12px;margin-bottom:6px">One per line as <b>value|Label</b>. Leave empty for text/number/date questions.</div>
       <textarea data-qk="_options" rows="7" placeholder="investment|Investment">${esc(optLines)}</textarea></div>
@@ -2272,6 +2288,8 @@ window.quizSave=async(id)=>{
     required:tg("required"), active:tg("active"),
     sort_order:Number(g("sort_order"))||100, audience:g("audience")||"buyer",
     unit:g("unit")||null, show_if:condKey?{key:condKey,any:condVals}:null,
+    group_key:g("group_key")||null, group_title:g("group_title")||null,
+    group_help:g("group_help")||null, phase:Number(g("phase"))===2?2:1,
     translations, updated_at:new Date().toISOString(),
   };
   const {error} = id
