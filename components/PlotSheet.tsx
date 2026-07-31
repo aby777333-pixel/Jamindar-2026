@@ -95,11 +95,18 @@ function Section({ title }: { title: string }) {
   );
 }
 
-function Action({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
+function Action({ icon, label, onPress, grid }: { icon: any; label: string; onPress: () => void; grid?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
-      style={{ flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9 }}
+      style={{
+        flexDirection: "row", alignItems: "center", gap: 6,
+        borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+        borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9,
+        // `grid` lays the item out as one half of an even two-column row, so a
+        // set of four reads as a tidy 2x2 instead of wrapping 3 + 1.
+        ...(grid ? { flexGrow: 1, flexBasis: "46%", justifyContent: "center" } : null),
+      }}
     >
       <Ionicons name={icon} size={14} color={colors.ink} />
       <Text style={{ fontSize: 12.5, color: colors.ink, fontWeight: "600" }}>{label}</Text>
@@ -342,10 +349,10 @@ export function PlotSheet({
               <>
                 <Section title="See the site" />
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  <Action icon="map-outline" label="Map" onPress={() => WebBrowser.openBrowserAsync(links.maps).catch(() => {})} />
-                  <Action icon="globe-outline" label="Satellite" onPress={() => WebBrowser.openBrowserAsync(links.satellite).catch(() => {})} />
-                  <Action icon="eye-outline" label="Street view" onPress={() => WebBrowser.openBrowserAsync(links.streetView).catch(() => {})} />
-                  <Action icon="earth-outline" label="Earth" onPress={() => WebBrowser.openBrowserAsync(links.earth).catch(() => {})} />
+                  <Action grid icon="map-outline" label="Map" onPress={() => WebBrowser.openBrowserAsync(links.maps).catch(() => {})} />
+                  <Action grid icon="globe-outline" label="Satellite" onPress={() => WebBrowser.openBrowserAsync(links.satellite).catch(() => {})} />
+                  <Action grid icon="eye-outline" label="Street view" onPress={() => WebBrowser.openBrowserAsync(links.streetView).catch(() => {})} />
+                  <Action grid icon="earth-outline" label="Earth" onPress={() => WebBrowser.openBrowserAsync(links.earth).catch(() => {})} />
                 </View>
                 <Text style={{ fontSize: 11, color: colors.inkFaint, marginTop: 7 }}>Site pin {links.coords}</Text>
               </>
@@ -354,10 +361,24 @@ export function PlotSheet({
             {landmarks.length ? (
               <>
                 <Section title="Nearby" />
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
+                {/* One landmark per row — name left, distance right — so the
+                    list scans in a straight line instead of a ragged block of
+                    chips whose lengths never line up. Matches the property
+                    screen's Nearby card. */}
+                <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, paddingHorizontal: 12 }}>
                   {landmarks.map((l, i) => (
-                    <View key={i} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, backgroundColor: colors.surfaceAlt }}>
-                      <Text style={{ fontSize: 11.5, color: colors.inkFaint }}>{l.distance ? `${l.label} · ${l.distance}` : l.label}</Text>
+                    <View
+                      key={i}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9,
+                        borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border,
+                      }}
+                    >
+                      <Ionicons name="location" size={15} color={colors.brand} />
+                      <Text style={{ flex: 1, fontSize: 13, color: colors.ink }} numberOfLines={2}>{l.label}</Text>
+                      {l.distance ? (
+                        <Text style={{ fontSize: 12, color: colors.inkFaint }}>{l.distance}</Text>
+                      ) : null}
                     </View>
                   ))}
                 </View>

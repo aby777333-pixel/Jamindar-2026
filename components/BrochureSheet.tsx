@@ -4,6 +4,8 @@ import { ActivityIndicator, Image, Modal, Pressable, Share, Text, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "../lib/theme";
+import { brochureShareMessage } from "../lib/referral";
+import { useAuth } from "../lib/store";
 import type { Property } from "../lib/types";
 
 /**
@@ -32,6 +34,10 @@ export function BrochureSheet({
 }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const { profile } = useAuth();
+  // Same precedence the property and community shares use, so a brochure sent
+  // by a promoter is attributed to them like every other share.
+  const refCode = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
 
   const doc = (property.documents ?? []).find(
     (d) => d.url && property.brochure_url && d.url === property.brochure_url,
@@ -95,7 +101,7 @@ export function BrochureSheet({
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
             <Pressable
               onPress={() =>
-                (onShare ?? (() => Share.share({ message: `${label} — ${property.title}\n${property.brochure_url ?? ""}` }).catch(() => {})))()
+                (onShare ?? (() => Share.share({ message: brochureShareMessage(label, property, refCode) }).catch(() => {})))()
               }
               style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 13, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 7 }}
             >

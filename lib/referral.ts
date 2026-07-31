@@ -95,6 +95,24 @@ export function propertyLink(propertyId: string, refCode?: string | null): strin
   return refCode ? `${base}?ref=${encodeURIComponent(refCode)}` : base;
 }
 
+/**
+ * Share text for a brochure.
+ *
+ * ⚠️ Do NOT share `property.brochure_url` directly. That is the raw Supabase
+ * storage PDF: WhatsApp cannot render a preview for a PDF, so the message
+ * arrived as a bare blue link with no picture (owner report, 2026-07-31).
+ * The branded /s/ page carries og:title and og:image, previews richly, and
+ * links the brochure itself — so the document is still one tap away.
+ */
+export function brochureShareMessage(
+  label: string,
+  property: { id: string; title?: string | null },
+  refCode?: string | null,
+): string {
+  const name = property.title ?? "Jamin Bazaar";
+  return `${label} — ${name}\n\nView the project, photos and brochure:\n${propertyLink(property.id, refCode)}`;
+}
+
 /** Public Community post page (§9). Anyone can open it without the app; the
  *  ref rides along so the resulting visitor, lead and enquiry are attributed
  *  back to whoever shared it. */

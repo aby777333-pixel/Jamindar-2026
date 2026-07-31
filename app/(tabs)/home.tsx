@@ -29,6 +29,7 @@ import { encodeFilters, type SearchFilters } from "@/lib/property-search";
 import { useFavorites } from "@/lib/favorites";
 import { fetchCommunityFeed } from "@/lib/community";
 import { timeAgo } from "@/lib/format";
+import { useLiveProperties } from "@/lib/use-live-properties";
 
 type RoleAction = { label: string; sub: string; icon: string; accent: { bg: string; fg: string }; href: Href };
 
@@ -77,6 +78,8 @@ export default function Home() {
   const router = useRouter();
   const { profile } = useAuth();
   const role = useEffectiveRole();
+  // Repaint featured listings when an admin edits a price, plot or listing.
+  useLiveProperties();
   const { data: featured } = useFeatured();
   // Bug fix 28-07: the card heart was wired to the COMPARE store, so "saved"
   // properties never reached the wishlist. It now uses the shared favorites hook.

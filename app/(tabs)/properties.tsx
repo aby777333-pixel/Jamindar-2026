@@ -11,6 +11,7 @@ import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
 import { useCompare } from "@/lib/compare";
+import { useLiveProperties } from "@/lib/use-live-properties";
 
 /** Fixed row height keeps every result card identical — without it the media
  *  column has no definite height to resolve against and cards render ragged. */
@@ -33,6 +34,9 @@ export default function Properties() {
   const [filter, setFilter] = useState<PropertyType | "all">("all");
   const [search, setSearch] = useState("");
   const compareCount = useCompare((s) => s.ids.length);
+
+  // Repaint the list when an admin edits a price, a plot or a listing.
+  useLiveProperties();
 
   // When we arrive with a category already applied (e.g. Types of Lands →
   // Farm Land), preselect the matching chip so the banner and the chip row
