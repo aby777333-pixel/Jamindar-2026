@@ -496,13 +496,13 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
       <View style={totalBox}>
         <Text style={[totalNum, { color: colors.ink }]}>{plots.length}</Text>
-        <Text style={totalLabel}>Total plots</Text>
+        <Text style={totalLabel()}>Total plots</Text>
       </View>
       {defs.map(([k, label]) =>
         counts[k] ? (
           <View key={k} style={totalBox}>
             <Text style={[totalNum, { color: STROKE[k] ?? colors.ink }]}>{counts[k]}</Text>
-            <Text style={totalLabel}>{label}</Text>
+            <Text style={totalLabel()}>{label}</Text>
           </View>
         ) : null,
       )}
@@ -520,4 +520,4 @@ const totalBox = {
   backgroundColor: colors.surface,
 };
 const totalNum = { fontSize: 19, fontWeight: "800" as const };
-const totalLabel = { fontSize: 10.5, color: colors.inkFaint, textTransform: "uppercase" as const, letterSpacing: 0.4 };
+const totalLabel = () => ({ fontSize: 10.5, color: colors.inkFaint, textTransform: "uppercase" as const, letterSpacing: 0.4 });

@@ -64,7 +64,7 @@ export default function JamindarSettings() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60, gap: 16 }} showsVerticalScrollIndicator={false}>
         {/* language */}
         <Card>
-          <Text style={label}>Preferred language</Text>
+          <Text style={label()}>Preferred language</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
             {JAMINDAR_LANGUAGES.map((l) => (
               <Pressable
@@ -80,7 +80,7 @@ export default function JamindarSettings() {
 
         {/* voice */}
         <Card>
-          <Text style={label}>Voice</Text>
+          <Text style={label()}>Voice</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
             {(["female", "male"] as const).map((g) => (
               <Pressable key={g} onPress={() => setGender(g)} style={[chip(prefs.gender === g), { flex: 1, alignItems: "center" }]}>
@@ -99,7 +99,7 @@ export default function JamindarSettings() {
 
         {/* pace */}
         <Card>
-          <Text style={label}>Speaking speed · {paceLabel}</Text>
+          <Text style={label()}>Speaking speed · {paceLabel}</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
             {([["Slower", 0.8], ["Normal", 1.0], ["Faster", 1.2]] as const).map(([lbl, val]) => (
               <Pressable key={lbl} onPress={() => setPrefs((p) => ({ ...p, pace: val }))} style={[chip(prefs.pace === val), { flex: 1, alignItems: "center" }]}>
@@ -111,7 +111,7 @@ export default function JamindarSettings() {
 
         {/* style */}
         <Card>
-          <Text style={label}>Conversation style</Text>
+          <Text style={label()}>Conversation style</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
             {(["friendly", "formal"] as const).map((st) => (
               <Pressable key={st} onPress={() => setPrefs((p) => ({ ...p, style: st }))} style={[chip(prefs.style === st), { flex: 1, alignItems: "center" }]}>
@@ -133,7 +133,7 @@ export default function JamindarSettings() {
   );
 }
 
-const label = { color: colors.inkSoft, fontWeight: "700" as const, fontSize: 14 };
+const label = () => ({ color: colors.inkSoft, fontWeight: "700" as const, fontSize: 14 });
 function chip(active: boolean) {
   return {
     paddingHorizontal: 14,

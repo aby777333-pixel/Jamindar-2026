@@ -8,7 +8,8 @@ import { Badge } from "@/components/premium";
 import { BecomePromoterBanner } from "@/components/promoter-cta";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useUnreadMessages, useRealtimeInbox } from "@/lib/messaging";
-import { colors, space } from "@/lib/theme";
+import { colors, space, type as T } from "@/lib/theme";
+import { useTheme } from "@/lib/use-theme";
 import { initials } from "@/lib/format";
 import { ROLE_LABELS, KYC_STATUS_META } from "@/lib/types";
 
@@ -25,6 +26,8 @@ export default function Account() {
   const router = useRouter();
   const { profile, signOut, refreshProfile } = useAuth();
   const role = useEffectiveRole();
+  const themeMode = useTheme((t) => t.mode);
+  const toggleTheme = useTheme((t) => t.toggle);
   const { data: unread = 0 } = useUnreadMessages(!!profile?.id);
   useRealtimeInbox(!!profile?.id);
 
@@ -142,6 +145,33 @@ export default function Account() {
         </View>
 
         <Card style={{ padding: 0 }}>
+          {/* Appearance — light stays the default; dark is opt-in and remembered. */}
+          <Pressable
+            onPress={toggleTheme}
+            style={{
+              flexDirection: "row", alignItems: "center", gap: 14,
+              paddingVertical: 16, paddingHorizontal: 16,
+            }}
+          >
+            <Ionicons name={themeMode === "dark" ? "moon" : "sunny"} size={22} color={colors.brand} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: T.callout.fontSize, fontWeight: "600", color: colors.ink }}>Dark mode</Text>
+              <Text style={{ fontSize: T.micro.fontSize, color: colors.inkFaint, marginTop: 1 }}>
+                {themeMode === "dark" ? "On — platinum on graphite" : "Off — the app stays light"}
+              </Text>
+            </View>
+            {/* A real switch track, so its state is obvious without reading. */}
+            <View
+              style={{
+                width: 46, height: 27, borderRadius: 14, padding: 3,
+                backgroundColor: themeMode === "dark" ? colors.brand : colors.surfaceSunken,
+                alignItems: themeMode === "dark" ? "flex-end" : "flex-start",
+              }}
+            >
+              <View style={{ width: 21, height: 21, borderRadius: 11, backgroundColor: "#fff" }} />
+            </View>
+          </Pressable>
+
           {rows.map((r, i) => (
             <Pressable
               key={r.label}

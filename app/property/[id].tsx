@@ -563,11 +563,11 @@ export default function PropertyDetail() {
           {/* alternatives + similar (always available under the tabs) */}
           {property.price ? (
             <View style={{ flexDirection: "row", gap: 10, marginTop: 22 }}>
-              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMax: property.price! }) } })} style={altChip}>
+              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMax: property.price! }) } })} style={altChip()}>
                 <Ionicons name="trending-down" size={16} color={colors.success} />
                 <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Cheaper options</Text>
               </Pressable>
-              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMin: property.price! }) } })} style={altChip}>
+              <Pressable onPress={() => router.navigate({ pathname: "/(tabs)/properties", params: { filters: encodeFilters({ types: [property.property_type], budgetMin: property.price! }) } })} style={altChip()}>
                 <Ionicons name="trending-up" size={16} color={colors.brand} />
                 <Text style={{ color: colors.inkSoft, fontWeight: "600", fontSize: 13 }}>Premium options</Text>
               </Pressable>
@@ -1081,8 +1081,7 @@ function InvestmentTab({ property, onCalc }: { property: Property; onCalc: () =>
 
 // ─────────────────────────── small pieces ───────────────────────────
 
-const altChip = { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border };
-
+const altChip = () => ({ flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border });
 function Stat({ label, value, accent, gold }: { label: string; value: string; accent?: string; gold?: boolean }) {
   // Bug 28-07: "On request" was clipped to "On reque…" — longer values shrink
   // slightly and may wrap to a second line instead of truncating.

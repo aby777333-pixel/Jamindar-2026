@@ -58,8 +58,8 @@ export default function PropertyMediaScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: space.sm }}>
           <Text style={{ fontSize: 16, fontWeight: "600", color: colors.ink }}>Photos & videos</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable onPress={() => run(() => pickAndAddImages(id!, "image"))} style={addBtn}><Ionicons name="image" size={14} color="#fff" /><Text style={addBtnT}>Photos</Text></Pressable>
-            <Pressable onPress={() => run(() => pickAndAddVideos(id!))} style={[addBtn, { backgroundColor: colors.ink }]}><Ionicons name="videocam" size={14} color="#fff" /><Text style={addBtnT}>Videos</Text></Pressable>
+            <Pressable onPress={() => run(() => pickAndAddImages(id!, "image"))} style={addBtn()}><Ionicons name="image" size={14} color="#fff" /><Text style={addBtnT}>Photos</Text></Pressable>
+            <Pressable onPress={() => run(() => pickAndAddVideos(id!))} style={[addBtn(), { backgroundColor: colors.ink }]}><Ionicons name="videocam" size={14} color="#fff" /><Text style={addBtnT}>Videos</Text></Pressable>
           </View>
         </View>
         <Text style={{ color: colors.inkFaint, fontSize: 12, marginBottom: 10 }}>The ★ photo is the primary thumbnail. Reorder with the arrows.</Text>
@@ -76,9 +76,9 @@ export default function PropertyMediaScreen() {
                   <Text style={{ fontSize: 12, fontWeight: "600", color: colors.ink }}>{m.is_primary ? "★ Primary" : `Photo ${i + 1}`}</Text>
                   <Pressable onPress={() => run(() => setPrimary(id!, m.id))}><Text style={{ color: m.is_primary ? colors.inkFaint : colors.brand, fontSize: 11, marginTop: 3 }}>{m.is_primary ? "Thumbnail" : "Set as thumbnail"}</Text></Pressable>
                 </View>
-                <Pressable onPress={() => run(() => moveMedia(photos, m.id, -1))} hitSlop={6} style={iconBtn}><Ionicons name="chevron-up" size={18} color={colors.inkSoft} /></Pressable>
-                <Pressable onPress={() => run(() => moveMedia(photos, m.id, 1))} hitSlop={6} style={iconBtn}><Ionicons name="chevron-down" size={18} color={colors.inkSoft} /></Pressable>
-                <Pressable onPress={() => Alert.alert("Remove photo?", "", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: () => run(() => removeMedia(m.id)) }])} hitSlop={6} style={iconBtn}><Ionicons name="trash" size={16} color={colors.danger} /></Pressable>
+                <Pressable onPress={() => run(() => moveMedia(photos, m.id, -1))} hitSlop={6} style={iconBtn()}><Ionicons name="chevron-up" size={18} color={colors.inkSoft} /></Pressable>
+                <Pressable onPress={() => run(() => moveMedia(photos, m.id, 1))} hitSlop={6} style={iconBtn()}><Ionicons name="chevron-down" size={18} color={colors.inkSoft} /></Pressable>
+                <Pressable onPress={() => Alert.alert("Remove photo?", "", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: () => run(() => removeMedia(m.id)) }])} hitSlop={6} style={iconBtn()}><Ionicons name="trash" size={16} color={colors.danger} /></Pressable>
               </Card>
             ))}
           </View>
@@ -121,7 +121,7 @@ export default function PropertyMediaScreen() {
                     <Text style={{ fontSize: 12.5, fontWeight: "600", color: colors.ink }}>{KIND_LABEL[m.kind] ?? m.kind}</Text>
                     <Text style={{ fontSize: 10.5, color: colors.inkFaint }} numberOfLines={1}>{m.caption || m.url}</Text>
                   </View>
-                  <Pressable onPress={() => Alert.alert("Remove?", "", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: () => run(() => removeMedia(m.id)) }])} hitSlop={6} style={iconBtn}><Ionicons name="trash" size={16} color={colors.danger} /></Pressable>
+                  <Pressable onPress={() => Alert.alert("Remove?", "", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: () => run(() => removeMedia(m.id)) }])} hitSlop={6} style={iconBtn()}><Ionicons name="trash" size={16} color={colors.danger} /></Pressable>
                 </View>
                 {/* visibility */}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
@@ -144,10 +144,9 @@ export default function PropertyMediaScreen() {
   );
 }
 
-const addBtn = { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, backgroundColor: colors.brand, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999 };
+const addBtn = () => ({ flexDirection: "row" as const, alignItems: "center" as const, gap: 4, backgroundColor: colors.brand, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999 });
 const addBtnT = { color: "#fff", fontWeight: "600" as const, fontSize: 12 };
-const iconBtn = { width: 30, height: 30, borderRadius: 9, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surfaceSunken };
-
+const iconBtn = () => ({ width: 30, height: 30, borderRadius: 9, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surfaceSunken });
 function EmptyBox({ label }: { label: string }) {
   return <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 16, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border }}><Ionicons name="images-outline" size={24} color={colors.inkFaint} /><Text style={{ color: colors.inkFaint, fontSize: 12, textAlign: "center", marginTop: 8, lineHeight: 18 }}>{label}</Text></View>;
 }

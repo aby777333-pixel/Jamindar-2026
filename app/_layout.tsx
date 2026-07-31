@@ -18,6 +18,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { applyAppFontGlobally } from "@/lib/fonts";
 import { initAcquisitionCapture } from "@/lib/acquisition";
+import { useTheme } from "@/lib/use-theme";
+import { colors } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 applyAppFontGlobally();
@@ -49,14 +51,24 @@ export default function RootLayout() {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  // Load the saved appearance before the tree paints, so a member who chose
+  // dark never sees a white flash on launch.
+  const themeMode = useTheme((s) => s.mode);
+  const themeReady = useTheme((s) => s.ready);
+  const hydrateTheme = useTheme((s) => s.hydrate);
+  useEffect(() => { hydrateTheme(); }, [hydrateTheme]);
+
+  if (!fontsLoaded || !themeReady) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    // Remounting on `themeMode` is what repaints every screen: the palette is
+    // resolved at render time, so a fresh tree picks up the new colours without
+    // any of the ~2,035 `colors.x` call sites needing to change.
+    <GestureHandlerRootView style={{ flex: 1 }} key={themeMode}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#F7F7F8" } }}>
+          <StatusBar style={themeMode === "dark" ? "light" : "dark"} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfaceAlt } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="login" />

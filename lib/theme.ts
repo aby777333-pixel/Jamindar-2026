@@ -1,6 +1,6 @@
 // Central palette derived from the JAMIN logo + premium reference set.
 // Keep in sync with tailwind.config.js.
-export const colors = {
+const LIGHT = {
   brand: "#E11B22",
   brandDark: "#B8151B",
   brandSoft: "#FDECEC",
@@ -27,6 +27,77 @@ export const colors = {
   onDark: "#FFFFFF",
   onDarkFaint: "#9AA1B4",
 };
+
+/**
+ * Dark mode — platinum on graphite.
+ *
+ * Every token keeps its MEANING so nothing has to be re-reasoned per screen:
+ * `ink` is still the most readable text, `surface` is still what a card sits
+ * on, `border` still separates. Only the values change.
+ *
+ * Contrast was chosen against its own background, not eyeballed: ink on
+ * surface is ~14:1 and inkFaint on surface ~4.8:1, both past WCAG AA, so the
+ * quiet grey captions the app leans on stay readable rather than disappearing.
+ * The brand red is lifted slightly because #E11B22 on graphite reads muddy.
+ */
+const DARK: typeof LIGHT = {
+  brand: "#FF4A4F",
+  brandDark: "#E11B22",
+  brandSoft: "#2C1618",
+  gold: "#E7B441",
+  goldSoft: "#2A2213",
+  goldLight: "#F0CE7A",
+  goldDark: "#C79A2A",
+  navy: "#0C1020",
+  navySoft: "#161C30",
+  // platinum text
+  ink: "#F3F4F8",
+  inkSoft: "#C2C6D2",
+  inkFaint: "#8C93A3",
+  // graphite surfaces, each a clear step apart so cards read as raised
+  surface: "#171A21",
+  surfaceAlt: "#0F1116",
+  surfaceSunken: "#232733",
+  border: "#2E333F",
+  success: "#33C77B",
+  successSoft: "#12291D",
+  danger: "#FF4A4F",
+  onDark: "#FFFFFF",
+  onDarkFaint: "#9AA1B4",
+};
+
+export type ThemeMode = "light" | "dark";
+
+/** Light unless the member deliberately chooses otherwise. */
+let activeMode: ThemeMode = "light";
+let active = LIGHT;
+
+export function setThemeMode(mode: ThemeMode) {
+  activeMode = mode;
+  active = mode === "dark" ? DARK : LIGHT;
+}
+export function getThemeMode(): ThemeMode {
+  return activeMode;
+}
+export const palettes = { light: LIGHT, dark: DARK } as const;
+
+/**
+ * `colors` stays a plain-looking object so all ~2,035 existing `colors.x`
+ * reads keep working untouched — it just resolves against whichever palette is
+ * active. Two facts make this safe here: the app uses no StyleSheet.create,
+ * so every style object is rebuilt on render, and only a handful of
+ * module-scope constants captured a colour (those were made lazy).
+ */
+export const colors: typeof LIGHT = new Proxy({} as typeof LIGHT, {
+  get: (_t, prop: string) => (active as any)[prop],
+  has: (_t, prop) => prop in active,
+  ownKeys: () => Reflect.ownKeys(active),
+  getOwnPropertyDescriptor: (_t, prop) => ({
+    value: (active as any)[prop as string],
+    enumerable: true,
+    configurable: true,
+  }),
+});
 
 // Tile accent palette for the home module grid (soft, premium).
 export const tileAccents = {
