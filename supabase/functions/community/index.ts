@@ -143,7 +143,13 @@ function shell(opts: {
   .err{color:var(--brand);font-weight:600;font-size:13px}
   dialog{border:0;border-radius:18px;padding:0;max-width:440px;width:calc(100% - 28px)}
   dialog::backdrop{background:rgba(0,0,0,.45)}
-  .dlg{padding:18px;display:grid;gap:10px}
+  .dlg{padding:18px;display:grid;gap:10px;position:relative}
+  /* The verify sheet had no way out: no ✕, no cancel, and tapping the backdrop
+     did nothing, so a visitor who opened it was stuck (owner bug report). */
+  .dlgx{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;
+        border:1px solid var(--line);background:#fff;color:var(--soft);font-size:15px;
+        line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .dlgx:hover{background:#F6F7FA;color:var(--ink)}
   h1{font-size:19px;margin:0 0 4px}
   h2{font-size:15px;margin:18px 0 8px}
   .hide{display:none!important}
@@ -411,6 +417,7 @@ async function pagePost(id: string, url: URL): Promise<Response> {
       </div>
 
       <dialog id="dlg"><form method="dialog" class="dlg" id="dlgForm">
+        <button type="button" class="dlgx" id="dlgClose" aria-label="Close">&#10005;</button>
         <div id="step1">
           <h1 id="dlgTitle">Verify to continue</h1>
           <div class="mut" id="dlgSub">Your details stay private — they are never shown in the community.</div>
@@ -550,6 +557,15 @@ async function pagePost(id: string, url: URL): Promise<Response> {
           .finally(function(){b.disabled=false;b.textContent='Send'});
       };
       $('btnClose').onclick=function(){$('dlg').close()};
+
+      // Three ways out of the verify sheet, none of which existed before:
+      // the ✕, tapping the backdrop, and Esc (native to <dialog>).
+      $('dlgClose').onclick=function(){$('dlg').close()};
+      $('dlg').addEventListener('click',function(e){
+        // Only a backdrop tap lands on the <dialog> itself; clicks on the form
+        // and its fields stop here, so typing never dismisses the sheet.
+        if(e.target===$('dlg')) $('dlg').close();
+      });
       </script>`,
   }));
 }

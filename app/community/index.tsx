@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Text, View, FlatList, Pressable, Image, Alert, Linking, RefreshControl } from "react-native";
+import { Text, View, FlatList, Pressable, Image, Alert, Linking, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import {
   fetchCommunityFeed,
   toggleCommunityLike,
   removeCommunityPost,
+  editCommunityPost,
   reportCommunityPost,
   usePreferredLanguage,
   type CommunityPost,
@@ -110,6 +111,12 @@ export function CommunityPostCard({
   // Admins can remove any post right from the feed (parity with the console).
   const { profile } = useAuth();
   const canDelete = post.mine || profile?.role === "super_admin";
+  // Editing your own post used to be impossible — the only way to fix a typo
+  // was to delete and repost, losing the likes and replies it had collected.
+  const canEdit = canDelete;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(post.body ?? "");
+  const [savingEdit, setSavingEdit] = useState(false);
   // All-languages support (owner: every language must be choosable): tapping
   // Translate opens the full 10-language chip row; the reader's saved
   // preference is listed first. Same Sarvam path as property-detail Translate.
@@ -176,6 +183,27 @@ export function CommunityPostCard({
     ]);
   }
 
+  async function onSaveEdit() {
+    const body = draft.trim();
+    if (!body && !(post.media?.length ?? 0)) {
+      Alert.alert("Nothing to post", "Write something, or keep the original.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await editCommunityPost(post.id, body);
+      setEditing(false);
+      // Clear any translation — it belongs to the text that just changed.
+      setTranslated(null);
+      setTranslatedLang(null);
+      onChanged?.();
+    } catch (e: any) {
+      Alert.alert("Couldn't save", e?.message ?? "Please try again.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   const initials = (post.author.name || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
@@ -192,7 +220,9 @@ export function CommunityPostCard({
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontWeight: "800", color: colors.ink, fontSize: 14 }} numberOfLines={1}>{post.author.name}</Text>
           <Text style={{ color: colors.inkFaint, fontSize: 11.5 }} numberOfLines={1}>
-            {[post.author.member_code, timeAgo(post.created_at)].filter(Boolean).join(" · ")}
+            {[post.author.member_code, timeAgo(post.created_at), post.edited ? "Edited" : null]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
         </View>
         {post.masked ? (
@@ -203,8 +233,44 @@ export function CommunityPostCard({
         ) : null}
       </View>
 
-      {/* body — original or the reader's-language translation */}
-      {post.body ? (
+      {/* body — inline editor, else original or the reader's translation */}
+      {editing ? (
+        <View style={{ gap: 8 }}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            autoFocus
+            placeholder="Update your post…"
+            placeholderTextColor={colors.inkFaint}
+            style={{
+              backgroundColor: colors.surfaceAlt, borderWidth: 1.5, borderColor: colors.brand,
+              borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+              fontSize: 14.5, lineHeight: 21, color: colors.ink, minHeight: 90, textAlignVertical: "top",
+            }}
+          />
+          <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
+            <Pressable
+              onPress={() => { setDraft(post.body ?? ""); setEditing(false); }}
+              hitSlop={6}
+              style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}
+            >
+              <Text style={{ color: colors.inkSoft, fontWeight: "700", fontSize: 12.5 }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={onSaveEdit}
+              disabled={savingEdit}
+              hitSlop={6}
+              style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.brand, opacity: savingEdit ? 0.6 : 1 }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12.5 }}>{savingEdit ? "Saving…" : "Save"}</Text>
+            </Pressable>
+          </View>
+          <Text style={{ color: colors.inkFaint, fontSize: 11 }}>
+            Phone numbers and emails stay hidden automatically.
+          </Text>
+        </View>
+      ) : post.body ? (
         <Pressable onPress={onOpen} disabled={!onOpen}>
           <Text style={{ color: colors.ink, fontSize: 14.5, lineHeight: 21 }}>
             {translated && !showOriginal ? translated : post.body}
@@ -278,8 +344,17 @@ export function CommunityPostCard({
               <Ionicons name="flag-outline" size={16} color={colors.inkFaint} />
             </Pressable>
           ) : null}
+          {canEdit && !editing ? (
+            <Pressable
+              onPress={() => { setDraft(post.body ?? ""); setEditing(true); }}
+              hitSlop={8}
+              accessibilityLabel="Edit post"
+            >
+              <Ionicons name="create-outline" size={17} color={colors.inkFaint} />
+            </Pressable>
+          ) : null}
           {canDelete ? (
-            <Pressable onPress={onDelete} hitSlop={8}>
+            <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel="Delete post">
               <Ionicons name="trash-outline" size={17} color={colors.inkFaint} />
             </Pressable>
           ) : null}

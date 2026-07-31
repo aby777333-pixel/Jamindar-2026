@@ -73,7 +73,30 @@ export async function shareVia(
     case "facebook": open(`https://www.facebook.com/sharer/sharer.php?u=${e(link)}`); return null;
     case "x": open(`https://twitter.com/intent/tweet?text=${e(text)}`); return null;
     case "copy": await Clipboard.setStringAsync(link); return "Link copied";
-    case "instagram":
+    case "instagram": {
+      // Instagram is a dedicated button, so it must open Instagram — it used to
+      // fall through to the system share sheet, making the user pick the app
+      // again (owner bug report).
+      //
+      // Instagram exposes no URL scheme that accepts prefilled text: stories
+      // and DMs can only be pre-populated through their SDK with an image
+      // asset. So do the honest best thing — put the invite on the clipboard,
+      // open the app, and tell the user it is ready to paste.
+      // ⚠️ Deliberately NOT canOpenURL(). Since Android 11 that returns false
+      // for any scheme missing from the manifest's <queries>, which here lists
+      // only https — so an installed Instagram would still look absent and
+      // every user would land on the fallback. Attempting the open and
+      // catching the rejection is accurate on both platforms.
+      await Clipboard.setStringAsync(text);
+      try {
+        await Linking.openURL("instagram://app");
+        return "Invite copied — paste it into your story, post or DM";
+      } catch {
+        // Not installed: the report asks for a message or the sheet as fallback.
+        await Share.share({ message: text });
+        return "Instagram isn't installed — choose another app";
+      }
+    }
     case "more":
     default:
       await Share.share({ message: text });

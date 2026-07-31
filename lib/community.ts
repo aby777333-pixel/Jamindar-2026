@@ -54,6 +54,8 @@ export interface CommunityPost {
   comments: number;
   liked: boolean;
   mine: boolean;
+  /** True once the author (or an admin) has edited it — drives "Edited". */
+  edited?: boolean;
 }
 
 export interface CommunityComment {
@@ -215,6 +217,13 @@ export async function toggleCommunityLike(postId: string, liked: boolean): Promi
 
 export async function removeCommunityPost(postId: string): Promise<void> {
   const { error } = await supabase.rpc("remove_community_post", { p_id: postId });
+  if (error) throw error;
+}
+
+/** Update a post in place, keeping its likes and replies (0072). Own posts
+ *  only; admins may moderate anyone's. */
+export async function editCommunityPost(postId: string, body: string): Promise<void> {
+  const { error } = await supabase.rpc("edit_community_post", { p_id: postId, p_body: body });
   if (error) throw error;
 }
 
