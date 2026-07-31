@@ -61,20 +61,26 @@ const FILL: Record<string, string> = {
   sold: "#4A4A4A",
   blocked: "#E6E7E2",
 };
+// A sanctioned layout sheet draws plots as hairline-ruled cells with near-black
+// numerals — the bright green outline and green numeral we had made the plan
+// read as a diagram rather than a drawing. Status still reads instantly from
+// the fills below; only the linework and numerals became draughting-coloured.
 const STROKE: Record<string, string> = {
-  available: colors.success,
+  available: "#3B4A40",
   reserved: colors.goldDark,
   booked: "#A61B10",
   sold: "#2E2E2E",
-  blocked: colors.inkFaint,
+  blocked: "#9A9A93",
 };
 const LABEL: Record<string, string> = {
-  available: colors.success,
+  available: "#17241D",
   reserved: "#FFFFFF",
   booked: "#FFFFFF",
   sold: "#FFFFFF",
-  blocked: colors.inkFaint,
+  blocked: "#6E6E68",
 };
+/** Ink for the sheet's own annotation layer (roads, dimensions, notes). */
+const DRAFT_INK = "#6B5A48";
 const BADGE: Record<string, string> = { reserved: "HELD", booked: "BOOKED", sold: "SOLD" };
 
 const MIN_ZOOM = 1;
@@ -105,9 +111,12 @@ function PlanSvg({
   survey: boolean;
   onPick: (p: PlotRow) => void;
 }) {
-  const ground = survey ? "#D99F6F" : "#ECECE8";
-  const osrFill = survey ? "#E8F0E2" : "#EEF5EA";
-  const siteW = survey ? 2.2 : 1.9;
+  // The road network IS the ground between plots. Flat grey read as empty
+  // paper; the sanctioned sheet washes it warm, which is what makes a layout
+  // look like a drawing. Survey view keeps the sheet's own stronger ochre.
+  const ground = survey ? "#D99F6F" : "#E3CCB2";
+  const osrFill = survey ? "#E8F0E2" : "#D8E7CC";
+  const siteW = survey ? 2.2 : 1.7;
   return (
     <Svg
       width="100%"
@@ -130,7 +139,8 @@ function PlanSvg({
         const cx = (r.band[0] + r.band[2]) / 2;
         const cy = (r.band[1] + r.band[3]) / 2;
         return (
-          <SvgText key={`road-${i}`} x={cx} y={cy + 1.2} fontSize={4} fill={colors.inkFaint} textAnchor="middle"
+          <SvgText key={`road-${i}`} x={cx} y={cy + 1.2} fontSize={3.9} fontWeight="600" letterSpacing={0.35}
+            fill={DRAFT_INK} textAnchor="middle"
             transform={r.rotate ? `rotate(${r.rotate} ${cx} ${cy})` : undefined}>
             {r.label}
           </SvgText>
@@ -139,9 +149,9 @@ function PlanSvg({
 
       {geometry.osr?.polygon && geometry.osr.label ? (
         <G>
-          <SvgText x={251} y={327} fontSize={6} fontWeight="700" fill="#5B8C3A" textAnchor="middle">{geometry.osr.label}</SvgText>
+          <SvgText x={251} y={327} fontSize={6} fontWeight="800" letterSpacing={0.5} fill="#3F6B27" textAnchor="middle">{geometry.osr.label}</SvgText>
           {geometry.osr.areaSqm ? (
-            <SvgText x={251} y={336} fontSize={4} fill="#5B8C3A" textAnchor="middle">
+            <SvgText x={251} y={336} fontSize={4} letterSpacing={0.2} fill="#3F6B27" textAnchor="middle">
               {`${geometry.osr.areaSqm.toLocaleString("en-IN")} Sq.m`}
             </SvgText>
           ) : null}
@@ -158,11 +168,11 @@ function PlanSvg({
         if (deg > 90 || deg < -90) deg += 180; // keep the label upright
         return (
           <G key={`dim-${i}`}>
-            <Line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
+            <Line x1={d.from[0]} y1={d.from[1]} x2={d.to[0]} y2={d.to[1]} stroke={DRAFT_INK} strokeWidth={0.4} opacity={0.75} />
             {[d.from, d.to].map((e, k) => (
-              <Line key={k} x1={e[0] - tx} y1={e[1] - ty} x2={e[0] + tx} y2={e[1] + ty} stroke={colors.inkFaint} strokeWidth={0.5} opacity={0.6} />
+              <Line key={k} x1={e[0] - tx} y1={e[1] - ty} x2={e[0] + tx} y2={e[1] + ty} stroke={DRAFT_INK} strokeWidth={0.4} opacity={0.75} />
             ))}
-            <SvgText x={mx} y={my - 2.6} fontSize={4.2} fill={colors.inkFaint} textAnchor="middle" transform={`rotate(${deg.toFixed(2)} ${mx} ${my})`}>
+            <SvgText x={mx} y={my - 2.6} fontSize={4} letterSpacing={0.2} fill={DRAFT_INK} textAnchor="middle" transform={`rotate(${deg.toFixed(2)} ${mx} ${my})`}>
               {d.label}
             </SvgText>
           </G>
@@ -181,15 +191,18 @@ function PlanSvg({
             <Polygon
               points={pointsOf(p.poly)}
               fill={isSel ? "#2F6BFF" : FILL[status] ?? "#FFFFFF"}
-              stroke={isSel ? "#1B4FD8" : survey && status === "available" ? "#1F1F1D" : STROKE[status] ?? colors.success}
-              strokeWidth={isSel ? 2.4 : 0.9}
+              stroke={isSel ? "#1B4FD8" : survey && status === "available" ? "#1F1F1D" : STROKE[status] ?? "#3B4A40"}
+              // Hairline ruling, as drawn on the sheet. The old 0.9 outline was
+              // heavy enough to dominate the small cells.
+              strokeWidth={isSel ? 2.4 : 0.6}
+              strokeLinejoin="miter"
             />
-            <SvgText x={cx} y={cy - 0.8} fontSize={6.6} fontWeight="700" fill={isSel ? "#FFFFFF" : survey && status === "available" ? "#1F1F1D" : LABEL[status] ?? colors.success} textAnchor="middle">
+            <SvgText x={cx} y={cy - 0.6} fontSize={7.4} fontWeight="800" fill={isSel ? "#FFFFFF" : survey && status === "available" ? "#1F1F1D" : LABEL[status] ?? "#17241D"} textAnchor="middle">
               {p.plot}
             </SvgText>
             {p.size_sqft ? (
-              <SvgText x={cx} y={cy + 6} fontSize={3.1}
-                fill={isSel ? "#FFFFFF" : status === "available" ? colors.inkFaint : "rgba(255,255,255,0.85)"} textAnchor="middle">
+              <SvgText x={cx} y={cy + 5.6} fontSize={2.9} letterSpacing={0.15}
+                fill={isSel ? "#EAF0FF" : status === "available" ? "#6E7A70" : "rgba(255,255,255,0.88)"} textAnchor="middle">
                 {`${p.size_sqft} ft²`}
               </SvgText>
             ) : null}
