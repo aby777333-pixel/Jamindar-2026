@@ -13,6 +13,28 @@
 // ?ref= / ?utm_campaign=, and losing it here would silently orphan every lead.
 const UPSTREAM = "https://zmxqozvivdluuxvvcegs.supabase.co/functions/v1";
 
+/**
+ * Shrink og:image / twitter:image through Supabase's render CDN — see the same
+ * helper in share-page.mjs. A community post's first photo is whatever the
+ * member uploaded, so it can easily be large enough that WhatsApp drops the
+ * preview. Only Supabase public storage URLs inside those two meta tags are
+ * touched; the page itself still loads the originals.
+ */
+function shrinkOgImages(html) {
+  return html.replace(
+    /(<meta\s+(?:property|name)="(?:og:image|twitter:image)"\s+content=")([^"]+)(")/g,
+    (all, head, url, tail) => {
+      if (!url.includes("/storage/v1/object/public/")) return all;
+      if (url.includes("/render/image/")) return all;
+      const sized =
+        url.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/") +
+        (url.includes("?") ? "&" : "?") +
+        "width=1200&height=630&resize=cover&quality=80";
+      return head + sized + tail;
+    },
+  );
+}
+
 export default async (req) => {
   const url = new URL(req.url);
   let segs = url.pathname.split("/").filter(Boolean);
@@ -30,7 +52,7 @@ export default async (req) => {
   }
 
   const resp = await fetch(target, init);
-  const body = await resp.arrayBuffer();
+  let body = await resp.arrayBuffer();
   const headers = new Headers();
   headers.set("Cache-Control", resp.headers.get("cache-control") ?? "public, max-age=0, s-maxage=60");
   if (resp.headers.get("location")) headers.set("Location", resp.headers.get("location"));
@@ -42,6 +64,11 @@ export default async (req) => {
       ? "text/html; charset=utf-8"
       : upstreamCt || "text/html; charset=utf-8"
   );
+
+  // Only rewrite HTML we are serving as a page — never the JSON guest API.
+  if (req.method === "GET" && /text\/(html|plain)/.test(upstreamCt)) {
+    body = shrinkOgImages(new TextDecoder().decode(body));
+  }
   return new Response(body, { status: resp.status, headers });
 };
 
