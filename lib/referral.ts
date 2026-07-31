@@ -95,6 +95,22 @@ export function propertyLink(propertyId: string, refCode?: string | null): strin
   return refCode ? `${base}?ref=${encodeURIComponent(refCode)}` : base;
 }
 
+/** Public Community post page (§9). Anyone can open it without the app; the
+ *  ref rides along so the resulting visitor, lead and enquiry are attributed
+ *  back to whoever shared it. */
+export function communityPostLink(postId: string, refCode?: string | null): string {
+  const base = `https://merry-begonia-4c3cd1.netlify.app/c/${encodeURIComponent(postId)}`;
+  return refCode ? `${base}?ref=${encodeURIComponent(refCode)}` : base;
+}
+
+/** Share text for a Community post — the first line of the post as the hook,
+ *  then the public link. Kept short so WhatsApp shows the preview, not a wall. */
+export function communityShareMessage(body: string | null | undefined, postId: string, refCode?: string | null): string {
+  const first = String(body ?? "").trim().split("\n")[0].trim();
+  const hook = first ? (first.length > 120 ? first.slice(0, 117) + "…" : first) : "A discussion on Jamin Community";
+  return `${hook}\n\nRead it and join the conversation on Jamin Bazaar:\n${communityPostLink(postId, refCode)}`;
+}
+
 /** Personalized brochure PDF for a property, stamped with the promoter's
  *  contact page when the ref belongs to a verified partner. */
 export function brochureLink(propertyId: string, refCode?: string | null, src = "app"): string {

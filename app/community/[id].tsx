@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Modal, Platform } from "react-native";
+import { Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Share } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Card, Loading, Empty } from "@/components/ui";
+import { useAuth } from "@/lib/store";
+import { communityShareMessage } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import { CommunityPostCard } from "./index";
@@ -25,6 +27,7 @@ import {
 export default function CommunityPostScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { profile } = useAuth();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const [comment, setComment] = useState("");
@@ -114,6 +117,18 @@ export default function CommunityPostScreen() {
   const videos = post?.media?.filter((m) => m.type === "video") ?? [];
   const liveCount = (post?.comments_list ?? []).filter((c) => !c.deleted).length;
 
+  // §9 — the referral code comes off the live profile at share time, exactly as
+  // the property share does, so attribution follows whoever actually shared it.
+  async function onSharePost() {
+    if (!id) return;
+    const ref = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
+    try {
+      await Share.share({ message: communityShareMessage(post?.body, id, ref) });
+    } catch {
+      Alert.alert("Could not share", "Please try again.");
+    }
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.xs }}>
@@ -121,6 +136,14 @@ export default function CommunityPostScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.ink} />
         </Pressable>
         <Text style={{ flex: 1, fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>Post</Text>
+        {/* §9 — share the post as a public /c/ link anyone can open without the
+            app. The sharer's referral code rides along so the visitor, lead and
+            any enquiry are attributed back to them. */}
+        {post ? (
+          <Pressable onPress={onSharePost} hitSlop={8} accessibilityLabel="Share this post">
+            <Ionicons name="share-social-outline" size={22} color={colors.brand} />
+          </Pressable>
+        ) : null}
       </View>
 
       {isLoading ? (
