@@ -21,6 +21,7 @@ import { initAcquisitionCapture } from "@/lib/acquisition";
 import { useTheme } from "@/lib/use-theme";
 import { colors } from "@/lib/theme";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { WebShell } from "@/components/WebShell";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 applyAppFontGlobally();
@@ -80,6 +81,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style={themeMode === "dark" ? "light" : "dark"} />
+          {/* Desktop browsers get a centred frame instead of a phone stretched
+              to the full monitor width. Identity wrapper on native. */}
+          <WebShell>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfaceAlt } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
@@ -124,6 +128,7 @@ export default function RootLayout() {
             <Stack.Screen name="tools/compare" />
             <Stack.Screen name="jamindar/settings" />
           </Stack>
+          </WebShell>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
