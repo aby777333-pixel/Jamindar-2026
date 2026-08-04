@@ -1,7 +1,7 @@
 // Deployed to Supabase project zmxqozvivdluuxvvcegs as `jamindar-voice` (verify_jwt = true).
 // Secure Sarvam AI proxy for the Jamindar consultant. The Sarvam key stays server-side
 // (app_secrets.SARVAM_API_KEY). Actions: chat, tts, stt, translate, detect.
-// Chat model = sarvam-30b (fast, non-reasoning). Persists transcripts (original + English).
+// Chat model = sarvam-105b (reasoning_effort low). Persists transcripts (original + English).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const cors = {
@@ -32,7 +32,7 @@ const LANG_NAMES: Record<string, string> = {
 };
 
 // Which Unicode block each language must actually appear in. Prompting alone
-// is not reliable — sarvam-30b answers in English maybe a third of the time —
+// is not reliable — the model answers in English maybe a third of the time —
 // so a reply that contains none of its target script gets translated before we
 // return it. That makes the language chip deterministic rather than a request.
 const SCRIPTS: Record<string, RegExp> = {
@@ -155,7 +155,7 @@ function leaksPrompt(t: string): boolean {
   return LEAK_MARKERS.some((m) => s.includes(m));
 }
 
-// Bug fix (owner report, all languages): sarvam-30b occasionally returns a
+// Bug fix (owner report, all languages): the model occasionally returns a
 // mid-sentence FRAGMENT as `content` (e.g. "നമസ്കാരം, സർ. ഞാൻ") with the real
 // reply stranded in reasoning_content, or simply cut short. A short reply that
 // does not end in sentence punctuation is treated as truncated and retried.
@@ -387,6 +387,16 @@ function inventoryBlock(rows: any[]): string {
         approvals ? `${approvals} approved` : null,
         p.rera_number ? `RERA ${p.rera_number}` : null,
         (p.amenities ?? []).slice(0, 4).join(", ") || null,
+        // The media the MEDIA & LINKS rule promises the model. Without these
+        // the rule described columns the prompt never actually showed it, so
+        // Jamindar kept answering "I can't give photo links".
+        [
+          p.photos ? `${p.photos} photos` : null,
+          p.has_brochure ? "brochure" : null,
+          p.has_masterplan ? "master plan" : null,
+          p.has_map ? "map" : null,
+        ].filter(Boolean).join(", ") || null,
+        p.link ? `link: ${p.link}` : null,
       ].filter(Boolean);
       return `- ${bits.join(" | ")}`;
     });
