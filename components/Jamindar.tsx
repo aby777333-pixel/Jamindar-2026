@@ -79,6 +79,31 @@ type IntakeStep = {
   parse: (raw: string) => unknown;
 };
 const YES = /\b(yes|yeah|yep|first|new|haan|ஆம்|हाँ)\b/i;
+
+// Jamindar now hands out the branded /s/<id> share page when someone asks for
+// photos, a brochure or a map. In a plain <Text> that arrives as dead text the
+// buyer would have to retype, so the reply body is split on URLs and each one
+// rendered as a tappable span. Trailing sentence punctuation is left outside
+// the link — "…/s/abc." must not open ".../s/abc%2E".
+const URL_RE = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/g;
+function withLinks(text: string, color: string, linkColor: string) {
+  const parts = String(text ?? "").split(URL_RE);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <Text
+        key={i}
+        style={{ color: linkColor, textDecorationLine: "underline" }}
+        onPress={() => Linking.openURL(part).catch(() => {})}
+      >
+        {part}
+      </Text>
+    ) : (
+      <Text key={i} style={{ color }}>
+        {part}
+      </Text>
+    ),
+  );
+}
 const PROFILE_STEPS: IntakeStep[] = [
   { field: "call_name", q: "First, what should I call you?", parse: (r) => r.trim().slice(0, 40) },
   {
@@ -755,7 +780,11 @@ export function JamindarSheet({
                   }}
                 >
                   <Text style={{ color: m.role === "user" ? "#fff" : colors.ink, fontSize: 15, lineHeight: 21 }}>
-                    {m.content}
+                    {withLinks(
+                      m.content,
+                      m.role === "user" ? "#fff" : colors.ink,
+                      m.role === "user" ? "#fff" : colors.brand,
+                    )}
                   </Text>
                 </View>
 
