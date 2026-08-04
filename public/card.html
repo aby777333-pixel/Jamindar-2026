@@ -248,7 +248,9 @@
   rpc("promoter_card", { p_code: code }).then(function (card) {
     if (!card || !card.name) { notFound(); return; }
 
-    document.title = card.name + " · Verified Jamin Bazaar Partner — Jamin Bazaar";
+    // Only a verified partner is titled "Verified" — promoters who have not
+    // finished KYC share the same card, honestly labelled (directive 04-08).
+    document.title = card.name + (card.verified ? " · Verified Jamin Bazaar Partner" : " · Jamin Bazaar Promoter") + " — Jamin Bazaar";
     $("loading").style.display = "none";
     $("page").style.display = "block";
     $("year").textContent = new Date().getFullYear();

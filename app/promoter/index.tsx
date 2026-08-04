@@ -87,6 +87,8 @@ export default function PromoterDashboard() {
   const activeBuyers = new Set(leads.map((l: any) => l.buyer_id).filter(Boolean)).size;
   const enquiries = data.refEvents.filter((e: any) => /enquir|interest|lead/i.test(e.event_type ?? "")).length || leads.length;
   const partnerStatus = profile?.partner_status ?? "none";
+  const kycStatus = profile?.kyc_status ?? "not_started";
+  const isPromoter = profile?.role === "promoter";
   const firstName = (profile?.full_name ?? "").trim().split(/\s+/)[0] || "Partner";
 
   const shortcuts: { icon: string; label: string; to: Href; tint?: string; accent?: string }[] = [
@@ -134,7 +136,7 @@ export default function PromoterDashboard() {
               {firstName}
             </Text>
             <View style={{ marginTop: 5 }}>
-              <PartnerBadge status={partnerStatus} />
+              <PartnerBadge status={partnerStatus} promoter={isPromoter} />
             </View>
           </View>
           {profile?.role === "super_admin" ? (
@@ -151,7 +153,7 @@ export default function PromoterDashboard() {
         </Card>
 
         <View style={{ marginTop: space.sm }}>
-          <VerificationBanner status={partnerStatus} onAction={() => router.push("/buyer/kyc" as Href)} />
+          <VerificationBanner status={partnerStatus} kycStatus={kycStatus} onAction={() => router.push("/buyer/kyc" as Href)} />
         </View>
 
         {/* Two ways to share (owner report 27-07): grow your team with your

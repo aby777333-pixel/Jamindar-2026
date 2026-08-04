@@ -3,14 +3,18 @@ import { Image, Text, View, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button, elevation } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { joinAsPromoter } from "@/lib/referral";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 
 // Two ways in, and only two. Super Admin is locked to a fixed mobile allowlist
-// enforced by a database trigger (0004), and Promoter is never self-assigned —
-// it is granted by an admin on approval (0025). Picking "promoter" here only
-// files an application; the account stays a buyer until it is approved.
+// enforced by a database trigger (0004).
+//
+// Owner directive 04-08 — "a promoter is a promoter": picking "promoter" here
+// now GRANTS the promoter role on the spot (join_as_promoter, migration 0073),
+// so the whole app treats and shows them as a promoter from the first screen.
+// What still has to be earned is the Verified Jamin Partner badge: complete
+// the KYC, and the Jamin team approves it.
 type Choice = "buyer" | "promoter";
 
 const TABS: { key: Choice; label: string }[] = [
@@ -45,24 +49,27 @@ const HEADLINE: Record<Choice, string> = {
 export default function Role() {
   const router = useRouter();
   const { profile, refreshProfile } = useAuth();
-  const pending = profile?.partner_status === "pending";
-  const [tab, setTab] = useState<Choice>(pending ? "promoter" : "buyer");
+  const isPromoter = profile?.role === "promoter";
+  const verified = profile?.partner_status === "verified";
+  const [tab, setTab] = useState<Choice>(isPromoter ? "promoter" : "buyer");
   const [loading, setLoading] = useState(false);
 
   async function onContinue() {
     if (!profile) return;
     setLoading(true);
     try {
-      if (tab === "promoter" && !pending) {
-        // request_partner() sets partner_status = 'pending' and writes the
-        // audit entry. The role is deliberately NOT changed here.
-        const { error } = await supabase.rpc("request_partner");
-        if (error) throw error;
+      if (tab === "promoter") {
+        // join_as_promoter() grants the promoter role, opens the promoter
+        // profile (referral link + V-card) and leaves partner_status pending
+        // until the KYC is verified. Idempotent, so re-entering is harmless.
+        const res = await joinAsPromoter();
         await refreshProfile();
-        Alert.alert(
-          "Application submitted",
-          "Thank you. The Jamin team will review your application and verify your details. You can keep using the app as a buyer meanwhile — we'll notify you as soon as you're approved."
-        );
+        if (res.joined) {
+          Alert.alert(
+            "Welcome, Jamin Promoter 🎉",
+            "Your promoter dashboard, Promoter ID, referral link and digital card are ready to use right away. Complete your KYC whenever you like to become a Verified Jamin Partner."
+          );
+        }
       } else {
         await refreshProfile();
       }
@@ -209,23 +216,17 @@ export default function Role() {
               marginTop: space.sm,
             }}
           >
-            <Ionicons name={pending ? "time" : "shield-checkmark"} size={16} color={colors.goldDark} />
+            <Ionicons name={verified ? "ribbon" : "shield-checkmark"} size={16} color={colors.goldDark} />
             <Text style={{ flex: 1, color: colors.goldDark, fontSize: T.caption.fontSize + 1, fontWeight: "600" }}>
-              {pending
-                ? "Your promoter application is under review."
-                : "Applications are verified by the Jamin team before activation. You can use the app as a buyer meanwhile."}
+              {verified
+                ? "You're a Verified Jamin Partner — your promoter suite is ready."
+                : "Start promoting straight away. A short KYC makes you a Verified Jamin Partner."}
             </Text>
           </View>
         ) : null}
 
         <Button
-          label={
-            tab === "promoter"
-              ? pending
-                ? "Continue"
-                : "Apply & Continue"
-              : "Continue as Buyer"
-          }
+          label={tab === "promoter" ? "Continue as Promoter" : "Continue as Buyer"}
           onPress={onContinue}
           loading={loading}
           style={{ marginTop: space.md }}

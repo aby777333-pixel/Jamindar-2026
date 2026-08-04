@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Text, View, ScrollView, Pressable, Share, Image, Modal, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import QRCode from "react-native-qrcode-svg";
@@ -141,7 +141,7 @@ export default function PromoterCard() {
               >
                 <Ionicons name={verified ? "checkmark-circle" : "time"} size={14} color={verified ? "#3DD68C" : colors.onDarkFaint} />
                 <Text style={{ color: verified ? "#3DD68C" : colors.onDarkFaint, fontWeight: "800", fontSize: T.caption.fontSize + 1, letterSpacing: 0.3 }}>
-                  {verified ? "Verified Jamin Bazaar Partner" : "Verification pending"}
+                  {verified ? "Verified Jamin Bazaar Partner" : "Jamin Promoter"}
                 </Text>
               </Pressable>
             </View>
@@ -193,10 +193,30 @@ export default function PromoterCard() {
           <Text style={{ color: colors.brand, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: 6 }}>{photoErr}</Text>
         ) : null}
 
+        {/* Owner directive 04-08: the card works unverified — this is the
+            prompt that turns it into a verified one, not a blocker. */}
         {!verified ? (
-          <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.sm, lineHeight: T.small.lineHeight }}>
-            Your card upgrades to a Verified Jamin Bazaar Partner card automatically once the administration approves you.
-          </Text>
+          <Pressable
+            onPress={() => router.push("/buyer/kyc" as Href)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: space.xs,
+              marginTop: space.sm,
+              backgroundColor: colors.goldSoft,
+              borderRadius: space.sm,
+              paddingHorizontal: space.sm,
+              paddingVertical: space.xs + 3,
+            }}
+          >
+            <Ionicons name="ribbon" size={16} color={colors.goldDark} />
+            <Text style={{ flex: 1, color: colors.goldDark, fontSize: T.caption.fontSize + 1, fontWeight: "600", lineHeight: T.small.lineHeight }}>
+              {profile?.kyc_status === "pending"
+                ? "Your KYC is under review — the green verified check appears here once it clears."
+                : "Complete your KYC to add the green Verified Jamin Partner check to this card."}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.goldDark} />
+          </Pressable>
         ) : null}
 
         {/* one-tap share — needs the mandatory photo */}

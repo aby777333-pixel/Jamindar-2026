@@ -36,6 +36,9 @@ export default function BuyerKyc() {
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ uri: string; title: string } | null>(null);
+  // Real role, never the admin's role-preview: this form writes real records.
+  const isPromoter = profile?.role === "promoter";
+  const optionalNote = isPromoter ? "Optional — you can add this later" : undefined;
 
   /** Open a submitted document full-screen via a short-lived signed URL. */
   async function openDoc(path: string, title: string) {
@@ -132,9 +135,16 @@ export default function BuyerKyc() {
     if (!form.pan_number.trim()) return "PAN number is required.";
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(form.pan_number.trim())) return "Enter a valid PAN (e.g. ABCDE1234F).";
     if (form.aadhaar_number.replace(/\s/g, "").length !== 12) return "Aadhaar must be 12 digits.";
-    if (!form.addr_city.trim() || !form.addr_pincode.trim()) return "Courier city and PIN code are required.";
-    if (!form.bank_account_number.trim() || !form.bank_ifsc.trim()) return "Bank account number and IFSC are required.";
-    if (!form.nominee_name.trim()) return "Nominee name is required.";
+    // Owner directive 04-08 — go easy on a promoter's KYC. Identity is all we
+    // ask up front (and it is all the server has ever required); the courier
+    // address, bank and nominee stay optional so he can get verified today and
+    // fill in payout details when there is something to pay out. Buyers still
+    // complete the full form: theirs feeds agreements, bookings and refunds.
+    if (!isPromoter) {
+      if (!form.addr_city.trim() || !form.addr_pincode.trim()) return "Courier city and PIN code are required.";
+      if (!form.bank_account_number.trim() || !form.bank_ifsc.trim()) return "Bank account number and IFSC are required.";
+      if (!form.nominee_name.trim()) return "Nominee name is required.";
+    }
     if (!declared) return "Please accept the declaration to submit.";
     return null;
   }
@@ -249,10 +259,21 @@ export default function BuyerKyc() {
         {!approved && !pending ? (
           <>
             {rejected ? <StatusNote tone="danger" icon="alert-circle-outline" title="Action needed" body={existing?.review_reason || "Your KYC was rejected. Please review your details and resubmit."} corrections={existing?.review_corrections} /> : null}
-            {!existing ? <StatusNote tone="neutral" icon="shield-outline" title="Complete your KYC" body="Verify your identity to unlock agreements, bookings and all Jamin Property services. Your information is encrypted and used only for verification." /> : null}
+            {!existing ? (
+              isPromoter ? (
+                <StatusNote
+                  tone="neutral"
+                  icon="ribbon-outline"
+                  title="Become a Verified Jamin Partner"
+                  body="Just your PAN and Aadhaar to start — that's all we need to verify you. Address, bank and nominee are optional and can wait until you have a payout coming. Your information is encrypted and used only for verification."
+                />
+              ) : (
+                <StatusNote tone="neutral" icon="shield-outline" title="Complete your KYC" body="Verify your identity to unlock agreements, bookings and all Jamin Property services. Your information is encrypted and used only for verification." />
+              )
+            ) : null}
 
             {/* Identity */}
-            <Section title="Identity" subtitle="As per your official documents">
+            <Section title="Identity" subtitle={isPromoter ? "Required — as per your official documents" : "As per your official documents"}>
               <Field label="PAN Number" value={form.pan_number} onChangeText={setPan("pan_number")} placeholder="ABCDE1234F" autoCapitalize="characters" maxLength={10} hint="10 characters — format: ABCDE1234F" />
               <Field label="Aadhaar Number" value={form.aadhaar_number} onChangeText={setAadhaar("aadhaar_number")} placeholder="123456789012" keyboardType="number-pad" maxLength={12} hint="12-digit UIDAI number (numbers only)" />
               <Divider />
@@ -262,7 +283,7 @@ export default function BuyerKyc() {
             </Section>
 
             {/* Courier address */}
-            <Section title="Courier Address" subtitle="For agreements, documents & certificates">
+            <Section title="Courier Address" subtitle={optionalNote ?? "For agreements, documents & certificates"}>
               <Field label="House / Flat No." value={form.addr_house} onChangeText={set("addr_house")} placeholder="12A" />
               <Field label="Street" value={form.addr_street} onChangeText={set("addr_street")} placeholder="MG Road" />
               <Field label="Landmark" value={form.addr_landmark} onChangeText={set("addr_landmark")} placeholder="Near Metro Station" />
@@ -274,7 +295,7 @@ export default function BuyerKyc() {
             </Section>
 
             {/* Bank */}
-            <Section title="Bank Details" subtitle="For refunds & payouts">
+            <Section title="Bank Details" subtitle={isPromoter ? "Optional — needed only when a payout is due" : "For refunds & payouts"}>
               <Field label="Account Holder Name" value={form.bank_account_name} onChangeText={set("bank_account_name")} placeholder="As per bank records" />
               <Field label="Account Number" value={form.bank_account_number} onChangeText={set("bank_account_number")} placeholder="000123456789" keyboardType="number-pad" />
               <Field label="IFSC Code" value={form.bank_ifsc} onChangeText={set("bank_ifsc")} placeholder="SBIN0000123" autoCapitalize="characters" />
@@ -286,7 +307,7 @@ export default function BuyerKyc() {
             </Section>
 
             {/* Nominee */}
-            <Section title="Nominee" subtitle="Your appointed nominee">
+            <Section title="Nominee" subtitle={optionalNote ?? "Your appointed nominee"}>
               <Field label="Nominee Name" value={form.nominee_name} onChangeText={set("nominee_name")} placeholder="Full legal name" />
               <Field label="Relationship" value={form.nominee_relationship} onChangeText={set("nominee_relationship")} placeholder="Spouse / Parent / Child" />
               <Field label="Phone" value={form.nominee_phone} onChangeText={setPhone10("nominee_phone")} placeholder="9876543210" keyboardType="number-pad" maxLength={10} hint="10 digits, numbers only" />
@@ -319,7 +340,7 @@ export default function BuyerKyc() {
             </Pressable>
 
             <Button
-              label={rejected ? "Update & resubmit" : "Preview then submit"}
+              label={rejected ? "Update & resubmit" : isPromoter ? "Submit & get verified" : "Preview then submit"}
               onPress={onSubmit}
               loading={saving}
             />

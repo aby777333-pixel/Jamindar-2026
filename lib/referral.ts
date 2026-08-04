@@ -52,6 +52,23 @@ export async function requestPartner(): Promise<void> {
   if (error) throw error;
 }
 
+export type JoinPromoterResult = {
+  role: string;
+  partner_status: string;
+  kyc_status: string;
+  /** false when the member was already a promoter (the call is idempotent). */
+  joined: boolean;
+};
+
+/** Owner directive 04-08: "a promoter is a promoter". Entering as a promoter
+ *  grants the promoter role immediately (migration 0073) — the Verified Jamin
+ *  Partner badge is what still waits on KYC + admin approval. */
+export async function joinAsPromoter(): Promise<JoinPromoterResult> {
+  const { data, error } = await supabase.rpc("join_as_promoter");
+  if (error) throw error;
+  return (data ?? { role: "promoter", partner_status: "pending", kyc_status: "not_started", joined: true }) as JoinPromoterResult;
+}
+
 const open = (url: string) => Linking.openURL(url).catch(() => {});
 
 export type ShareChannel = "whatsapp" | "telegram" | "sms" | "email" | "facebook" | "x" | "instagram" | "copy" | "more";

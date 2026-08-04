@@ -17,8 +17,13 @@ import { IconChip } from "./premium";
 
 type PartnerStatus = "none" | "eligible" | "pending" | "verified" | "rejected";
 
-/** "Verified Jamin Bazaar Partner" pill (gold jewel accent) + its pending/none states. */
-export function PartnerBadge({ status }: { status: string }) {
+/** "Verified Jamin Bazaar Partner" pill (gold jewel accent) + its pending/none states.
+ *
+ *  Owner directive 04-08: a promoter is a promoter. Pass `promoter` and an
+ *  unverified promoter reads as "Jamin Promoter" — his standing — instead of
+ *  "Verification pending", which framed him as a half-approved applicant. The
+ *  gold jewel still belongs to verified partners only. */
+export function PartnerBadge({ status, promoter }: { status: string; promoter?: boolean }) {
   const map: Record<PartnerStatus, { label: string; bg: string; fg: string; icon: string }> = {
     verified: { label: "Verified Jamin Bazaar Partner", bg: colors.goldSoft, fg: colors.goldDark, icon: "ribbon" },
     pending: { label: "Verification pending", bg: colors.brandSoft, fg: colors.brand, icon: "time" },
@@ -26,7 +31,10 @@ export function PartnerBadge({ status }: { status: string }) {
     rejected: { label: "Verification needs attention", bg: colors.brandSoft, fg: colors.brand, icon: "alert-circle" },
     none: { label: "Not yet a partner", bg: colors.surfaceSunken, fg: colors.inkSoft, icon: "person-add" },
   };
-  const m = map[(status as PartnerStatus)] ?? map.none;
+  const m =
+    promoter && status !== "verified"
+      ? { label: "Jamin Promoter", bg: colors.brandSoft, fg: colors.brand, icon: "briefcase" }
+      : map[(status as PartnerStatus)] ?? map.none;
   return (
     <View
       style={{
@@ -48,15 +56,38 @@ export function PartnerBadge({ status }: { status: string }) {
   );
 }
 
-/** Status-driven strip guiding the promoter to verification. Null when verified. */
-export function VerificationBanner({ status, onAction }: { status: string; onAction?: () => void }) {
+/** Strip guiding the promoter to verification. Null when already verified.
+ *
+ *  Owner directive 04-08: the promoter already has his tools, so this is a
+ *  prompt, not a gate — and it must tell the truth about WHERE he is. Pass
+ *  `kycStatus` and the copy follows the KYC, which is the step he actually
+ *  controls; the old version said "your KYC is under review" to promoters who
+ *  had never submitted one. Without `kycStatus` it behaves exactly as before. */
+export function VerificationBanner({
+  status,
+  kycStatus,
+  onAction,
+}: {
+  status: string;
+  kycStatus?: string | null;
+  onAction?: () => void;
+}) {
   if (status === "verified") return null;
-  const pending = status === "pending" || status === "eligible";
-  const cfg = pending
-    ? { icon: "time", title: "Verification in progress", body: "Your KYC is under review. You'll get a Verified Jamin Bazaar Partner badge once approved.", cta: null }
-    : status === "rejected"
-      ? { icon: "alert-circle", title: "Verification needs attention", body: "Some details need correcting. Update your KYC to continue.", cta: "Review KYC" }
-      : { icon: "shield-checkmark", title: "Become a Verified Jamin Bazaar Partner", body: "Complete your KYC to unlock referrals, leads, and commissions.", cta: "Complete KYC" };
+  const partnerPending = status === "pending" || status === "eligible";
+  const cfg = kycStatus
+    ? kycStatus === "pending"
+      ? { icon: "time", title: "KYC under review", body: "Our team is checking your documents. Your Verified Jamin Partner badge lands as soon as it clears.", cta: null }
+      : kycStatus === "approved"
+        ? { icon: "hourglass", title: "KYC verified — approval next", body: "Your identity is verified. The Jamin team will confirm your Verified Jamin Partner badge shortly.", cta: null }
+        : kycStatus === "rejected"
+          ? { icon: "alert-circle", title: "KYC needs attention", body: "Some details need correcting. Update your KYC to get your Verified Jamin Partner badge.", cta: "Review KYC" }
+          : { icon: "ribbon", title: "Become a Verified Jamin Partner", body: "You're promoting already. A short KYC — PAN and Aadhaar — earns you the verified badge buyers look for.", cta: "Complete KYC" }
+    : partnerPending
+      ? { icon: "time", title: "Verification in progress", body: "Your KYC is under review. You'll get a Verified Jamin Bazaar Partner badge once approved.", cta: null }
+      : status === "rejected"
+        ? { icon: "alert-circle", title: "Verification needs attention", body: "Some details need correcting. Update your KYC to continue.", cta: "Review KYC" }
+        : { icon: "shield-checkmark", title: "Become a Verified Jamin Bazaar Partner", body: "Complete your KYC to unlock referrals, leads, and commissions.", cta: "Complete KYC" };
+  const pending = kycStatus ? kycStatus === "pending" || kycStatus === "approved" : partnerPending;
   return (
     <View
       style={{

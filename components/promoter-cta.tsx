@@ -64,7 +64,7 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: "#fff", fontWeight: "700", fontSize: T.small.fontSize }} numberOfLines={1}>
-            Become a Verified Jamin Promoter
+            Become a Jamin Promoter
           </Text>
           <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: T.caption.fontSize }} numberOfLines={1}>
             Share this property with your link & earn
@@ -92,10 +92,10 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
           <Text style={{ color: colors.gold, fontSize: T.caption.fontSize, fontWeight: "700", letterSpacing: 0.5 }}>EARN WITH JAMIN</Text>
         </View>
         <Text style={{ color: "#fff", fontWeight: "800", fontSize: T.body.fontSize + 2, marginTop: space.sm }}>
-          Become a Verified Jamin Promoter
+          Become a Jamin Promoter
         </Text>
         <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: T.small.fontSize, lineHeight: T.small.lineHeight + 2, marginTop: 4 }}>
-          Earn commissions by referring buyers, get your digital card & QR, and unlock the Promoter dashboard — while keeping everything you have as a buyer.
+          Unlock the Promoter dashboard, your digital card & QR and commissions on every referral — instantly, while keeping everything you have as a buyer.
         </Text>
         <View
           style={{
@@ -110,7 +110,7 @@ export function BecomePromoterBanner({ compact }: { compact?: boolean }) {
             marginTop: space.sm + 2,
           }}
         >
-          <Text style={{ color: colors.navy, fontWeight: "800", fontSize: T.small.fontSize }}>See benefits & apply</Text>
+          <Text style={{ color: colors.navy, fontWeight: "800", fontSize: T.small.fontSize }}>See benefits & join</Text>
           <Ionicons name="arrow-forward" size={14} color={colors.navy} />
         </View>
       </LinearGradient>

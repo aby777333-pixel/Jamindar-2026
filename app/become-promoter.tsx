@@ -1,15 +1,17 @@
-// Premium Buyer → Promoter conversion flow. The application itself reuses the
-// 0025 workflow: request_partner() files it, the admin verifies from the
-// console (Partners), and approval grants the promoter role — the user keeps
-// every buyer feature on the same account.
+// Premium Buyer → Promoter conversion flow.
+//
+// Owner directive 04-08 — "a promoter is a promoter": this no longer files an
+// application and waits. join_as_promoter() (migration 0073) grants the
+// promoter role on the spot, the buyer keeps every buyer feature on the same
+// account, and the KYC is what earns the Verified Jamin Partner badge.
 import { useState } from "react";
 import { Image, Text, View, Pressable, Alert, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Button } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { joinAsPromoter } from "@/lib/referral";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 
@@ -23,9 +25,9 @@ const BENEFITS: { icon: string; title: string; desc: string }[] = [
 ];
 
 const STEPS = [
-  "Tap Become a Promoter below.",
-  "Your application goes to the Jamin team for verification.",
-  "Once approved, promoter tools unlock on this same account.",
+  "Tap Become a Promoter below — your promoter tools unlock straight away.",
+  "Share your referral link, digital card and live projects from day one.",
+  "Complete a short KYC and the Jamin team makes you a Verified Jamin Partner.",
 ];
 
 export default function BecomePromoter() {
@@ -33,22 +35,24 @@ export default function BecomePromoter() {
   const { profile, refreshProfile } = useAuth();
   const [busy, setBusy] = useState(false);
   const ps = profile?.partner_status ?? "none";
-  const pending = ps === "pending";
+  const isPromoter = profile?.role === "promoter";
   const verified = ps === "verified";
 
   async function apply() {
     if (!profile) return;
     setBusy(true);
     try {
-      const { error } = await supabase.rpc("request_partner");
-      if (error) throw error;
+      const res = await joinAsPromoter();
       await refreshProfile();
       Alert.alert(
-        "Application submitted 🎉",
-        "Thank you! The Jamin team will verify your details shortly. You can keep using the app as usual — we'll notify you the moment you're approved."
+        "Welcome, Jamin Promoter 🎉",
+        res.joined
+          ? "Your promoter dashboard, Promoter ID, referral link and digital card are live on this same account. Complete your KYC whenever you like to become a Verified Jamin Partner."
+          : "Your promoter tools are already active on this account.",
+        [{ text: "Open my dashboard", onPress: () => router.replace("/promoter") }]
       );
     } catch (e: any) {
-      Alert.alert("Couldn't submit", e?.message ?? "Please try again.");
+      Alert.alert("Couldn't continue", e?.message ?? "Please try again.");
     } finally {
       setBusy(false);
     }
@@ -121,18 +125,38 @@ export default function BecomePromoter() {
                 You're already a Verified Jamin Bazaar Partner{profile?.partner_code ? ` · ${profile.partner_code}` : ""}.
               </Text>
             </View>
-          ) : pending ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, backgroundColor: colors.goldSoft, borderRadius: space.sm, padding: space.sm, marginTop: space.md }}>
-              <Ionicons name="time" size={18} color={colors.goldDark} />
-              <Text style={{ flex: 1, color: colors.goldDark, fontWeight: "600", fontSize: T.small.fontSize }}>
-                Your application is under review. We'll notify you as soon as it's approved.
-              </Text>
-            </View>
+          ) : isPromoter ? (
+            <>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, backgroundColor: colors.brandSoft, borderRadius: space.sm, padding: space.sm, marginTop: space.md }}>
+                <Ionicons name="briefcase" size={18} color={colors.brand} />
+                <Text style={{ flex: 1, color: colors.brand, fontWeight: "700", fontSize: T.small.fontSize }}>
+                  You're a Jamin Promoter{profile?.member_code ? ` · ${profile.member_code}` : ""} — your tools are live.
+                </Text>
+              </View>
+              {profile?.kyc_status === "pending" || profile?.kyc_status === "approved" ? (
+                <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.sm, lineHeight: 17 }}>
+                  {profile.kyc_status === "pending"
+                    ? "Your KYC is under review — the Verified Jamin Partner badge follows once it clears."
+                    : "Your KYC is verified. The Jamin team will confirm your Verified Jamin Partner badge shortly."}
+                </Text>
+              ) : (
+                <>
+                  <Button
+                    label={profile?.kyc_status === "rejected" ? "Review my KYC" : "Complete KYC & get verified"}
+                    onPress={() => router.push("/buyer/kyc" as Href)}
+                    style={{ marginTop: space.sm }}
+                  />
+                  <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.xs, lineHeight: 16 }}>
+                    PAN & Aadhaar are all it takes · Bank and nominee can wait
+                  </Text>
+                </>
+              )}
+            </>
           ) : (
             <>
               <Button label="Become a Promoter" onPress={apply} loading={busy} style={{ marginTop: space.md }} />
               <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.xs, lineHeight: 16 }}>
-                Free to apply · Verified by the Jamin team · You keep all buyer features
+                Free · Tools unlock instantly · You keep all buyer features
               </Text>
             </>
           )}

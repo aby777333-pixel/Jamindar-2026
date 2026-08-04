@@ -71,14 +71,19 @@ export default function AdminPartners() {
   }
 
   /** Owner report 28-07: Verified is no longer final — a mistaken decision can
-   *  be corrected. Demotion pauses promoter access until re-verified, so it
-   *  always confirms first; the partner code is kept for continuity. */
+   *  be corrected; the partner code is kept for continuity.
+   *  0073: "Pending" now simply means an unverified promoter, so it only takes
+   *  the badge away — promoter tools stay. Only Reject withdraws the role. */
   function confirmStatusChange(p: any, decision: "verified" | "rejected" | "pending") {
     const label = decision === "pending" ? "move back to Pending" : decision;
     Alert.alert(
       "Change partner status?",
       `${p.full_name ?? "This partner"} will be ${label}.` +
-        (p.partner_status === "verified" ? " Their promoter access pauses until re-verified." : ""),
+        (decision === "pending"
+          ? " They lose the Verified badge but keep their promoter tools."
+          : decision === "rejected"
+            ? " Their promoter access is withdrawn and they return to a buyer account."
+            : ""),
       [
         { text: "Cancel", style: "cancel" },
         { text: "Confirm", onPress: () => review(p.id, decision) },

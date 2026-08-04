@@ -311,7 +311,7 @@ async function renderDashboard(){
 
   const ATT=[
     ["kyc","🛡","KYC verifications waiting","kyc"],
-    ["partners","🎗","Partner requests to review","partners"],
+    ["partners","🎗","Promoters awaiting verification","partners"],
     ["withdrawals","👛","Withdrawals awaiting approval","wallet"],
     ["submissions","📥","Property submissions","subs"],
     ["visits","🗓","Site visits to confirm","visits"],
@@ -1003,25 +1003,38 @@ window.reviewKyc = async(id,decision)=>{
 // ───────── partners ─────────
 async function renderPartners(){
   // Owner report 28-07: Verified is no longer final — admins can move a
-  // partner back to Pending or Reject them (role follows, audit kept).
+  // partner back to Pending or Reject them (audit kept).
+  // 0073 ("a promoter is a promoter"): Pending now means an UNVERIFIED
+  // PROMOTER — they already hold the promoter role and tools. Verifying grants
+  // the Verified Jamin Partner badge; only Reject withdraws promoter access.
+  // The KYC column matters here: most pending rows are waiting on the member,
+  // not on the desk.
   const status = window.__partnerFilter || "pending";
-  const { data } = await sb.from("profiles").select("id,full_name,member_code,mobile,partner_code,partner_status").eq("partner_status",status).order("member_code");
+  const { data } = await sb.from("profiles").select("id,full_name,member_code,mobile,partner_code,partner_status,kyc_status,role").eq("partner_status",status).order("member_code");
   const rows=data||[];
+  const KYC_PILL={approved:["#0F8A4D","KYC approved"],pending:["#B7791F","KYC submitted"],rejected:["#C0392B","KYC rejected"],not_started:["#8A94A6","No KYC yet"]};
   const chip=(v,l)=>`<button class="btn ${status===v?'':'grey'} sm" onclick="partnerFilter('${v}')">${l}</button>`;
   const actions=(r)=>{
     if(status==='pending') return `<button class="btn ghost sm" onclick='reviewPartner("${r.id}","rejected")'>Reject</button> <button class="btn gold sm" onclick='reviewPartner("${r.id}","verified")'>Verify</button>`;
     if(status==='verified') return `<button class="btn grey sm" onclick='reviewPartner("${r.id}","pending")'>Move to Pending</button> <button class="btn ghost sm" onclick='reviewPartner("${r.id}","rejected")'>Reject</button>`;
     return `<button class="btn grey sm" onclick='reviewPartner("${r.id}","pending")'>Move to Pending</button> <button class="btn gold sm" onclick='reviewPartner("${r.id}","verified")'>Verify</button>`;
   };
-  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">${chip('pending','Pending')}${chip('verified','Verified')}${chip('rejected','Rejected')}</div>` + (rows.length? `<table><thead><tr><th>Partner</th><th>ID</th><th>Mobile</th><th>Partner code</th><th></th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td><b>${esc(r.full_name||"—")}</b></td><td class="muted">${esc(r.member_code||"")}</td><td class="muted">+${esc(r.mobile||"")}</td><td class="muted">${esc(r.partner_code||"—")}</td>
+  const kycCell=(r)=>{ const p=KYC_PILL[r.kyc_status]||KYC_PILL.not_started; return `<span style="color:${p[0]};font-weight:700">${p[1]}</span>`; };
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">${chip('pending','Pending')}${chip('verified','Verified')}${chip('rejected','Rejected')}</div>`
+    + (status==='pending' ? `<div class="muted" style="margin-bottom:10px">Unverified promoters — they already have their promoter tools. Verify to grant the Verified Jamin Partner badge.</div>` : ``)
+    + (rows.length? `<table><thead><tr><th>Partner</th><th>ID</th><th>Mobile</th><th>Partner code</th><th>KYC</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><b>${esc(r.full_name||"—")}</b></td><td class="muted">${esc(r.member_code||"")}</td><td class="muted">+${esc(r.mobile||"")}</td><td class="muted">${esc(r.partner_code||"—")}</td><td>${kycCell(r)}</td>
     <td style="text-align:right">${actions(r)}</td></tr>`).join("")}</tbody></table>`
     : `<div class="empty card">No ${esc(status)} partners.</div>`);
 }
 window.partnerFilter=(v)=>{ window.__partnerFilter=v; renderPartners(); };
 window.reviewPartner = async(id,decision)=>{
-  let reason=null; if(decision==="rejected"){ reason=prompt("Reason (optional):"); }
-  if(decision==="pending" && !confirm("Move this partner back to Pending? Their promoter access pauses until re-verified.")) return;
+  let reason=null;
+  if(decision==="rejected"){
+    if(!confirm("Reject this partner? Their promoter access is withdrawn and they go back to a buyer account.")) return;
+    reason=prompt("Reason (optional):");
+  }
+  if(decision==="pending" && !confirm("Move this partner back to Pending? They lose the Verified badge but keep their promoter tools.")) return;
   const { error } = await sb.rpc("admin_review_partner",{p_user:id,p_decision:decision,p_reason:reason});
   if(error) return toast(error.message); toast(decision==="pending"?"Moved to pending":"Partner "+decision); refreshBadges(); renderPartners();
 };
