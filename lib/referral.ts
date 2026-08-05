@@ -71,6 +71,33 @@ export async function joinAsPromoter(): Promise<JoinPromoterResult> {
 
 const open = (url: string) => Linking.openURL(url).catch(() => {});
 
+/**
+ * Open the phone's messaging app with the text prefilled.
+ *
+ * Bug report 17: this used `sms:`, which Android resolves as ACTION_VIEW — any
+ * app that can display an SMS matches, so the user got an "Open with" chooser
+ * listing WhatsApp and two Messages apps. `smsto:` resolves as ACTION_SENDTO,
+ * which Android routes to whichever app holds the default-SMS role, so no
+ * chooser appears when one is configured (and one still does when none is,
+ * which the report accepts).
+ *
+ * `sms:` is kept as a fallback: a device with no handler for `smsto:` would
+ * otherwise get nothing at all, and that would be a regression.
+ */
+async function openSms(text: string): Promise<void> {
+  const body = encodeURIComponent(text);
+  if (Platform.OS === "ios") {
+    // iOS has no chooser and only understands sms:
+    await Linking.openURL(`sms:&body=${body}`).catch(() => {});
+    return;
+  }
+  try {
+    await Linking.openURL(`smsto:?body=${body}`);
+  } catch {
+    await Linking.openURL(`sms:?body=${body}`).catch(() => {});
+  }
+}
+
 export type ShareChannel = "whatsapp" | "telegram" | "sms" | "email" | "facebook" | "x" | "instagram" | "copy" | "more";
 
 /** Share ANY text+link through a specific channel (report 28-07: referral
@@ -85,7 +112,7 @@ export async function shareVia(
   switch (channel) {
     case "whatsapp": open(`https://wa.me/?text=${e(text)}`); return null;
     case "telegram": open(`https://t.me/share/url?url=${e(link)}&text=${e(text)}`); return null;
-    case "sms": open(Platform.OS === "ios" ? `sms:&body=${e(text)}` : `sms:?body=${e(text)}`); return null;
+    case "sms": await openSms(text); return null;
     case "email": open(`mailto:?subject=${e(subject)}&body=${e(text)}`); return null;
     case "facebook": open(`https://www.facebook.com/sharer/sharer.php?u=${e(link)}`); return null;
     case "x": open(`https://twitter.com/intent/tweet?text=${e(text)}`); return null;
@@ -109,9 +136,11 @@ export async function shareVia(
         await Linking.openURL("instagram://app");
         return "Invite copied — paste it into your story, post or DM";
       } catch {
-        // Not installed: the report asks for a message or the sheet as fallback.
-        await Share.share({ message: text });
-        return "Instagram isn't installed — choose another app";
+        // Bug report 17: this used to fall back to Share.share, which pops the
+        // very "Open with" chooser the report objects to — off a button that
+        // says Instagram. The text is already on the clipboard, and "More" is
+        // right there for anyone who wants the system sheet.
+        return "Instagram isn't installed — invite copied to your clipboard";
       }
     }
     case "more":

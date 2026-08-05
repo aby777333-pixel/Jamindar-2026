@@ -399,8 +399,11 @@ function HeroSlider({ items, onOpen }: { items: Property[]; onOpen: (p: Property
       >
         {items.map((p) => (
           <Pressable key={p.id} onPress={() => onOpen(p)} style={{ width: W, height: H, backgroundColor: colors.navy }}>
+            {/* Same undersizing the property carousel had (bug report 17): a
+                340px card thumbnail stretched across a ~350pt-wide hero, which
+                is ~1050px of real pixels on a 3x phone. */}
             {p.images?.[0] ? (
-              <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+              <Image source={{ uri: IMG.hero(p.images[0]) }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             ) : null}
             <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.72)"]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
             <View style={{ position: "absolute", left: 14, right: 14, bottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 10 }}>

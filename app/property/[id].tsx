@@ -16,6 +16,8 @@ import { BecomePromoterBanner } from "@/components/promoter-cta";
 import { SiteVisitSheet } from "@/components/SiteVisitSheet";
 import { CompareSheet } from "@/components/CompareSheet";
 import { ZoomableImageViewer } from "@/components/ImageViewer";
+import { ZoomableImage } from "@/components/ZoomableImage";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
@@ -68,6 +70,9 @@ export default function PropertyDetail() {
   // gallery toggle; "After" (the finished project) is always the default.
   const [showBefore, setShowBefore] = useState(false);
   const [fullscreen, setFullscreen] = useState<number | null>(null);
+  // True while the open photo is pinched in — the pager stops swiping so the
+  // drag pans the image instead of jumping to the next photo.
+  const [photoZoomed, setPhotoZoomed] = useState(false);
   const [visitOpen, setVisitOpen] = useState(false);
   const [brochureOpen, setBrochureOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -82,7 +87,12 @@ export default function PropertyDetail() {
   // open and restored to portrait on close.
   const viewerOpen = fullscreen !== null;
   useEffect(() => {
-    if (!viewerOpen) return;
+    if (!viewerOpen) {
+      // Closing while still pinched in would leave the pager locked for the
+      // next open, so clear the zoom flag on the way out.
+      setPhotoZoomed(false);
+      return;
+    }
     ScreenOrientation.unlockAsync().catch(() => {});
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
@@ -405,9 +415,14 @@ export default function PropertyDetail() {
                 showsHorizontalScrollIndicator={false}
                 onMomentumScrollEnd={(e) => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
               >
+                {/* Bug report 17: this asked the CDN for IMG.tile — a 260x200
+                    thumbnail — and stretched it across a full-width 250pt hero,
+                    roughly 1170x750 real pixels on a 3x phone. Hence "blurry in
+                    the carousel, sharp in full screen". IMG.hero is the token
+                    meant for exactly this box. */}
                 {images.map((uri, i) => (
                   <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: 250 }}>
-                    <Image source={{ uri: IMG.tile(uri) }} style={{ width: "100%", height: "100%" }} />
+                    <Image source={{ uri: IMG.hero(uri) }} style={{ width: "100%", height: "100%" }} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -634,7 +649,10 @@ export default function PropertyDetail() {
         onRequestClose={() => setFullscreen(null)}
         supportedOrientations={["portrait", "landscape"]}
       >
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {/* A Modal renders in its own view hierarchy, so it needs its own
+            GestureHandlerRootView — the one in app/_layout.tsx does not reach
+            inside (same reason components/ImageViewer.tsx has one). */}
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000" }}>
           {/* Pages are sized from live window dimensions, and the scroll offset
               is re-applied whenever those change, so rotating the phone keeps
               the same photo filling the screen. */}
@@ -643,14 +661,23 @@ export default function PropertyDetail() {
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
+            // Bug report 17: each page pinch-zooms now. While one is magnified
+            // the pager must let go, or dragging to pan would flick to the next
+            // photo instead of moving the image.
+            scrollEnabled={!photoZoomed}
             contentOffset={{ x: (fullscreen ?? 0) * SCREEN_W, y: 0 }}
             onLayout={() => fullRef.current?.scrollTo({ x: imgIndex * SCREEN_W, animated: false })}
             onMomentumScrollEnd={(e) => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
           >
             {images.map((uri, i) => (
-              <View key={i} style={{ width: SCREEN_W, height: SCREEN_H, alignItems: "center", justifyContent: "center" }}>
-                <Image source={{ uri }} style={{ width: SCREEN_W, height: SCREEN_H }} resizeMode="contain" />
-              </View>
+              <ZoomableImage
+                key={i}
+                uri={uri}
+                width={SCREEN_W}
+                height={SCREEN_H}
+                isActive={i === imgIndex}
+                onZoomChange={setPhotoZoomed}
+              />
             ))}
           </ScrollView>
 
@@ -662,7 +689,13 @@ export default function PropertyDetail() {
               <Ionicons name="close" size={24} color="#fff" />
             </Pressable>
           </View>
-        </View>
+
+          <View style={{ position: "absolute", bottom: Math.max(insets.bottom, 12) + 8, left: 0, right: 0, alignItems: "center" }} pointerEvents="none">
+            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, overflow: "hidden" }}>
+              Pinch to zoom · double-tap · drag to move
+            </Text>
+          </View>
+        </GestureHandlerRootView>
       </Modal>
       {property ? (
         <BrochureSheet

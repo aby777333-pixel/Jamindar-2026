@@ -151,7 +151,9 @@ export default function ProfileSetup() {
   }
 
   return (
-    <Screen>
+    // City and State sit at the bottom of this form, where the keyboard used to
+    // cover them (bug report 17).
+    <Screen avoidKeyboard>
       <View style={{ paddingTop: 24 }}>
         {/* Skip — top of the registration section (report 28-07) */}
         <Pressable onPress={onSkip} disabled={loading} hitSlop={8} style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: colors.surfaceAlt }}>

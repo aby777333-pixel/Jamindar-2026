@@ -140,7 +140,13 @@ export default function Account() {
             <Text style={{ fontSize: 22, fontWeight: "800", color: colors.ink }}>
               {profile?.full_name ?? "Guest"}
             </Text>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            {/* Bug report 17 (HIGH): this tick was unconditional, so an account
+                sitting at "KYC pending review" still looked verified — the pill
+                right below it said the opposite. The tick is the claim that the
+                identity has been checked, so it waits for the approval. */}
+            {profile?.kyc_status === "approved" ? (
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            ) : null}
           </View>
           <Text style={{ color: colors.inkFaint, marginTop: 2, fontSize: 13 }}>+{profile?.mobile}</Text>
 

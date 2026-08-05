@@ -128,7 +128,17 @@ export default function BuyerKyc() {
   }
 
   const doc = (kind: keyof Form, label: string) => (
-    <DocRow label={label} previewUri={previews[kind]} hasFile={!!form[kind]} busy={uploading === kind} onPick={() => pickDoc(kind)} />
+    <DocRow
+      label={label}
+      previewUri={previews[kind]}
+      hasFile={!!form[kind]}
+      busy={uploading === kind}
+      onPick={() => pickDoc(kind)}
+      // Bug report 17: an uploaded document could only be replaced, never
+      // looked at — so nobody could tell whether the right page went up, or
+      // whether it was legible, before submitting.
+      onPreview={() => openDoc(String(form[kind] ?? ""), label)}
+    />
   );
 
   function validate(): string | null {
@@ -389,28 +399,51 @@ function Divider() {
   return <View style={{ height: 1, backgroundColor: colors.surfaceSunken, marginVertical: 8 }} />;
 }
 
-function DocRow({ label, previewUri, hasFile, busy, onPick }: { label: string; previewUri?: string; hasFile: boolean; busy: boolean; onPick: () => void }) {
+/** An upload slot. With a file attached it offers BOTH actions — the thumbnail
+ *  and the eye open a full-screen preview, the row itself replaces the file —
+ *  so the document can be checked before it is submitted (bug report 17). */
+function DocRow({ label, previewUri, hasFile, busy, onPick, onPreview }: { label: string; previewUri?: string; hasFile: boolean; busy: boolean; onPick: () => void; onPreview?: () => void }) {
+  const canPreview = hasFile && !busy && !!onPreview;
   return (
-    <Pressable onPress={onPick} disabled={busy} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 }}>
-      <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 }}>
+      <Pressable
+        onPress={canPreview ? onPreview : onPick}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel={canPreview ? `Preview ${label}` : `Upload ${label}`}
+        style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
+      >
         {previewUri ? (
           <Image source={{ uri: previewUri }} style={{ width: "100%", height: "100%" }} />
         ) : (
           <Ionicons name={hasFile ? "document-attach" : "cloud-upload-outline"} size={20} color={hasFile ? colors.success : colors.inkFaint} />
         )}
-      </View>
-      <View style={{ flex: 1 }}>
+      </Pressable>
+
+      <Pressable onPress={onPick} disabled={busy} style={{ flex: 1 }}>
         <Text style={{ fontWeight: "600", color: colors.ink, fontSize: T.small.fontSize + 1 }}>{label}</Text>
         <Text style={{ color: hasFile ? colors.success : colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
           {busy ? "Uploading…" : hasFile ? "Attached · tap to replace" : "Tap to upload photo"}
         </Text>
-      </View>
+      </Pressable>
+
       {busy ? (
         <ActivityIndicator color={colors.brand} />
+      ) : canPreview ? (
+        <Pressable
+          onPress={onPreview}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Preview ${label}`}
+          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+        >
+          <Ionicons name="eye-outline" size={19} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontSize: T.caption.fontSize + 1, fontWeight: "700" }}>View</Text>
+        </Pressable>
       ) : (
         <Ionicons name={hasFile ? "checkmark-circle" : "chevron-forward"} size={hasFile ? 20 : 18} color={hasFile ? colors.success : colors.inkFaint} />
       )}
-    </Pressable>
+    </View>
   );
 }
 

@@ -1,6 +1,8 @@
 import { ReactNode, useEffect } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   Text,
   View,
@@ -37,27 +39,55 @@ export function Screen({
   scroll = true,
   edges = ["top", "bottom"],
   style,
+  avoidKeyboard = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
   edges?: ("top" | "bottom" | "left" | "right")[];
   style?: ViewStyle;
+  /**
+   * Lift the content clear of the on-screen keyboard and keep the focused
+   * field visible (bug report 17: the keyboard covered City/State on
+   * "Complete your profile").
+   *
+   * The manifest already sets `adjustResize`, but the app runs edge-to-edge,
+   * where Android no longer resizes the window — so a KeyboardAvoidingView is
+   * what actually shortens the scroll view and lets it scroll the focused
+   * input into view.
+   *
+   * ⚠️ Opt-in on purpose. `Screen` is shared by login, signup, verify, role and
+   * desk-contact, and wrapping all of them unasked is how a keyboard fix turns
+   * into five layout regressions. Turn it on per screen.
+   */
+  avoidKeyboard?: boolean;
 }) {
   const inner = (
     <View style={[{ flex: 1, paddingHorizontal: 20 }, style]}>{children}</View>
   );
+  const body = scroll ? (
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+      // iOS can do this natively; Android relies on the wrapper below.
+      automaticallyAdjustKeyboardInsets={avoidKeyboard && Platform.OS === "ios"}
+    >
+      {inner}
+    </ScrollView>
+  ) : (
+    inner
+  );
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={edges}>
-      {scroll ? (
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 32 }}
-          showsVerticalScrollIndicator={false}
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          {inner}
-        </ScrollView>
+          {body}
+        </KeyboardAvoidingView>
       ) : (
-        inner
+        body
       )}
     </SafeAreaView>
   );

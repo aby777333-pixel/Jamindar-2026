@@ -49,12 +49,20 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
             onPress={onPress}
             style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
           >
+            {/* Bug report 17: the active pill's 13pt side padding plus the
+                heavier 700 weight left "Properties" wider than the cell, so it
+                wrapped to "Propertie / s". The pill now spans the whole cell
+                and pads by 5, and the label is pinned to one line — shrinking
+                slightly rather than wrapping or truncating at large font
+                scales. (adjustsFontSizeToFit is native-only; numberOfLines is
+                what keeps the web build on one line.) */}
             <View
               style={{
+                alignSelf: "stretch",
                 alignItems: "center",
                 justifyContent: "center",
                 paddingVertical: space.xs,
-                paddingHorizontal: space.sm,
+                paddingHorizontal: space.xxs,
                 borderRadius: space.sm,
                 backgroundColor: focused ? colors.brandSoft : "transparent",
                 transform: [{ translateY: focused ? -2 : 0 }],
@@ -63,11 +71,15 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
             >
               {options.tabBarIcon?.({ focused, color, size: 22 })}
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
                 style={{
                   color,
                   fontSize: T.caption.fontSize + 1,
                   fontWeight: focused ? "700" : "600",
                   marginTop: 3,
+                  textAlign: "center",
                 }}
               >
                 {label}
