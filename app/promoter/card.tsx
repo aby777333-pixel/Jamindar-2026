@@ -12,6 +12,7 @@ import { colors, space, type as T } from "@/lib/theme";
 import { initials } from "@/lib/format";
 import { pickAndUploadAvatar, removeStoredAvatars } from "@/lib/property-media";
 import { cardLink, cardMessage, shareVia, type ShareChannel } from "@/lib/referral";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 /** Digital Jamin Promoter Card — premium shareable identity: professional
  *  photo (mandatory), name, Promoter ID, Verified Jamin Bazaar Partner badge with
@@ -35,6 +36,9 @@ export default function PromoterCard() {
       return data;
     },
   });
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   if (isLoading) return <Loading label="Preparing your card…" />;
 

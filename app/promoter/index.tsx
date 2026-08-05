@@ -25,6 +25,7 @@ import { formatINR, timeAgo, initials } from "@/lib/format";
 import { fetchMyEarnings } from "@/lib/earnings";
 import { teamInviteMessage } from "@/lib/referral";
 import type { Property } from "@/lib/types";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 /** Promoter Command Center — the anchor of the Promoter Module. Surfaces the
  *  full information architecture (verification, KPIs, earnings, projects,
@@ -78,6 +79,9 @@ export default function PromoterDashboard() {
   });
 
   const { data: earn } = useQuery({ queryKey: ["my-earnings", uid], enabled: !!uid, queryFn: fetchMyEarnings });
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   if (isLoading || !data) return <Loading label="Loading your dashboard…" />;
 

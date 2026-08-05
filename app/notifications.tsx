@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
-import type { AppNotification } from "@/lib/types";
+import type { AppNotification, UserRole } from "@/lib/types";
 
 const ICON: Record<string, string> = {
   kyc: "shield-checkmark", info: "notifications", lead: "call", visit: "calendar",
@@ -21,7 +21,7 @@ const ICON: Record<string, string> = {
  *  screen that lets you act on it — the property behind an enquiry, the KYC
  *  status, the wallet for a payout, the visit list, and so on. Falls back to a
  *  sensible destination per type when the row carries no specific target. */
-function destinationFor(n: AppNotification): string | null {
+function destinationFor(n: AppNotification, role: UserRole): string | null {
   const meta = (n.meta ?? {}) as Record<string, any>;
   if (meta.property_id) return `/property/${meta.property_id}`;
   switch (n.type) {
@@ -29,7 +29,10 @@ function destinationFor(n: AppNotification): string | null {
     case "partner": return "/promoter";
     case "lead":
     case "callback": return "/promoter/leads";
-    case "visit": return "/visits";
+    // A visit notification means two different things: to a buyer it is their
+    // own booking, to a promoter it is a visit assigned to their desk. Sending
+    // a promoter to the buyer's visit list was the wrong workspace.
+    case "visit": return role === "buyer" ? "/visits" : "/manage-visits";
     case "withdrawal_request": return "/admin/withdrawals";
     case "withdrawal_update": return "/promoter/income";
     case "submission": return "/admin/properties";
@@ -96,7 +99,7 @@ export default function Notifications() {
       ) : visible.length > 0 ? (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {visible.map((n) => {
-            const to = destinationFor(n);
+            const to = destinationFor(n, role);
             return (
               <Card
                 key={n.id}

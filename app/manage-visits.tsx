@@ -20,6 +20,7 @@ import {
   type SiteVisit,
   type VisitStatus,
 } from "@/lib/visits";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 const TABS: { key: VisitStatus | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -79,6 +80,9 @@ export default function ManageVisits() {
       },
     ]);
   }
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

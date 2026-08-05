@@ -14,6 +14,7 @@ import { useFavorites } from "@/lib/favorites";
 import { colors, space, type as T } from "@/lib/theme";
 import { encodeFilters } from "@/lib/property-search";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 const CARD_W = (Dimensions.get("window").width - space.md * 2 - space.sm) / 2;
 
@@ -80,6 +81,9 @@ export default function Explorer() {
     { title: "Recently added", items: [...all].filter((p) => p.status !== "sold").sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 12) },
     { title: "Saved projects", items: data?.saved ?? [] },
   ];
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

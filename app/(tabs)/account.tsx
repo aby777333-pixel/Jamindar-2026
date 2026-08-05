@@ -41,34 +41,67 @@ export default function Account() {
     }, [refreshProfile]),
   );
 
-  const rows: { icon: string; label: string; badge?: number; onPress: () => void }[] = [
-    { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
+  type Row = { icon: string; label: string; badge?: number; onPress: () => void };
+
+  // Owner directive 05-08: "a buyer is a buyer, a promoter is a promoter — do
+  // not mix". This menu used to open with a hardcoded "My dashboard" pointing
+  // at /buyer/dashboard for EVERY role, with the promoter's own dashboard
+  // tacked on at the bottom — so a promoter's account read as a buyer's. Each
+  // role now leads with its OWN dashboard and its OWN tools; only genuinely
+  // shared features (messages, community, saved, profile, assistant, guides)
+  // appear for both.
+  const isPromoter = role === "promoter";
+
+  const rows: Row[] = [
+    isPromoter
+      ? { icon: "briefcase", label: "My promoter dashboard", onPress: () => router.push("/promoter") }
+      : { icon: "grid", label: "My dashboard", onPress: () => router.push("/buyer/dashboard" as Href) },
+  ];
+
+  // KYC entry — both roles, label reflects current status.
+  if (profile && profile.kyc_status !== "approved") {
+    rows.push({
+      icon: "shield-checkmark",
+      label: profile.kyc_status === "pending" ? "KYC — under review" : profile.kyc_status === "rejected" ? "KYC — action needed" : "Complete your KYC",
+      onPress: () => router.push("/buyer/kyc" as Href),
+    });
+  }
+
+  // --- the role's own workspace ---
+  if (isPromoter) {
+    rows.push(
+      { icon: "cash", label: "Sales income", onPress: () => router.push("/promoter/income" as Href) },
+      { icon: "wallet", label: "Earnings & commissions", onPress: () => router.push("/promoter/earnings" as Href) },
+      { icon: "git-network", label: "My earning tree", onPress: () => router.push("/promoter/tree" as Href) },
+      { icon: "id-card", label: "My digital card", onPress: () => router.push("/promoter/card" as Href) },
+      { icon: "business", label: "Projects to promote", onPress: () => router.push("/promoter/explorer" as Href) },
+      { icon: "add-circle", label: "Submit a property", onPress: () => router.push("/promoter/leads" as Href) },
+      { icon: "calendar-outline", label: "Site visit desk", onPress: () => router.push("/manage-visits" as Href) },
+    );
+  } else {
+    rows.push(
+      { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") },
+      { icon: "heart-circle", label: "My interests", onPress: () => router.push("/interests" as Href) },
+      { icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) },
+    );
+  }
+
+  // --- shared by everyone ---
+  rows.push(
     { icon: "chatbubbles", label: "Messages", badge: unread, onPress: () => router.push("/messages" as Href) },
-    { icon: "heart", label: "My wishlist", onPress: () => router.push("/saved" as Href) },
-    { icon: "chatbubbles", label: "Jamin Community", onPress: () => router.push("/community" as Href) },
-    { icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) },
-    { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
+    { icon: "heart", label: isPromoter ? "Saved projects" : "My wishlist", onPress: () => router.push("/saved" as Href) },
+    { icon: "people-circle", label: "Jamin Community", onPress: () => router.push("/community" as Href) },
     { icon: "gift", label: "Referral centre", onPress: () => router.push("/referral" as Href) },
+    { icon: "person-circle", label: "Edit profile", onPress: () => router.push("/profile") },
     { icon: "notifications", label: "Notifications", onPress: () => router.push("/notifications" as Href) },
     { icon: "sparkles", label: "Jamindar assistant", onPress: () => router.navigate("/(tabs)/assistant") },
     { icon: "mic", label: "Jamindar voice settings", onPress: () => router.push("/jamindar/settings") },
     { icon: "calculator", label: "Calculators", onPress: () => router.push("/tools/calculators") },
     { icon: "git-compare", label: "Compare properties", onPress: () => router.push("/tools/compare") },
     { icon: "document-text", label: "Legal guide", onPress: () => router.push("/tools/legal") },
-  ];
-  if (role === "buyer") rows.splice(1, 0, { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") });
-  // KYC entry — always reachable; label reflects current status.
-  if (profile && profile.kyc_status !== "approved") {
-    rows.splice(1, 0, {
-      icon: "shield-checkmark",
-      label: profile.kyc_status === "pending" ? "KYC — under review" : profile.kyc_status === "rejected" ? "KYC — action needed" : "Complete your KYC",
-      onPress: () => router.push("/buyer/kyc" as Href),
-    });
-  }
-  if (role === "promoter") {
-    rows.push({ icon: "briefcase", label: "Promoter dashboard", onPress: () => router.push("/promoter") });
-    rows.push({ icon: "calendar-outline", label: "Site visit desk", onPress: () => router.push("/manage-visits" as Href) });
-  }
+    { icon: "help-buoy", label: "Support", onPress: () => router.push("/support" as Href) },
+  );
+
   // Admin console is always reachable for real super admins, even while previewing another role.
   if (profile?.role === "super_admin") rows.push({ icon: "shield-checkmark", label: "Admin console", onPress: () => router.push("/admin") });
 

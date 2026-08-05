@@ -10,6 +10,7 @@ import { JamindarFab } from "@/components/Jamindar";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo } from "@/lib/format";
 import { fetchMySubmissions, SUBMISSION_STATUS, type Submission } from "@/lib/submissions";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 const TONE: Record<string, { bg: string; fg: string }> = {
   neutral: { bg: colors.surfaceSunken, fg: colors.inkSoft },
@@ -27,6 +28,9 @@ export default function Leads() {
   const { data, isLoading, refetch } = useQuery({ queryKey: ["my-submissions"], queryFn: fetchMySubmissions });
 
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

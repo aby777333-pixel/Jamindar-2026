@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo } from "@/lib/format";
 import { fetchMyEarnings, fetchMyCommissions, type CommissionRow } from "@/lib/earnings";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 const STATUS: Record<CommissionRow["status"], { label: string; bg: string; fg: string }> = {
   pending: { label: "Pending", bg: colors.goldSoft, fg: colors.goldDark },
@@ -27,6 +28,9 @@ export default function Earnings() {
 
   const { data: earn, isLoading } = useQuery({ queryKey: ["my-earnings", uid], enabled: !!uid, queryFn: fetchMyEarnings });
   const { data: rows } = useQuery({ queryKey: ["my-commissions", uid], enabled: !!uid, queryFn: () => fetchMyCommissions(60) });
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

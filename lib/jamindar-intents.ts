@@ -18,7 +18,10 @@ interface Rule {
 const RULES: Rule[] = [
   // navigation
   {
-    test: /\b(home|dashboard|main screen|home page|go home|take me home)\b/i,
+    // "dashboard" deliberately does NOT belong here — it used to, which made
+    // this rule swallow "promoter dashboard" and open Home instead. Each role's
+    // dashboard is resolved by its own rule further down.
+    test: /\b(home|main screen|home page|go home|take me home)\b/i,
     build: () => ({ kind: "navigate", href: "/(tabs)/home", say: "Opening Home." }),
   },
   {
@@ -34,8 +37,13 @@ const RULES: Rule[] = [
     build: () => ({ kind: "navigate", href: "/(tabs)/account", say: "Opening your Account." }),
   },
   {
+    // Buyer preferences are a buyer thing — never drop a promoter into the
+    // buyer questionnaire; let the phrase fall through to the advisor instead.
     test: /\b(preferences?|questionnaire|my requirements|onboarding)\b/i,
-    build: () => ({ kind: "navigate", href: "/buyer/onboarding", say: "Opening your preferences." }),
+    build: (role) =>
+      role === "buyer"
+        ? { kind: "navigate", href: "/buyer/onboarding", say: "Opening your preferences." }
+        : { kind: "none" },
   },
   {
     test: /\b(calculator|calculators|emi|loan calc|stamp duty|purchase cost|rental yield)\b/i,
@@ -57,11 +65,23 @@ const RULES: Rule[] = [
         : { kind: "none" },
   },
   {
-    test: /\b(promoter dashboard|my leads|my dashboard|promoter panel)\b/i,
+    // Promoter-only vocabulary: a buyer saying this gets no navigation, so the
+    // phrase reaches the advisor instead of opening someone else's workspace.
+    test: /\b(promoter dashboard|promoter panel|my leads|my commissions|earning tree|my earnings)\b/i,
     build: (role) =>
       role === "promoter"
         ? { kind: "navigate", href: "/promoter", say: "Opening your Promoter dashboard." }
         : { kind: "none" },
+  },
+  {
+    // "my dashboard" means a different screen to each role — never the other's.
+    test: /\b(my dashboard|dashboard|my panel|my workspace)\b/i,
+    build: (role) =>
+      role === "promoter"
+        ? { kind: "navigate", href: "/promoter", say: "Opening your Promoter dashboard." }
+        : role === "super_admin"
+          ? { kind: "navigate", href: "/admin", say: "Opening the Admin Console." }
+          : { kind: "navigate", href: "/buyer/dashboard", say: "Opening your dashboard." },
   },
   // global actions
   {

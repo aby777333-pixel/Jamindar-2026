@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR } from "@/lib/format";
 import { fetchMyTree, fetchMyTreeLevel } from "@/lib/tree";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 /** Earning Tree — the promoter's endless multi-level referral network.
  *  Level summary → tap a level → members at that level (attachment 3 → 4).
@@ -34,6 +35,9 @@ export default function EarningTree() {
   });
 
   const total = (levels ?? []).reduce((s, l) => s + l.users, 0);
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

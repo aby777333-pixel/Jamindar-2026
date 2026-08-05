@@ -8,6 +8,7 @@ import { Field } from "@/components/Field";
 import { colors, space, type as T } from "@/lib/theme";
 import { PROPERTY_TYPE_LABELS, type PropertyType } from "@/lib/types";
 import { pickAndUploadMedia, pickAndUploadDocuments, captureLocation, createSubmission, type SubmissionDoc } from "@/lib/submissions";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 const TYPES = Object.entries(PROPERTY_TYPE_LABELS) as [PropertyType, string][];
 
@@ -127,6 +128,9 @@ export default function SubmitProperty() {
       setSaving(false);
     }
   }
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 // Mirrors the lead_status enum (0001): new/contacted/qualified/converted/lost.
 const STATUSES = ["all", "new", "contacted", "qualified", "converted", "lost"] as const;
@@ -50,6 +51,9 @@ export default function PromoterLeadsList() {
     () => (data ?? []).filter((l: any) => status === "all" || l.status === status),
     [data, status]
   );
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

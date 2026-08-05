@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { formatINR, timeAgo } from "@/lib/format";
+import { usePromoterGate } from "@/components/PromoterGate";
 
 /** Jamin Bazaar — Sales Income (migration 0056). DSI / RSI / ASI / Wallet
  *  views over the commission engine + bazaar ledger, with the rank ladder,
@@ -259,6 +260,9 @@ export default function SalesIncome() {
     ? Number(s.dsi.available) + Number(s.rsi.available) + Number(s.asi.available) + Number(s.other.available)
     : 0;
   const lockedTotal = s ? Number(s.rsi.locked ?? 0) : 0;
+
+  const gate = usePromoterGate();
+  if (gate) return gate;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>

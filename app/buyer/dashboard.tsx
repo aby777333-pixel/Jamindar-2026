@@ -1,8 +1,8 @@
 import { Text, View, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, type Href } from "expo-router";
+import { useRouter, Redirect, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/lib/store";
+import { useAuth, useEffectiveRole } from "@/lib/store";
 import { BecomePromoterBanner, InviteFriendsPrompt } from "@/components/promoter-cta";
 import { colors, space, type as T } from "@/lib/theme";
 import { initials } from "@/lib/format";
@@ -29,6 +29,13 @@ const ITEMS: Item[] = [
 export default function BuyerDashboard() {
   const router = useRouter();
   const { profile } = useAuth();
+  const role = useEffectiveRole();
+
+  // Owner directive 05-08: a promoter is never shown the buyer workspace. The
+  // Account menu now sends them to /promoter, so this only catches a deep link
+  // or a stale back-stack entry — but it is the guarantee, not the menu.
+  if (role === "promoter") return <Redirect href={"/promoter" as Href} />;
+
   const kyc = KYC_STATUS_META[profile?.kyc_status ?? "not_started"];
 
   return (
