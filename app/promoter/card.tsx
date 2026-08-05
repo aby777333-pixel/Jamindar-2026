@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { initials } from "@/lib/format";
-import { pickAndUploadAvatar } from "@/lib/property-media";
+import { pickAndUploadAvatar, removeStoredAvatars } from "@/lib/property-media";
 import { cardLink, cardMessage, shareVia, type ShareChannel } from "@/lib/referral";
 
 /** Digital Jamin Promoter Card — premium shareable identity: professional
@@ -23,6 +23,7 @@ export default function PromoterCard() {
   const { profile, refreshProfile } = useAuth();
   const uid = profile?.id;
   const [badgeOpen, setBadgeOpen] = useState(false);
+  const [photoMenu, setPhotoMenu] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState<string | null>(null);
 
@@ -64,6 +65,44 @@ export default function PromoterCard() {
     } finally {
       setPhotoBusy(false);
     }
+  }
+
+  /** Bug report 16: the photo could only be replaced, never taken off. Clearing
+   *  it restores the initials avatar (and reclaims the stored files), which is
+   *  the same behaviour as the profile screen. The card then asks for a photo
+   *  again, because sharing still requires one. */
+  async function onRemovePhoto() {
+    if (!profile || photoBusy) return;
+    setPhotoBusy(true);
+    setPhotoErr(null);
+    try {
+      const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", profile.id);
+      if (error) throw error;
+      await removeStoredAvatars(profile.id).catch(() => {});
+      await refreshProfile();
+    } catch (e: any) {
+      setPhotoErr(e?.message ?? "Couldn't remove the photo. Please try again.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  /** Camera control: with a photo on the card it offers both actions; with none
+   *  there is nothing to remove, so it goes straight to the picker. */
+  function onPhotoPress() {
+    if (photoBusy) return;
+    if (hasPhoto) setPhotoMenu(true);
+    else onAddPhoto();
+  }
+
+  function runPhotoAction(action: "replace" | "remove") {
+    setPhotoMenu(false);
+    // let the sheet finish dismissing first — iOS refuses to present the image
+    // picker while a modal is still on screen
+    setTimeout(() => {
+      if (action === "replace") onAddPhoto();
+      else onRemovePhoto();
+    }, 220);
   }
 
   async function shareCard() {
@@ -114,10 +153,12 @@ export default function PromoterCard() {
                     <Ionicons name="checkmark" size={16} color="#fff" />
                   </Pressable>
                 ) : null}
-                {/* photo add/change control on the ring */}
+                {/* photo add / change / remove control on the ring */}
                 <Pressable
-                  onPress={onAddPhoto}
+                  onPress={onPhotoPress}
                   hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={hasPhoto ? "Change or remove profile photo" : "Add profile photo"}
                   style={{ position: "absolute", top: -2, right: -2, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.94)", alignItems: "center", justifyContent: "center" }}
                 >
                   {photoBusy ? <ActivityIndicator size="small" color={colors.navy} /> : <Ionicons name="camera" size={15} color={colors.navy} />}
@@ -267,6 +308,25 @@ export default function PromoterCard() {
         </View>
       </ScrollView>
 
+      {/* profile-photo actions (Modal, not Alert — Alert is a web no-op) */}
+      <Modal visible={photoMenu} transparent animationType="fade" onRequestClose={() => setPhotoMenu(false)}>
+        <Pressable onPress={() => setPhotoMenu(false)} style={{ flex: 1, backgroundColor: "rgba(20,26,46,0.6)", alignItems: "center", justifyContent: "center", padding: 26 }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: "#fff", borderRadius: 22, padding: space.md, width: "100%", maxWidth: 340 }}>
+            <Text style={{ fontSize: T.body.fontSize, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Profile photo</Text>
+            <Text style={{ color: colors.inkSoft, fontSize: T.caption.fontSize + 1, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: 4 }}>
+              Removing it restores your initials avatar. A photo is required before the card can be shared.
+            </Text>
+
+            <PhotoAction icon="image" label="Replace photo" tint={colors.surfaceSunken} fg={colors.ink} onPress={() => runPhotoAction("replace")} />
+            <PhotoAction icon="trash" label="Remove photo" tint={colors.brandSoft} fg={colors.danger} onPress={() => runPhotoAction("remove")} />
+
+            <Pressable onPress={() => setPhotoMenu(false)} style={{ marginTop: space.sm, alignItems: "center", paddingVertical: 10 }}>
+              <Text style={{ color: colors.inkSoft, fontWeight: "700", fontSize: T.small.fontSize }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* verified-badge popup (spec copy, works on web too — Alert is a web no-op) */}
       <Modal visible={badgeOpen} transparent animationType="fade" onRequestClose={() => setBadgeOpen(false)}>
         <Pressable onPress={() => setBadgeOpen(false)} style={{ flex: 1, backgroundColor: "rgba(20,26,46,0.6)", alignItems: "center", justifyContent: "center", padding: 26 }}>
@@ -285,6 +345,19 @@ export default function PromoterCard() {
         </Pressable>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function PhotoAction({ icon, label, tint, fg, onPress }: { icon: string; label: string; tint: string; fg: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.sm, backgroundColor: tint, borderRadius: 14, paddingHorizontal: space.sm, paddingVertical: space.sm }}
+    >
+      <Ionicons name={icon as any} size={18} color={fg} />
+      <Text style={{ flex: 1, color: fg, fontWeight: "700", fontSize: T.small.fontSize + 1 }}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color={fg} />
+    </Pressable>
   );
 }
 

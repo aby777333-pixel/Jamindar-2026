@@ -207,7 +207,10 @@ export default function SubmitProperty() {
             </View>
           ) : null}
 
-          <LinkAdder placeholder="Or paste a video link (YouTube…)" value={videoLink} onChange={setVideoLink} onAdd={addVideo} icon="videocam" />
+          {/* Bug report 16: "Or paste a video link (YouTube…)" was too long for
+              the field — the tail wrapped out of the single-line input and read
+              as clipped. Short enough to fit at any font scale. */}
+          <LinkAdder placeholder="Paste a video link" value={videoLink} onChange={setVideoLink} onAdd={addVideo} icon="videocam" />
           {videos.map((v, i) => (
             <Row key={v + i} icon="videocam" text={v.includes("/submissions/") ? `Video ${i + 1} · uploaded from phone` : v} onRemove={() => setVideos((p) => p.filter((_, j) => j !== i))} />
           ))}
@@ -220,11 +223,13 @@ export default function SubmitProperty() {
           <View style={{ flexDirection: "row", gap: space.xs }}>
             <View style={{ flex: 1 }}>
               <TextInput value={docLabel} onChangeText={setDocLabel} placeholder="Doc label" placeholderTextColor={colors.inkFaint}
-                style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: colors.ink }} />
+                numberOfLines={1} textAlignVertical="center"
+                style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, paddingVertical: 10, fontSize: 14, color: colors.ink }} />
             </View>
             <View style={{ flex: 1.4 }}>
               <TextInput value={docUrl} onChangeText={setDocUrl} placeholder="Document link" placeholderTextColor={colors.inkFaint} autoCapitalize="none"
-                style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: colors.ink }} />
+                numberOfLines={1} textAlignVertical="center"
+                style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, paddingVertical: 10, fontSize: 14, color: colors.ink }} />
             </View>
             <Pressable onPress={addDoc} style={{ backgroundColor: colors.ink, borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="add" size={20} color="#fff" />
@@ -269,7 +274,17 @@ function LinkAdder({ placeholder, value, onChange, onAdd, icon }: { placeholder:
     <View style={{ flexDirection: "row", gap: space.xs }}>
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12 }}>
         <Ionicons name={icon as any} size={16} color={colors.inkFaint} />
-        <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.inkFaint} autoCapitalize="none" style={{ flex: 1, paddingVertical: 11, fontSize: 14, color: colors.ink }} />
+        {/* single line + centred: a long value must never wrap out of view */}
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.inkFaint}
+          autoCapitalize="none"
+          numberOfLines={1}
+          textAlignVertical="center"
+          style={{ flex: 1, minHeight: 44, paddingVertical: 10, fontSize: 14, color: colors.ink }}
+        />
       </View>
       <Pressable onPress={onAdd} style={{ backgroundColor: colors.ink, borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" }}>
         <Ionicons name="add" size={20} color="#fff" />
