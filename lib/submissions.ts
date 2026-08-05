@@ -269,3 +269,71 @@ export async function createSubmission(input: SubmissionInput): Promise<Submissi
   if (error) throw error;
   return data as Submission;
 }
+
+/** One submission of the signed-in promoter's, for the detail view. RLS keeps
+ *  this to their own rows (and super admins), so no extra filter is needed. */
+export async function fetchSubmission(id: string): Promise<Submission | null> {
+  const { data, error } = await supabase.from("property_submissions").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as Submission) ?? null;
+}
+
+/**
+ * Whether the promoter may still correct this submission.
+ *
+ * Mirrors the `ps_update_own` policy exactly — `promoter_id = auth.uid() AND
+ * status IN ('submitted','info_required')`. Once the admin picks it up
+ * (under_review) or decides (approved / rejected), the row is theirs and the
+ * database will refuse the write, so the UI must not offer it.
+ */
+export function canEditSubmission(s: Pick<Submission, "status">): boolean {
+  return s.status === "submitted" || s.status === "info_required";
+}
+
+/**
+ * Save corrections to a submission.
+ *
+ * Bug report 20: a promoter could see a summary card and nothing else — no way
+ * to check what was sent, and no way to fix a wrong price or a missing photo.
+ *
+ * There is no separate "resubmit" call to make: the `ps_touch` BEFORE UPDATE
+ * trigger already treats an edit by the owner as a fresh submission, setting
+ * status back to 'submitted' and clearing the previous review note, reviewer
+ * and timestamp. So saving IS resubmitting, and the updated version replaces
+ * the old one exactly as the report asks.
+ */
+export async function updateSubmission(id: string, input: SubmissionInput): Promise<Submission> {
+  const { data, error } = await supabase
+    .from("property_submissions")
+    .update({
+      title: input.title,
+      property_type: input.property_type ?? null,
+      description: input.description ?? null,
+      price: input.price ?? null,
+      area_value: input.area_value ?? null,
+      area_unit: input.area_unit ?? null,
+      address: input.address ?? null,
+      locality: input.locality ?? null,
+      city: input.city ?? null,
+      district: input.district ?? null,
+      state: input.state ?? null,
+      pincode: input.pincode ?? null,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
+      gmaps_url: input.gmaps_url ?? null,
+      street_view_url: input.street_view_url ?? null,
+      images: input.images ?? [],
+      videos: input.videos ?? [],
+      documents: input.documents ?? [],
+      seller_name: input.seller_name ?? null,
+      seller_phone: input.seller_phone ?? null,
+      seller_notes: input.seller_notes ?? null,
+      notes: input.notes ?? null,
+      comments: input.comments ?? null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Submission;
+}

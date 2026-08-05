@@ -39,6 +39,8 @@ supabase/.temp/
 
 # build artifacts
 *.apk
+# App Bundles are ~80 MB build outputs — delivered directly, never committed.
+*.aab
 
 # local media working directory (originals + enhanced output)
 media-work/

@@ -71,7 +71,14 @@ export default function Leads() {
             const meta = SUBMISSION_STATUS[s.status];
             const tone = TONE[meta.tone];
             return (
-              <Card key={s.id} style={{ marginBottom: space.sm, flexDirection: "row", gap: space.sm }}>
+              // Bug report 20: the card was the whole story — there was no way
+              // to open a submission and check what had been sent, let alone
+              // correct it. It now opens the full record.
+              <Card
+                key={s.id}
+                onPress={() => router.push({ pathname: "/promoter/submission/[id]", params: { id: s.id } })}
+                style={{ marginBottom: space.sm, flexDirection: "row", gap: space.sm }}
+              >
                 <View style={{ width: 58, height: 58, borderRadius: 12, backgroundColor: colors.surfaceSunken, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
                   {s.images?.[0] ? (
                     <Image source={{ uri: s.images[0] }} style={{ width: "100%", height: "100%" }} />

@@ -312,8 +312,12 @@ export default function SalesIncome() {
             ) : null}
           </Card>
 
-          {/* segment chips */}
-          <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.sm }}>
+          {/* segment chips — bug report 20: four labels ending in "Wallet" are
+              wider than the screen, so the last one was cut off. Wrapping is
+              the pattern this app already settled on for the explorer chips:
+              a horizontal scroller technically works, but testers read the
+              clipped edge as broken rather than as an affordance. */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginBottom: space.sm }}>
             {SEGMENTS.map((x) => (
               <Chip key={x.key} label={x.label} on={seg === x.key} onPress={() => setSeg(x.key)} />
             ))}
@@ -485,7 +489,8 @@ export default function SalesIncome() {
             </View>
           ) : null}
 
-          <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.xs }}>
+          {/* "All statuses · Pending · Approved · Paid" overflowed the same way. */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginBottom: space.xs }}>
             {STATUS_FILTERS.map((x) => (
               <Chip key={x.key} label={x.label} on={statusF === x.key} onPress={() => setStatusF(x.key)} />
             ))}

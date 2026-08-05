@@ -1,19 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card, Button } from "@/components/ui";
 import { Field } from "@/components/Field";
 import { colors, space, type as T } from "@/lib/theme";
 import { PROPERTY_TYPE_LABELS, type PropertyType } from "@/lib/types";
-import { pickAndUploadMedia, pickAndUploadDocuments, captureLocation, createSubmission, type SubmissionDoc } from "@/lib/submissions";
+import {
+  pickAndUploadMedia,
+  pickAndUploadDocuments,
+  captureLocation,
+  createSubmission,
+  updateSubmission,
+  fetchSubmission,
+  canEditSubmission,
+  type SubmissionDoc,
+} from "@/lib/submissions";
 import { usePromoterGate } from "@/components/PromoterGate";
 
 const TYPES = Object.entries(PROPERTY_TYPE_LABELS) as [PropertyType, string][];
 
 export default function SubmitProperty() {
   const router = useRouter();
+  // Bug report 20: with an `id` this same form edits an existing submission
+  // instead of creating one. Reusing the form rather than writing a second one
+  // means the two can never drift apart field by field.
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const editingId = id ? String(id) : null;
+  const [loadingExisting, setLoadingExisting] = useState(!!editingId);
+
   const [f, setF] = useState({
     title: "", property_type: "" as PropertyType | "", price: "", area_value: "", area_unit: "sqft",
     address: "", locality: "", city: "", district: "", state: "", pincode: "",
@@ -33,6 +49,62 @@ export default function SubmitProperty() {
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [gps, setGps] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Editing: load the submitted row and put every field back on screen. If the
+  // admin has already picked it up, the database would refuse the write, so
+  // send the promoter back rather than let them type into a dead form.
+  useEffect(() => {
+    if (!editingId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const s = await fetchSubmission(editingId);
+        if (!alive) return;
+        if (!s) {
+          Alert.alert("Not found", "This submission is no longer available.", [{ text: "OK", onPress: () => router.back() }]);
+          return;
+        }
+        if (!canEditSubmission(s)) {
+          Alert.alert("Can't edit now", "The Jamin team has already picked this up for review.", [
+            { text: "OK", onPress: () => router.back() },
+          ]);
+          return;
+        }
+        setF({
+          title: s.title ?? "",
+          property_type: (s.property_type as PropertyType | null) ?? "",
+          price: s.price != null ? String(s.price) : "",
+          area_value: s.area_value != null ? String(s.area_value) : "",
+          area_unit: s.area_unit ?? "sqft",
+          address: s.address ?? "",
+          locality: s.locality ?? "",
+          city: s.city ?? "",
+          district: s.district ?? "",
+          state: s.state ?? "",
+          pincode: s.pincode ?? "",
+          gmaps_url: s.gmaps_url ?? "",
+          street_view_url: s.street_view_url ?? "",
+          seller_name: s.seller_name ?? "",
+          seller_phone: s.seller_phone ?? "",
+          seller_notes: s.seller_notes ?? "",
+          notes: s.notes ?? "",
+          comments: s.comments ?? "",
+        });
+        setImages(s.images ?? []);
+        setVideos(s.videos ?? []);
+        setDocuments(s.documents ?? []);
+        // Keep the GPS pin that was captured — dropping it would silently wipe
+        // the location off the record on the next save.
+        setLoc(s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng } : null);
+      } catch (e: any) {
+        Alert.alert("Couldn't open", e?.message ?? "Please try again.");
+      } finally {
+        if (alive) setLoadingExisting(false);
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
 
   function warnSkipped(skipped: string[]) {
     if (skipped.length)
@@ -96,7 +168,7 @@ export default function SubmitProperty() {
     if (!f.city.trim() && !f.address.trim()) return Alert.alert("Location needed", "Enter at least a city or address.");
     setSaving(true);
     try {
-      await createSubmission({
+      const payload = {
         title: f.title.trim(),
         property_type: f.property_type || undefined,
         price: f.price ? Number(f.price.replace(/[^0-9.]/g, "")) : null,
@@ -118,12 +190,24 @@ export default function SubmitProperty() {
         seller_notes: f.seller_notes.trim() || undefined,
         notes: f.notes.trim() || undefined,
         comments: f.comments.trim() || undefined,
-      });
+      };
+
+      if (editingId) {
+        // No separate resubmit call: the ps_touch trigger puts the row back to
+        // 'submitted' and clears the old review note, so saving IS resubmitting.
+        await updateSubmission(editingId, payload);
+        Alert.alert("Changes sent", "Your corrected property has gone back to the Jamin team for review.", [
+          { text: "Done", onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      await createSubmission(payload);
       Alert.alert("Submitted", "Your property has been submitted for review. You can track its status in Lead Capture.", [
         { text: "Done", onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert("Couldn't submit", e?.message ?? "Please try again.");
+      Alert.alert(editingId ? "Couldn't save changes" : "Couldn't submit", e?.message ?? "Please try again.");
     } finally {
       setSaving(false);
     }
@@ -138,12 +222,16 @@ export default function SubmitProperty() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={colors.ink} />
         </Pressable>
-        <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>Submit a property</Text>
+        <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "800", color: colors.ink }}>
+          {editingId ? "Edit submission" : "Submit a property"}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space.xxl }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, marginBottom: space.sm }}>
-          Found an off-market property? Submit it for the admin team to review and publish.
+          {editingId
+            ? "Correct anything that needs changing. Saving sends the updated version back for review and replaces the one the team has."
+            : "Found an off-market property? Submit it for the admin team to review and publish."}
         </Text>
 
         <Section title="Property details">
@@ -255,7 +343,11 @@ export default function SubmitProperty() {
           <Field label="Comments (optional)" value={f.comments} onChangeText={set("comments")} placeholder="Anything the admin team should know about this property or the uploads…" multiline />
         </Section>
 
-        <Button label="Submit for review" loading={saving} onPress={onSubmit} />
+        <Button
+          label={editingId ? "Save & resubmit" : "Submit for review"}
+          loading={saving || loadingExisting}
+          onPress={onSubmit}
+        />
         <Text style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, textAlign: "center", marginTop: space.sm, lineHeight: T.small.lineHeight }}>
           The admin team will review your submission before it goes live.
         </Text>

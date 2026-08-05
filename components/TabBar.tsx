@@ -13,11 +13,23 @@ import { elevation } from "./ui";
  * where a real blur reads as depth rather than decoration — a chip or a card
  * sits on a flat background and would gain nothing.
  *
- * ⚠️ expo-blur is a NO-OP on react-native-web: it renders a plain view, so a
- * transparent tint would leave the bar see-through and the labels unreadable.
- * Web therefore keeps the original opaque surface, and only native gets glass.
+ * ⚠️ iOS ONLY, and that is a correction, not a preference. Enabling it on
+ * Android produced the "double-layered background" in bug report 20: two
+ * stacked surfaces under the tabs. Two Android behaviours combine to cause it —
+ * an elevation shadow is drawn from the view's outline, so a frame that carries
+ * `elevation` but no `backgroundColor` (the colour having moved onto the blur)
+ * renders its shadow as a visible plate; and a native blur view is not reliably
+ * clipped by a parent's `overflow: hidden` + `borderRadius`, so it draws its own
+ * surface inside the frame. On iOS the blur is a real backdrop filter and both
+ * problems are absent.
+ *
+ * expo-blur is also a no-op on react-native-web — a transparent tint there would
+ * leave the bar see-through and the labels unreadable.
+ *
+ * So Android and web keep the single opaque bar they had before the design
+ * pass, which is the appearance the report asks for.
  */
-const GLASS = Platform.OS !== "web";
+const GLASS = Platform.OS === "ios";
 
 type TabRoute = { key: string; name: string };
 type TabBarProps = {
