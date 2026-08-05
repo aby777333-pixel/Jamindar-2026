@@ -54,6 +54,8 @@ export function GreetingHeader({
       </View>
       <Pressable
         onPress={onBell}
+        accessibilityRole="button"
+        accessibilityLabel={hasAlert ? "Notifications, new items" : "Notifications"}
         style={{
           width: 46,
           height: 46,
@@ -133,9 +135,11 @@ export function SearchRow({
   );
   return (
     <View style={{ flexDirection: "row", gap: 10 }}>
-      {editable ? box : <Pressable style={{ flex: 1 }} onPress={onPress}>{box}</Pressable>}
+      {editable ? box : <Pressable style={{ flex: 1 }} onPress={onPress} accessibilityRole="search" accessibilityLabel="Search properties">{box}</Pressable>}
       <Pressable
         onPress={onFilter}
+        accessibilityRole="button"
+        accessibilityLabel="Filter properties"
         style={{
           width: 50,
           height: 50,
@@ -237,6 +241,8 @@ export function LandHero({
             obvious tap target of the card (bug report: CTA lacked prominence). */}
         <Pressable
           onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel="Talk to Jamindar, your AI property advisor"
           // plain object — function styles are dropped on native (NativeWind interop)
           style={{
             alignSelf: "stretch",
@@ -293,6 +299,8 @@ export function QuickActionTile({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={{
         flex: 1,
         backgroundColor: colors.surface,
@@ -325,7 +333,7 @@ export function QuickActionTile({
 /** Emoji land-type circle tile. */
 export function LandTypeTile({ emoji, label, onPress }: { emoji: string; label: string; onPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ width: 78, alignItems: "center" }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={{ width: 78, alignItems: "center" }}>
       <View
         style={{
           width: 62,
@@ -393,6 +401,9 @@ export function VerifiedListingCard({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={property.title}
+      accessibilityHint="Opens the project details"
       style={{
         width,
         backgroundColor: colors.surface,
@@ -431,6 +442,9 @@ export function VerifiedListingCard({
         <Pressable
           onPress={onSave}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? `Remove ${property.title} from your wishlist` : `Save ${property.title} to your wishlist`}
+          accessibilityState={{ selected: !!saved }}
           style={{
             position: "absolute",
             top: 9,
@@ -466,6 +480,8 @@ export function VerifiedListingCard({
         ) : null}
         <Pressable
           onPress={onMap}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${property.title} on the map`}
           style={{
             position: "absolute",
             bottom: 9,
@@ -511,7 +527,7 @@ export function RowHeader({ title, actionLabel = "See all", onAction }: { title:
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
       <Text style={{ fontWeight: "600", fontSize: T.subhead.fontSize - 2, color: colors.ink, letterSpacing: -0.4 }}>{title}</Text>
       {onAction ? (
-        <Pressable onPress={onAction}>
+        <Pressable onPress={onAction} accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${title}`} hitSlop={8}>
           <Text style={{ color: colors.brand, fontWeight: "500", fontSize: T.small.fontSize }}>{actionLabel}</Text>
         </Pressable>
       ) : null}

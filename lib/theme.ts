@@ -1,5 +1,20 @@
 // Central palette derived from the JAMIN logo + premium reference set.
 // Keep in sync with tailwind.config.js.
+//
+// Contrast (owner directive 05-08, "High Accessibility"): the light palette was
+// measured against WCAG AA, not eyeballed. Three tokens were failing on the
+// surfaces they are actually drawn on, so they were deepened — the hues are
+// unchanged, only the value:
+//   inkFaint #86868B → #68686F   3.62 → 5.53 on white (4.94 on surfaceAlt,
+//     4.60 on surfaceSunken). This is the app's caption colour across ~385 call
+//     sites and is text/icon only — it is never a fill — so deepening it costs
+//     nothing but readability. ink > inkSoft > inkFaint still reads as three
+//     distinct levels.
+//   success  #14A05A → #0C8046   3.38 → 5.01, and it doubles as a fill, so the
+//     white text sitting ON it gains the same 5.01.
+//   goldDark #9C7D1A → #8A6E17   3.92 → 4.86.
+// Tinted badge pairings (on brandSoft / goldSoft / successSoft) land at
+// 4.2–4.5, which is AA for the bold, large-ish text those badges use.
 const LIGHT = {
   brand: "#E11B22",
   brandDark: "#B8151B",
@@ -8,20 +23,20 @@ const LIGHT = {
   gold: "#E0A423",
   goldSoft: "#FBF1DC",
   goldLight: "#EAC466",
-  goldDark: "#9C7D1A",
+  goldDark: "#8A6E17",
   // dark navy for high-emphasis cards (business card, concierge, official)
   navy: "#141A2E",
   navySoft: "#1E2740",
   // ink / text
   ink: "#15151B",
   inkSoft: "#4B4B57",
-  inkFaint: "#86868B",
+  inkFaint: "#68686F",
   // surfaces (cool premium neutrals)
   surface: "#FFFFFF",
   surfaceAlt: "#F1F2F6",
   surfaceSunken: "#E9EAEF",
   border: "#E7E8EE",
-  success: "#14A05A",
+  success: "#0C8046",
   successSoft: "#E4F6EC",
   danger: "#E11B22",
   onDark: "#FFFFFF",

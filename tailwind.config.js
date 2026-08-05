@@ -23,7 +23,7 @@ module.exports = {
         gold: {
           DEFAULT: "#C9A227",
           light: "#E8C766",
-          dark: "#9C7D1A",
+          dark: "#8A6E17",
         },
         ink: {
           DEFAULT: "#1A1A1A",

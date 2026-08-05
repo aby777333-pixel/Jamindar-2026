@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, space, type as T } from "@/lib/theme";
+import { AnimatedPressable, usePressScale } from "@/lib/motion";
 
 // Reusable soft, refined elevation (elegant layered shadow + Android elevation).
 export const elevation = {
@@ -102,6 +103,7 @@ export function Card({
   style?: ViewStyle;
   onPress?: () => void;
 }) {
+  const press = usePressScale();
   const base = {
     backgroundColor: colors.surface,
     borderRadius: space.md,
@@ -121,20 +123,28 @@ export function Card({
       ...visual
     } = (style ?? {}) as ViewStyle;
     return (
-      <Pressable
+      // Owner directive 05-08 — "micro animations". The ripple below is
+      // Android-only, so iOS and web tapped a card and got no acknowledgement
+      // at all. The spring press-scale gives every platform the same small
+      // depression, and stands down when the OS asks for reduced motion.
+      <AnimatedPressable
         onPress={onPress}
+        {...press.handlers}
         accessibilityRole="button"
         // Soft native ripple = premium touch feedback without function-form
         // styles (which NativeWind drops on native — keep plain objects only).
         android_ripple={{ color: "rgba(20,21,26,0.07)", foreground: true }}
-        style={{
-          flex, alignSelf, width, minWidth, maxWidth,
-          margin, marginTop, marginBottom, marginLeft, marginRight,
-          borderRadius: space.md,
-        }}
+        style={[
+          {
+            flex, alignSelf, width, minWidth, maxWidth,
+            margin, marginTop, marginBottom, marginLeft, marginRight,
+            borderRadius: space.md,
+          },
+          press.style,
+        ]}
       >
         <View style={[base, elevation.card, visual]}>{children}</View>
-      </Pressable>
+      </AnimatedPressable>
     );
   }
   return <View style={[base, elevation.card, style]}>{children}</View>;
@@ -159,6 +169,7 @@ export function Button({
    *  label never truncates when the button shares a row with icons. */
   compact?: boolean;
 }) {
+  const press = usePressScale();
   const bg = variant === "gold" ? colors.gold : colors.brand;
   const fg = variant === "ghost" || variant === "outline" ? colors.brand : "#fff";
   const solid = variant === "primary" || variant === "gold";
@@ -200,8 +211,9 @@ export function Button({
   );
 
   return (
-    <Pressable
+    <AnimatedPressable
       disabled={disabled || loading}
+      {...press.handlers}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled, busy: !!loading }}
@@ -220,6 +232,7 @@ export function Button({
           elevation: solid ? 7 : 0,
         },
         style,
+        press.style,
       ]}
     >
       {solid ? (
@@ -246,7 +259,7 @@ export function Button({
           {inner}
         </View>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

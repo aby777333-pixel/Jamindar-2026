@@ -84,7 +84,22 @@ export default function RootLayout() {
           {/* Desktop browsers get a centred frame instead of a phone stretched
               to the full monitor width. Identity wrapper on native. */}
           <WebShell>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfaceAlt } }}>
+          {/* Owner directive 05-08 — "smooth page transitions". The Stack had
+              no animation set, so every push fell back to whatever the platform
+              felt like, and screens snapped in on Android. One deliberate
+              motion for the whole app: a short horizontal slide, plus the
+              edge-swipe back gesture that makes a phone app feel native.
+              260 ms is long enough to read as motion and short enough that it
+              never feels like waiting. */}
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.surfaceAlt },
+              animation: "slide_from_right",
+              animationDuration: 260,
+              gestureEnabled: true,
+            }}
+          >
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="login" />

@@ -1,8 +1,23 @@
-import { View, Pressable, Text } from "react-native";
+import { View, Pressable, Text, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import { BlurView } from "expo-blur";
 import { colors, space, type as T } from "@/lib/theme";
+import { useTheme } from "@/lib/use-theme";
 import { elevation } from "./ui";
+
+/**
+ * Glass, but only where it earns its place (owner directive 05-08).
+ *
+ * This bar floats over scrolling content, which is the one surface in the app
+ * where a real blur reads as depth rather than decoration — a chip or a card
+ * sits on a flat background and would gain nothing.
+ *
+ * ⚠️ expo-blur is a NO-OP on react-native-web: it renders a plain view, so a
+ * transparent tint would leave the bar see-through and the labels unreadable.
+ * Web therefore keeps the original opaque surface, and only native gets glass.
+ */
+const GLASS = Platform.OS !== "web";
 
 type TabRoute = { key: string; name: string };
 type TabBarProps = {
@@ -14,23 +29,29 @@ type TabBarProps = {
 /** Custom floating 3D bottom tab bar with a raised active pill. */
 export function TabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
+  const dark = useTheme((t) => t.mode) === "dark";
 
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        backgroundColor: colors.surface,
-        marginHorizontal: space.sm,
-        marginBottom: Math.max(insets.bottom, space.xs) + space.xxs,
-        borderRadius: space.md,
-        paddingVertical: space.xs,
-        paddingHorizontal: space.xs,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderTopColor: "#FFFFFF",
-        ...elevation.card,
-      }}
-    >
+  // The frame carries the shape, border and shadow; the blur fills it. Both
+  // must clip to the same radius or the glass squares off the corners.
+  const frame = {
+    marginHorizontal: space.sm,
+    marginBottom: Math.max(insets.bottom, space.xs) + space.xxs,
+    borderRadius: space.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopColor: GLASS ? "rgba(255,255,255,0.55)" : "#FFFFFF",
+    overflow: "hidden" as const,
+    ...elevation.card,
+  };
+
+  const row = {
+    flexDirection: "row" as const,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.xs,
+  };
+
+  const content = (
+    <View style={row}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = (options.title ?? route.name) as string;
@@ -47,7 +68,13 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           <Pressable
             key={route.key}
             onPress={onPress}
-            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+            // A screen reader should hear "Properties, tab, 2 of 4, selected",
+            // not an unlabelled button.
+            accessibilityRole="tab"
+            accessibilityLabel={label}
+            accessibilityState={{ selected: focused }}
+            accessibilityHint={focused ? undefined : `Opens ${label}`}
+            style={{ flex: 1, alignItems: "center", justifyContent: "center", minHeight: 48 }}
           >
             {/* Bug report 17: the active pill's 13pt side padding plus the
                 heavier 700 weight left "Properties" wider than the cell, so it
@@ -88,6 +115,25 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           </Pressable>
         );
       })}
+    </View>
+  );
+
+  if (!GLASS) {
+    return <View style={[frame, { backgroundColor: colors.surface }]}>{content}</View>;
+  }
+
+  return (
+    <View style={frame}>
+      <BlurView
+        intensity={dark ? 40 : 28}
+        tint={dark ? "dark" : "light"}
+        // The blur alone is too transparent to read against a photo, so a thin
+        // wash of the surface colour sits on top of it — the standard recipe
+        // for legible glass. It keeps the frosted depth and the contrast.
+        style={{ backgroundColor: dark ? "rgba(24,26,33,0.62)" : "rgba(255,255,255,0.72)" }}
+      >
+        {content}
+      </BlurView>
     </View>
   );
 }
