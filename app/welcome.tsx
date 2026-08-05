@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Image, Text, View, ScrollView } from "react-native";
+import { Image, Text, View, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Redirect } from "expo-router";
 import { Button } from "@/components/ui";
@@ -10,9 +10,30 @@ export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // Bug 28-07: no scrolling when everything already fits the screen.
+  //
+  // Bug report 18 — it still scrolled. The measurement was right; the layout
+  // was the problem. Everything below the mascot is fixed copy, so a mascot
+  // pinned at 236pt pushed the total a few pixels past a shorter viewport, and
+  // a few pixels is all it takes to make the screen drag. Sizing the mascot
+  // from the window instead lets the content fit on any phone, so the branch
+  // below almost always resolves to "no scroll" — and when a very short or
+  // heavily font-scaled screen genuinely does overflow, it still scrolls
+  // rather than hiding the button. The tolerance is a few pixels rather than
+  // one, so sub-pixel rounding at 2.75x density cannot flip it on its own.
+  const { height: winH } = useWindowDimensions();
+  const mascot = Math.max(150, Math.min(236, Math.round(winH * 0.27)));
   const [contentH, setContentH] = useState(0);
   const [viewH, setViewH] = useState(0);
-  const scrollNeeded = contentH > viewH + 1;
+
+  // ⚠️ Default to SCROLLABLE and only lock once both measurements have actually
+  // arrived. Locking by default looks identical most of the time and is a trap
+  // the rest: if onLayout/onContentSizeChange do not fire — which is exactly
+  // what happens on the web build — the heights stay 0, the screen locks, and
+  // "Get Started" ends up below the fold with no way to reach it. Verified in
+  // the browser: the button sat at y=1006 in an 812pt viewport behind
+  // overflow:hidden. Unmeasured must therefore mean "scroll", the safe state.
+  const measured = contentH > 0 && viewH > 0;
+  const scrollNeeded = !measured || contentH > viewH + 4;
 
   // Returning-user safety net: if a stored session finishes restoring while
   // this screen is up, skip straight back into the app — no fresh OTP.
@@ -34,7 +55,7 @@ export default function Welcome() {
         <SafeAreaView edges={["top"]} style={{ alignItems: "center", paddingTop: space.md }}>
           <Image
             source={require("../assets/namaste.jpg")}
-            style={{ width: 236, height: 236, resizeMode: "contain" }}
+            style={{ width: mascot, height: mascot, resizeMode: "contain" }}
           />
         </SafeAreaView>
 

@@ -1,13 +1,24 @@
 import { View, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { JamindarSheet } from "@/components/Jamindar";
+import { useFocusEffect } from "expo-router";
+import { JamindarSheet, consumeResume } from "@/components/Jamindar";
 import { JamindarFace } from "@/components/Brand";
 import { colors, space, type as T } from "@/lib/theme";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui";
 
 export default function AssistantTab() {
   const [open, setOpen] = useState(false);
+
+  // Bug report 18: when Jamindar sends you off to another screen it closes the
+  // sheet first (a Modal would cover that screen). Reopen it on the way back so
+  // Back returns to the conversation rather than to this splash.
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeResume()) setOpen(true);
+    }, []),
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.md }}>

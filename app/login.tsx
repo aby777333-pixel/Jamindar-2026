@@ -31,11 +31,32 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await sendOtp(digits);
+
+      // Bug report 18: Login and Sign Up both accepted both kinds of user, so
+      // the two screens had no distinct purpose. Login is now for members: an
+      // unrecognised number is sent to Sign Up, where the referral ID can be
+      // entered before the account is created.
+      //
+      // The OTP just sent is handed over with it. Sending a second one from
+      // Sign Up would hit the rate limit and invalidate this code, which would
+      // leave a new user unable to register at all.
+      //
+      // Sent straight through rather than via a confirmation dialog: Alert is a
+      // no-op on react-native-web, which would strand a web user here, and the
+      // Sign Up screen explains itself with a banner anyway.
+      if (res.newUser) {
+        router.push({
+          pathname: "/signup",
+          params: { mobile: digits, devCode: res.devCode ?? "", otpSent: "1" },
+        });
+        return;
+      }
+
       // Referral entry moved to the verify screen and only for FIRST-TIME
       // users (bug report 28-07): existing users go straight to the OTP.
       router.push({
         pathname: "/verify",
-        params: { mobile: digits, devCode: res.devCode ?? "", newUser: res.newUser ? "1" : "" },
+        params: { mobile: digits, devCode: res.devCode ?? "", newUser: "" },
       });
     } catch (e: any) {
       Alert.alert("Couldn't send OTP", e?.message ?? "Please try again.");

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, Button } from "@/components/ui";
@@ -16,12 +16,23 @@ import { colors, space, type as T } from "@/lib/theme";
  *  attach_referral stores the relationship. */
 export default function SignUp() {
   const router = useRouter();
-  const [mobile, setMobile] = useState("");
+  // Arriving from Login with an unrecognised number: the OTP is already on its
+  // way, so it rides along rather than being sent a second time (bug report 18
+  // — a second send would hit the rate limit and kill the first code).
+  const params = useLocalSearchParams<{ mobile?: string; devCode?: string; otpSent?: string }>();
+  const [mobile, setMobile] = useState(String(params.mobile ?? ""));
   const [invite, setInvite] = useState("");
   const [loading, setLoading] = useState(false);
+  /** Set when the typed number turns out to belong to an existing member. */
+  const [registered, setRegistered] = useState<{ code: string } | null>(null);
 
   const digits = mobile.replace(/[^0-9]/g, "");
   const valid = digits.length === 10;
+
+  // Only reuse the handed-over code while the number is still the one it was
+  // sent to — edit the field and we must send a fresh one.
+  const carriedFor = String(params.mobile ?? "");
+  const otpAlreadySent = params.otpSent === "1" && digits === carriedFor;
 
   async function onRegister() {
     if (!valid || loading) return;
@@ -49,13 +60,34 @@ export default function SignUp() {
           }
         }
       }
+      if (otpAlreadySent) {
+        // Login already sent it for this exact number — go straight on.
+        router.push({
+          pathname: "/verify",
+          params: { mobile: digits, devCode: String(params.devCode ?? ""), newUser: "1", ref: inviteCode },
+        });
+        return;
+      }
+
       const res = await sendOtp(digits);
+
+      // Bug report 18: Sign Up used to log an existing member straight into
+      // their account and silently drop the referral ID they had typed, since
+      // no new account was being created. Sign Up is for new members now.
+      //
+      // Shown inline rather than as an Alert — Alert is a no-op on
+      // react-native-web, and this needs an action attached to it.
+      if (!res.newUser) {
+        setRegistered({ code: res.devCode ?? "" });
+        return;
+      }
+
       router.push({
         pathname: "/verify",
         params: {
           mobile: digits,
           devCode: res.devCode ?? "",
-          newUser: res.newUser ? "1" : "",
+          newUser: "1",
           ref: inviteCode,
         },
       });
@@ -98,10 +130,47 @@ export default function SignUp() {
             </Text>
           </View>
 
+          {/* Arrived here because Login did not recognise the number. */}
+          {params.otpSent === "1" && !registered ? (
+            <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.brandSoft, borderRadius: 14, padding: 14, marginBottom: space.sm }}>
+              <Ionicons name="person-add" size={18} color={colors.brand} />
+              <Text style={{ flex: 1, color: colors.ink, fontSize: T.small.fontSize, lineHeight: 19 }}>
+                No Jamin account on this number yet — let's create one. Add a referral ID if a member
+                invited you, then continue to your verification code.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* The number is already a member's — Sign Up is for new members. */}
+          {registered ? (
+            <View style={{ backgroundColor: colors.goldSoft, borderWidth: 1, borderColor: "rgba(224,164,35,0.45)", borderRadius: 14, padding: 14, marginBottom: space.sm }}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Ionicons name="information-circle" size={18} color={colors.goldDark} />
+                <Text style={{ flex: 1, color: colors.ink, fontSize: T.small.fontSize, lineHeight: 19 }}>
+                  This mobile number is already registered. Please log in to continue — your
+                  verification code has just been sent to it.
+                </Text>
+              </View>
+              <Button
+                label="Log in instead"
+                onPress={() =>
+                  router.replace({
+                    pathname: "/verify",
+                    params: { mobile: digits, devCode: registered.code, newUser: "" },
+                  })
+                }
+                style={{ marginTop: space.sm }}
+              />
+            </View>
+          ) : null}
+
           <Field
             label="Mobile number"
             value={mobile}
-            onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
+            onChangeText={(t) => {
+              setRegistered(null);
+              setMobile(t.replace(/\D/g, "").slice(0, 10));
+            }}
             keyboardType="number-pad"
             placeholder="98765 43210"
             maxLength={10}

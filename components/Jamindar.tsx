@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import {
   useAudioRecorder,
@@ -129,6 +129,30 @@ const PROFILE_STEPS: IntakeStep[] = [
   { field: "heard_from", q: "Lastly, how did you hear about Jamin?", parse: (r) => r.trim().slice(0, 80) },
 ];
 
+/**
+ * "Reopen me when the user comes back."
+ *
+ * Bug report 18: asking Jamindar to open the Legal Guide navigated there and
+ * left the chat behind — Back returned to the host screen with the sheet shut.
+ * The sheet cannot stay open across a push (a Modal covers the new screen), so
+ * instead it records that it closed itself to navigate, and each host clears
+ * the flag on regaining focus and reopens.
+ *
+ * The conversation itself is already safe: it is persisted per user and
+ * reloaded when the sheet opens, so reopening restores what was said.
+ *
+ * Read-once on purpose — a stale flag must never reopen the sheet twice.
+ */
+let resumeRequested = false;
+export function requestResume() {
+  resumeRequested = true;
+}
+export function consumeResume(): boolean {
+  const wanted = resumeRequested;
+  resumeRequested = false;
+  return wanted;
+}
+
 /** Floating Jamindar assistant button + conversational sheet.
  *  Fully usable by touch; voice is additive. Drop it on any screen.
  *
@@ -138,6 +162,14 @@ const PROFILE_STEPS: IntakeStep[] = [
 export function JamindarFab({ bottomOffset = 24 }: { bottomOffset?: number } = {}) {
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Coming back from somewhere Jamindar sent us? Put the chat back up.
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeResume()) setOpen(true);
+    }, []),
+  );
+
   return (
     <>
       <Pressable
@@ -448,6 +480,12 @@ export function JamindarSheet({
     if (intent.kind === "navigate") {
       pushAssistant(intent.say);
       setTimeout(() => {
+        // Bug report 18: the sheet has to close before pushing — a Modal
+        // renders above every screen, so leaving it open would hide whatever
+        // we navigated to. Closing it, though, meant Back returned to a screen
+        // with no chat on it and the conversation looked lost. Flag the close
+        // as "I am coming back", and the host reopens the sheet on return.
+        requestResume();
         onClose();
         router.push(intent.href);
       }, 500);
