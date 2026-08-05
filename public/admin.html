@@ -10,8 +10,8 @@
 <style>
   :root{
     --brand:#E11B22; --brand-dark:#B8151B; --brand-soft:#FCECEC;
-    --gold:#E0A423; --gold-soft:#FBF3DE; --gold-dark:#9C7D1A;
-    --navy:#141A2E; --navy2:#1E2740; --success:#14A05A; --success-soft:#E7F5EE;
+    --gold:#E0A423; --gold-soft:#FBF3DE; --gold-dark:#8A6E17;
+    --navy:#141A2E; --navy2:#1E2740; --success:#0C8046; --success-soft:#E7F5EE;
     --ink:#14151A; --ink-soft:#565863; --ink-faint:#8E9099;
     --surface:#fff; --canvas:#F4F5F8; --sunken:#ECEDF1; --hair:#E7E8EE;
   }
@@ -548,8 +548,8 @@ function planPreview(p){
   const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
   if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
   const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2"};
-  const LINE={available:"#14A05A",reserved:"#9C7D1A",booked:"#A61B10",sold:"#2E2E2E",blocked:"#86868B"};
-  const TXT={available:"#14A05A",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#86868B"};
+  const LINE={available:"#0C8046",reserved:"#8A6E17",booked:"#A61B10",sold:"#2E2E2E",blocked:"#68686F"};
+  const TXT={available:"#0C8046",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#68686F"};
   const pts=r=>r.map(q=>q.join(",")).join(" ");
   let s=`<svg viewBox="${g.viewBox.join(" ")}" style="width:100%;max-height:420px" preserveAspectRatio="xMidYMid meet">`;
   s+=`<polygon points="${pts(g.boundary)}" fill="#ececE8"/>`;
@@ -557,12 +557,12 @@ function planPreview(p){
   if(g.existingRoad&&g.existingRoad.quad) s+=`<polygon points="${pts(g.existingRoad.quad)}" fill="#f4efdc" stroke="#7a6b32" stroke-width="0.6"/>`;
   s+=`<polygon points="${pts(g.boundary)}" fill="none" stroke="#d0402f" stroke-width="1.9" stroke-linejoin="round"/>`;
   (g.roads||[]).forEach(r=>{const b=r.band,cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
-    s+=`<text x="${cx}" y="${cy+1.2}" font-size="4" fill="#86868B" text-anchor="middle"${r.rotate?` transform="rotate(${r.rotate} ${cx} ${cy})"`:""}>${esc(r.label)}</text>`;});
+    s+=`<text x="${cx}" y="${cy+1.2}" font-size="4" fill="#68686F" text-anchor="middle"${r.rotate?` transform="rotate(${r.rotate} ${cx} ${cy})"`:""}>${esc(r.label)}</text>`;});
   rows.forEach(r=>{ if(!r.poly||!r.at) return;
     const st=(r.status||"available").toLowerCase();
     s+=`<g><title>Plot ${esc(r.plot)} — ${esc(st)}</title>`+
-       `<polygon points="${pts(r.poly)}" fill="${FILL[st]||"#fff"}" stroke="${LINE[st]||"#14A05A"}" stroke-width="0.9"/>`+
-       `<text x="${r.at[0]}" y="${r.at[1]+1.6}" font-size="6" font-weight="700" text-anchor="middle" fill="${TXT[st]||"#14A05A"}">${esc(r.plot)}</text></g>`;});
+       `<polygon points="${pts(r.poly)}" fill="${FILL[st]||"#fff"}" stroke="${LINE[st]||"#0C8046"}" stroke-width="0.9"/>`+
+       `<text x="${r.at[0]}" y="${r.at[1]+1.6}" font-size="6" font-weight="700" text-anchor="middle" fill="${TXT[st]||"#0C8046"}">${esc(r.plot)}</text></g>`;});
   s+="</svg>";
   const n=rows.length, avail=rows.filter(r=>(r.status||"available")==="available").length;
   return `<div style="margin-top:8px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">

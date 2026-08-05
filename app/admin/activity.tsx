@@ -25,18 +25,18 @@ type Group = "all" | "people" | "property" | "visits" | "comms" | "money";
 /** How each event_type is presented, and which filter it belongs to. */
 const EVENTS: Record<string, { label: string; icon: string; tint: string; group: Group }> = {
   partner_requested:         { label: "Promoter application",   icon: "briefcase",         tint: "#C9A227", group: "people" },
-  partner_reviewed:          { label: "Promoter reviewed",      icon: "shield-checkmark",  tint: "#14A05A", group: "people" },
+  partner_reviewed:          { label: "Promoter reviewed",      icon: "shield-checkmark",  tint: "#0C8046", group: "people" },
   kyc_submitted:             { label: "KYC submitted",          icon: "id-card",           tint: "#C9A227", group: "people" },
-  kyc_reviewed:              { label: "KYC reviewed",           icon: "shield-checkmark",  tint: "#14A05A", group: "people" },
+  kyc_reviewed:              { label: "KYC reviewed",           icon: "shield-checkmark",  tint: "#0C8046", group: "people" },
   acquisition_attached:      { label: "New registration",       icon: "person-add",        tint: "#2B6FE1", group: "people" },
-  property_viewed:           { label: "Property viewed",        icon: "eye",               tint: "#86868B", group: "property" },
+  property_viewed:           { label: "Property viewed",        icon: "eye",               tint: "#68686F", group: "property" },
   property_saved:            { label: "Property saved",         icon: "heart",             tint: "#E11B22", group: "property" },
-  property_unsaved:          { label: "Property unsaved",       icon: "heart-dislike",     tint: "#86868B", group: "property" },
+  property_unsaved:          { label: "Property unsaved",       icon: "heart-dislike",     tint: "#68686F", group: "property" },
   property_shared:           { label: "Property shared",        icon: "share-social",      tint: "#4B57C9", group: "property" },
   site_visit_booked:         { label: "Site visit booked",      icon: "calendar",          tint: "#E11B22", group: "visits" },
   site_visit_rescheduled:    { label: "Visit rescheduled",      icon: "calendar-outline",  tint: "#C9A227", group: "visits" },
-  site_visit_cancelled:      { label: "Visit cancelled",        icon: "close-circle",      tint: "#86868B", group: "visits" },
-  site_visit_status_changed: { label: "Visit status changed",   icon: "flag",              tint: "#14A05A", group: "visits" },
+  site_visit_cancelled:      { label: "Visit cancelled",        icon: "close-circle",      tint: "#68686F", group: "visits" },
+  site_visit_status_changed: { label: "Visit status changed",   icon: "flag",              tint: "#0C8046", group: "visits" },
   chat_thread_opened:        { label: "Conversation started",   icon: "chatbubbles",       tint: "#4B57C9", group: "comms" },
   chat_thread_moderated:     { label: "Conversation moderated", icon: "lock-closed",       tint: "#E11B22", group: "comms" },
   chat_message_removed:      { label: "Message removed",        icon: "trash",             tint: "#E11B22", group: "comms" },
@@ -53,7 +53,7 @@ function describe(e: Row): { label: string; icon: string; tint: string; group: G
   return {
     label: e.event_type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
     icon: "ellipse",
-    tint: "#86868B",
+    tint: "#68686F",
     group: "all",
   };
 }

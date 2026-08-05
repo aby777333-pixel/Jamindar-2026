@@ -34,11 +34,15 @@ export interface SiteVisit {
   buyer?: { id: string; full_name: string | null; mobile: string | null } | null;
 }
 
+// These four badges hardcode their own colours rather than reading the palette,
+// so the contrast work in lib/theme.ts did not reach them: every one was
+// failing AA as small text on its own tint (3.0–4.1:1). Same treatment — the
+// hue is kept, the value deepened — giving 4.96 / 5.52 / 4.46 / 5.51.
 export const VISIT_STATUS_META: Record<VisitStatus, { label: string; bg: string; fg: string }> = {
-  requested: { label: "Requested", bg: "#FBF1DC", fg: "#9C7D1A" },
-  confirmed: { label: "Confirmed", bg: "#E8F1FE", fg: "#2B6FE1" },
-  completed: { label: "Completed", bg: "#E4F6EC", fg: "#14A05A" },
-  cancelled: { label: "Cancelled", bg: "#E9EAEF", fg: "#86868B" },
+  requested: { label: "Requested", bg: "#FBF1DC", fg: "#7F6514" },
+  confirmed: { label: "Confirmed", bg: "#E8F1FE", fg: "#1C5BC4" },
+  completed: { label: "Completed", bg: "#E4F6EC", fg: "#0C8046" },
+  cancelled: { label: "Cancelled", bg: "#E9EAEF", fg: "#5C5C64" },
 };
 
 const SELECT =

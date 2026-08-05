@@ -171,7 +171,12 @@ export function Button({
 }) {
   const press = usePressScale();
   const bg = variant === "gold" ? colors.gold : colors.brand;
-  const fg = variant === "ghost" || variant === "outline" ? colors.brand : "#fff";
+  // White on the gold gradient measures 2.42:1 — unreadable. Gold takes dark
+  // text, which is both legible (7.13:1 on the gradient's mid stop) and the
+  // more luxurious pairing; it matches the gold CTA on /become-promoter.
+  // (No call site uses variant="gold" yet, so nothing on screen changes today.)
+  const fg =
+    variant === "gold" ? colors.navy : variant === "ghost" || variant === "outline" ? colors.brand : "#fff";
   const solid = variant === "primary" || variant === "gold";
   // glossy 3-stop gradient (light sheen → base → deep) for a premium finish
   const gloss: [string, string, string] =

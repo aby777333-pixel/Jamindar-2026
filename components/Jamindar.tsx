@@ -891,7 +891,7 @@ export function JamindarSheet({
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: recording ? colors.gold : busy ? colors.brand : "#14A05A",
+                  backgroundColor: recording ? colors.gold : busy ? colors.brand : "#0C8046",
                 }}
               />
               <Text style={{ color: colors.inkSoft, fontSize: 12.5, fontWeight: "600" }}>
