@@ -6,6 +6,12 @@
 /welcome    /welcome.html   200
 /admin      /admin.html     200
 /card       /card.html      200
+# Google Play requires a publicly reachable Privacy Policy URL, and a separate
+# account-deletion URL for any app with accounts. Both must resolve without the
+# app installed, so they are plain static pages ahead of the SPA fallback.
+/privacy         /privacy.html         200
+/delete-account  /delete-account.html  200
+/terms           /terms.html           200
 # Branded share (/s/*) and invite (/i/*) pages are served by the Netlify
 # Function netlify/functions/share-page.mjs (routes declared in its config) —
 # it restores the text/html content type that Supabase's domain strips.
