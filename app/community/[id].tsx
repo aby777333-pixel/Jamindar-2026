@@ -51,6 +51,10 @@ export default function CommunityPostScreen() {
   function refresh() {
     refetch();
     qc.invalidateQueries({ queryKey: ["community-feed"] });
+    // Bug report 21: the Home card's counts are a separate query, so adding or
+    // deleting a comment here has to invalidate them too or Home keeps the
+    // number it fetched before the change.
+    qc.invalidateQueries({ queryKey: ["community-stats"] });
   }
 
   async function onSend() {

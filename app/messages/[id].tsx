@@ -14,7 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
+import { openExternal } from "@/lib/browser";
 import { Loading } from "@/components/ui";
 import { useAuth } from "@/lib/store";
 import { colors, type as T } from "@/lib/theme";
@@ -266,7 +266,7 @@ export default function Thread() {
                   ) : (
                     <>
                       {m.kind === "image" && m.attachment_url ? (
-                        <Pressable onPress={() => WebBrowser.openBrowserAsync(m.attachment_url!)}>
+                        <Pressable onPress={() => openExternal(m.attachment_url)}>
                           <Image
                             source={{ uri: m.attachment_url }}
                             style={{ width: 210, height: 158, borderRadius: 12, marginBottom: m.body ? 7 : 0 }}
@@ -276,7 +276,7 @@ export default function Thread() {
 
                       {m.kind === "file" && m.attachment_url ? (
                         <Pressable
-                          onPress={() => WebBrowser.openBrowserAsync(m.attachment_url!)}
+                          onPress={() => openExternal(m.attachment_url)}
                           style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.body ? 7 : 0 }}
                         >
                           <Ionicons name="document-text" size={20} color={mine ? "#fff" : colors.brand} />

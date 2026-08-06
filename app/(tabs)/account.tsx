@@ -82,9 +82,14 @@ export default function Account() {
     rows.push(
       { icon: "options", label: "Buyer preferences", onPress: () => router.push("/buyer/onboarding") },
       { icon: "heart-circle", label: "My interests", onPress: () => router.push("/interests" as Href) },
-      { icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) },
     );
   }
+
+  // Bug report 21: anyone can book a site visit, so everyone needs somewhere to
+  // track their own bookings. Promoters only had the DESK ("visits assigned to
+  // you"), which never lists the visits they booked themselves — their own
+  // bookings were unreachable from anywhere in the app.
+  rows.push({ icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) });
 
   // --- shared by everyone ---
   rows.push(

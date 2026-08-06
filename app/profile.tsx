@@ -76,24 +76,26 @@ export default function ProfileSetup() {
     ]);
   }
 
-  /** Skip (report 28-07): first-time users may jump straight to Home. Saves
-   *  whatever was typed, marks the profile usable, and skips the optional
-   *  onboarding questionnaire. Details can be completed later from Account. */
+  /** Skip (report 28-07): first-time users may jump straight to Home, and the
+   *  optional onboarding questionnaire is skipped with them.
+   *
+   *  Bug report 21: Skip used to persist whatever had been typed into the form,
+   *  which the label plainly promises it will not. It now DISCARDS the edits on
+   *  screen and writes only what the flow needs to move on: the completion flag,
+   *  plus a name fallback when the account has none at all (a nameless profile
+   *  breaks greetings, cards and lead routing downstream).
+   *
+   *  The photo is deliberately not reverted — picking one uploads and saves it
+   *  immediately, as its own deliberate action, before Skip is ever pressed. */
   async function onSkip() {
     if (!profile || loading) return;
     setLoading(true);
     try {
-      const fallbackName = name.trim().length >= 2 ? name.trim() : profile.full_name || "Jamin member";
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fallbackName,
-          email: email.trim() || null,
-          city: city.trim() || null,
-          state: state.trim() || null,
-          is_profile_complete: true,
-        })
-        .eq("id", profile.id);
+      const storedName = (profile.full_name ?? "").trim();
+      const fallbackName = storedName.length >= 2 ? storedName : "Jamin member";
+      const patch: Record<string, unknown> = { is_profile_complete: true };
+      if (storedName.length < 2) patch.full_name = fallbackName;
+      const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
       if (error) throw error;
       if (profile.role === "promoter") await ensurePromoterProfile(profile.id, fallbackName);
       await refreshProfile();

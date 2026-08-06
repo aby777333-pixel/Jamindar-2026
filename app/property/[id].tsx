@@ -6,7 +6,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as WebBrowser from "expo-web-browser";
+import { openExternal } from "@/lib/browser";
 import { LinearGradient } from "expo-linear-gradient";
 import { createAudioPlayer } from "expo-audio";
 import { Card, Loading, Button } from "@/components/ui";
@@ -30,7 +30,7 @@ import { colors, space, type as T } from "@/lib/theme";
 import { IMG } from "@/lib/img";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
-import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, type PlotRow, type PlotPlanGeometry, PlotTitleBlock } from "@/components/PlotPlan";
+import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, PlotStatusKey, PlotStatusGrid, type PlotRow, type PlotPlanGeometry, PlotTitleBlock } from "@/components/PlotPlan";
 import { MiniMap } from "@/components/MiniMap";
 import { BrochureSheet } from "@/components/BrochureSheet";
 import { PlotSheet, mapLinks } from "@/components/PlotSheet";
@@ -53,7 +53,9 @@ const TAB_META: Record<TabKey, { label: string; icon: string }> = {
 
 function openUrl(url?: string | null) {
   if (!url) return;
-  Linking.openURL(url).catch(() => WebBrowser.openBrowserAsync(url).catch(() => {}));
+  // Prefer the installed app (Maps, YouTube…) and fall back to the in-app
+  // browser, which openExternal keeps inside our own Android task.
+  Linking.openURL(url).catch(() => openExternal(url));
 }
 
 export default function PropertyDetail() {
@@ -325,7 +327,7 @@ export default function PropertyDetail() {
     if (!property?.brochure_url) return;
     setBrochureOpen(false);
     const ref = profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null;
-    await WebBrowser.openBrowserAsync(brochureLink(property.id, ref, "app"));
+    openExternal(brochureLink(property.id, ref, "app"));
   }
 
   function onSiteVisit() {
@@ -525,7 +527,7 @@ export default function PropertyDetail() {
             </View>
           ) : null}
           {mediaMode === "photos" && property.virtual_tour_url ? (
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(property.virtual_tour_url!)} style={{ position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
+            <Pressable onPress={() => openExternal(property.virtual_tour_url)} style={{ position: "absolute", bottom: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 }}>
               <Ionicons name="cube" size={12} color={colors.ink} />
               <Text style={{ color: colors.ink, fontSize: 11, fontWeight: "700" }}>360° Tour</Text>
             </Pressable>
@@ -848,7 +850,7 @@ function InlineVideo({ uri, height }: { uri: string; height: number }) {
 function WhereItIs({ property }: { property: Property }) {
   const links = mapLinks(property);
   if (!links) return null;
-  const open = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => {});
+  const open = (url: string) => openExternal(url);
   const btns: [string, string, string][] = [
     ["map-outline", "Map", links.maps],
     ["globe-outline", "Satellite", links.satellite],
@@ -883,7 +885,6 @@ function MasterPlanTab({ property }: { property: Property }) {
   // like every other share surface in the app.
   const { profile } = useAuth();
   const plots: PlotRow[] = property.plot_layout ?? [];
-  const counts = plots.reduce((a, p) => { const s = p.status ?? "available"; a[s] = (a[s] ?? 0) + 1; return a; }, {} as Record<string, number>);
   const [zoom, setZoom] = useState(false);
   const [picked, setPicked] = useState<PlotRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -970,15 +971,36 @@ function MasterPlanTab({ property }: { property: Property }) {
       ) : interactive ? null : (
         <EmptyNote label="Master plan image not available for this property." />
       )}
+      {/* Bug report 22: this used to be a bare green/yellow/grey legend sitting
+          under a flat scan of the drawing — the counts were right, but nothing on
+          the image showed WHICH plot was which, so the legend read as broken.
+          Layouts without traced geometry now get the schedule itself, one
+          colour-coded tile per plot, with a key generated from the same colours.
+          Tapping a tile opens the same PlotSheet the interactive plan opens. */}
       {plots.length > 0 && !interactive ? (
         <Card>
-          <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 10 }}>Plot availability</Text>
-          <View style={{ flexDirection: "row", gap: 16 }}>
-            <PlotLegend color={colors.success} label={`Available · ${counts.available ?? 0}`} />
-            <PlotLegend color={colors.gold} label={`Reserved · ${counts.reserved ?? 0}`} />
-            <PlotLegend color={colors.inkFaint} label={`Sold · ${counts.sold ?? 0}`} />
-          </View>
+          <Text style={{ fontWeight: "600", color: colors.ink }}>Plot availability</Text>
+          <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
+            {plots.length} plot{plots.length === 1 ? "" : "s"} on the sanctioned schedule · tap one for its full record
+          </Text>
+          <PlotStatusKey plots={plots} />
+          <View style={{ height: 12 }} />
+          <PlotStatusGrid plots={plots} onSelect={(p) => { setPicked(p); setSheetOpen(true); }} />
+          <Text style={{ fontSize: 10.5, color: colors.inkFaint, marginTop: 12, lineHeight: 16 }}>
+            Plot positions are shown on the layout drawing above. Availability here is live.
+          </Text>
         </Card>
+      ) : null}
+
+      {/* One sheet serves both surfaces; the interactive branch renders its own. */}
+      {plots.length > 0 && !interactive ? (
+        <PlotSheet
+          visible={sheetOpen}
+          plot={picked}
+          property={property}
+          shareUrl={property.brochure_url ?? undefined}
+          onClose={() => setSheetOpen(false)}
+        />
       ) : null}
     </View>
   );
@@ -1084,7 +1106,7 @@ function LegalTab({ property }: { property: Property }) {
           {docs.map((d, i) => (
             // Brochure documents route through the dynamic /b/ endpoint so the
             // downloaded PDF always carries the sharer's live contact page.
-            <Pressable key={i} onPress={() => WebBrowser.openBrowserAsync(d.url === property.brochure_url ? brochureLink(property.id, docRef, "app") : d.url)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
+            <Pressable key={i} onPress={() => openExternal(d.url === property.brochure_url ? brochureLink(property.id, docRef, "app") : d.url)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}>
               <Ionicons name="document-text" size={18} color={colors.brand} />
               <Text style={{ flex: 1, color: colors.ink, fontSize: 13 }}>{d.label}</Text>
               {d.size ? <Text style={{ color: colors.inkFaint, fontSize: 11 }}>{d.size}</Text> : null}
@@ -1176,15 +1198,6 @@ function MapTile({ icon, label, onPress, available }: { icon: string; label: str
         <Text style={{ color: colors.inkFaint, fontSize: 11 }}>{available ? "Open" : "Not available"}</Text>
       </View>
     </Pressable>
-  );
-}
-
-function PlotLegend({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: color }} />
-      <Text style={{ color: colors.inkSoft, fontSize: 12 }}>{label}</Text>
-    </View>
   );
 }
 

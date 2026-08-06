@@ -6,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAudioRecorder, RecordingPresets, AudioModule, setAudioModeAsync } from "expo-audio";
 import { Button } from "@/components/ui";
+import { ZoomableImageViewer } from "@/components/ImageViewer";
+import { openExternal } from "@/lib/browser";
 import { colors, space, type as T } from "@/lib/theme";
 import {
   createCommunityPost,
@@ -29,7 +31,14 @@ export default function NewCommunityPost() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [preview, setPreview] = useState<CommunityMedia | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  /** Preview one attachment before posting (bug report 22). */
+  function openAttachment(m: CommunityMedia) {
+    if (m.type === "image") setPreview(m);
+    else openExternal(m.url);
+  }
 
   function warnSkipped(skipped: string[]) {
     if (skipped.length) Alert.alert("Some files were too large", `Files over 50 MB were skipped:\n${skipped.join("\n")}`);
@@ -135,6 +144,7 @@ export default function NewCommunityPost() {
     try {
       await createCommunityPost({ body: body.trim(), media });
       qc.invalidateQueries({ queryKey: ["community-feed"] });
+      qc.invalidateQueries({ queryKey: ["community-stats"] });
       Alert.alert("Posted 🎉", "Your post is live in the Jamin Community.", [{ text: "Done", onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert("Couldn't post", e?.message ?? "Please try again.");
@@ -200,11 +210,18 @@ export default function NewCommunityPost() {
             <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12.5, textAlign: "center" }}>● Recording… tap "Stop recording" when done.</Text>
           ) : null}
 
-          {/* attachments preview */}
+          {/* Attachments (bug report 22: these rows were inert — you could not
+              check WHAT you had attached before publishing). A row now opens the
+              file: photos in the pinch-zoom viewer, everything else in the
+              in-app browser, which handles PDFs, video and audio. */}
           {media.length > 0 ? (
             <View style={{ gap: 8 }}>
               {media.map((m, i) => (
-                <View key={m.url + i} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8 }}>
+                <Pressable
+                  key={m.url + i}
+                  onPress={() => openAttachment(m)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8 }}
+                >
                   {m.type === "image" ? (
                     <Image source={{ uri: m.url }} style={{ width: 44, height: 44, borderRadius: 8 }} />
                   ) : (
@@ -212,13 +229,18 @@ export default function NewCommunityPost() {
                       <Ionicons name={m.type === "video" ? "videocam" : m.type === "audio" ? "mic" : m.type === "pdf" ? "document-text" : "document-attach"} size={18} color={colors.brand} />
                     </View>
                   )}
-                  <Text style={{ flex: 1, color: colors.ink, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
-                    {m.name || (m.type === "image" ? "Photo" : m.type === "video" ? "Video" : m.type === "audio" ? "Voice note" : "File")}
-                  </Text>
-                  <Pressable onPress={() => setMedia((all) => all.filter((_, j) => j !== i))} hitSlop={8}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
+                      {m.name || (m.type === "image" ? "Photo" : m.type === "video" ? "Video" : m.type === "audio" ? "Voice note" : "File")}
+                    </Text>
+                    <Text style={{ color: colors.inkFaint, fontSize: 11, marginTop: 1 }}>Tap to preview</Text>
+                  </View>
+                  {/* Remove stays its own hit target — tapping the row previews,
+                      tapping the cross detaches. */}
+                  <Pressable onPress={() => setMedia((all) => all.filter((_, j) => j !== i))} hitSlop={10} style={{ padding: 2 }}>
                     <Ionicons name="close-circle" size={20} color={colors.inkFaint} />
                   </Pressable>
-                </View>
+                </Pressable>
               ))}
             </View>
           ) : null}
@@ -228,6 +250,13 @@ export default function NewCommunityPost() {
           <Button label={posting ? "Posting…" : "Post to community"} onPress={onPost} loading={posting} disabled={!!uploading || recording} />
         </View>
       </KeyboardAvoidingView>
+
+      <ZoomableImageViewer
+        visible={!!preview}
+        uri={preview?.url ?? null}
+        title={preview?.name || "Attached photo"}
+        onClose={() => setPreview(null)}
+      />
     </SafeAreaView>
   );
 }

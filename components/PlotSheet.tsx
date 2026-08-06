@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import * as WebBrowser from "expo-web-browser";
+import { openExternal } from "../lib/browser";
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
@@ -43,6 +43,16 @@ const STATUS_TINT: Record<string, string> = {
 };
 
 const SQFT_PER_SQM = 10.7639;
+
+/** A row of plot_holds with status 'held' — the one hold that currently blocks a plot. */
+interface LiveHold {
+  id: string;
+  buyer_id: string;
+  ref: string;
+  expires_at: string | null;
+  amount: number | null;
+  method: string | null;
+}
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -167,9 +177,35 @@ export function PlotSheet({
   const [step, setStep] = useState<"detail" | "confirm" | "done">("detail");
   const [method, setMethod] = useState<"bank" | "upi">("bank");
   const [busy, setBusy] = useState(false);
-  const [held, setHeld] = useState<{ ref: string; expiresAt: string; amount: number | null } | null>(null);
+  const [held, setHeld] = useState<{ ref: string; holdId?: string; expiresAt: string; amount: number | null } | null>(null);
   const { profile } = useAuth();
   const qc = useQueryClient();
+
+  /**
+   * The live hold on this plot, if there is one (bug report 22: a buyer who put
+   * a plot on hold had no way to take it back — only an admin could).
+   *
+   * RLS on plot_holds returns own rows only, so a buyer can never see, let alone
+   * withdraw, someone else's hold; super admins see all, which is what lets them
+   * release on a caller's behalf. release_plot_hold enforces the same rule again
+   * server-side, so this query is a display concern, not the security boundary.
+   */
+  const { data: liveHold } = useQuery({
+    queryKey: ["plot-hold", property.id, plot?.plot ?? null],
+    enabled: visible && !!plot && !!profile?.id,
+    queryFn: async (): Promise<LiveHold | null> => {
+      const { data } = await supabase
+        .from("plot_holds")
+        .select("id, buyer_id, ref, expires_at, amount, method")
+        .eq("property_id", property.id)
+        .eq("plot", plot!.plot)
+        .eq("status", "held")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as LiveHold) ?? null;
+    },
+  });
 
   const links = useMemo(() => mapLinks(property), [property]);
   if (!plot) return null;
@@ -192,14 +228,41 @@ export function PlotSheet({
         p_property: property.id, p_plot: plot.plot, p_method: method, p_note: null,
       });
       if (error) throw error;
-      const r = data as { ref: string; expiresAt: string; amount: number | null };
+      const r = data as { ref: string; holdId?: string; expiresAt: string; amount: number | null };
       setHeld(r);
       setStep("done");
       // repaint the plan for everyone looking at this property
       qc.invalidateQueries({ queryKey: ["property", property.id] });
       qc.invalidateQueries({ queryKey: ["properties"] });
+      qc.invalidateQueries({ queryKey: ["plot-hold", property.id, plot.plot] });
     } catch (e: any) {
       Alert.alert("Could not hold this plot", e?.message ?? "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Give the plot back (bug report 22). release_plot_hold flips the hold to
+   * 'released' and the plot to 'available' in one transaction, and refuses
+   * outright if the hold is not the caller's (or the caller is not an admin).
+   */
+  async function withdrawHold(holdId: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("release_plot_hold", { p_hold: holdId });
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["property", property.id] });
+      qc.invalidateQueries({ queryKey: ["properties"] });
+      qc.invalidateQueries({ queryKey: ["plot-hold", property.id, plot!.plot] });
+      Alert.alert("Hold withdrawn", `Plot ${plot!.plot} is back on sale.`);
+      // Closing lets the repainted plan show the plot green again — the `plot`
+      // prop here is the snapshot the parent passed in and will not update
+      // underneath us.
+      close();
+    } catch (e: any) {
+      Alert.alert("Could not withdraw the hold", e?.message ?? "Please try again.");
     } finally {
       setBusy(false);
     }
@@ -308,9 +371,18 @@ export function PlotSheet({
                 reference {held.ref} with your transfer. The plot shows as On hold to everyone else
                 until then.
               </Text>
-              <Pressable onPress={close} style={{ marginTop: 20, marginBottom: 8, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
+              <Pressable onPress={close} style={{ marginTop: 20, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
                 <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Done</Text>
               </Pressable>
+              {/* Changed your mind on the spot (bug report 22) — no need to wait
+                  48 hours or ring the desk. */}
+              {held.holdId ? (
+                <Pressable onPress={() => withdrawHold(held.holdId!)} disabled={busy} style={{ marginTop: 10, marginBottom: 8, paddingVertical: 12, alignItems: "center", opacity: busy ? 0.5 : 1 }}>
+                  <Text style={{ color: colors.inkFaint, fontSize: 13, fontWeight: "700" }}>
+                    {busy ? "Withdrawing…" : "Withdraw this hold"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </ScrollView>
           ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -381,10 +453,10 @@ export function PlotSheet({
               <>
                 <Section title="See the site" />
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  <Action grid accent={ACCENT.map} icon="map-outline" label="Map" onPress={() => WebBrowser.openBrowserAsync(links.maps).catch(() => {})} />
-                  <Action grid accent={ACCENT.satellite} icon="globe-outline" label="Satellite" onPress={() => WebBrowser.openBrowserAsync(links.satellite).catch(() => {})} />
-                  <Action grid accent={ACCENT.street} icon="eye-outline" label="Street view" onPress={() => WebBrowser.openBrowserAsync(links.streetView).catch(() => {})} />
-                  <Action grid accent={ACCENT.earth} icon="earth-outline" label="Earth" onPress={() => WebBrowser.openBrowserAsync(links.earth).catch(() => {})} />
+                  <Action grid accent={ACCENT.map} icon="map-outline" label="Map" onPress={() => openExternal(links.maps)} />
+                  <Action grid accent={ACCENT.satellite} icon="globe-outline" label="Satellite" onPress={() => openExternal(links.satellite)} />
+                  <Action grid accent={ACCENT.street} icon="eye-outline" label="Street view" onPress={() => openExternal(links.streetView)} />
+                  <Action grid accent={ACCENT.earth} icon="earth-outline" label="Earth" onPress={() => openExternal(links.earth)} />
                 </View>
                 <Text style={{ fontSize: 11, color: colors.inkFaint, marginTop: 7 }}>Site pin {links.coords}</Text>
               </>
@@ -432,10 +504,10 @@ export function PlotSheet({
               <>
                 <Section title="Documents & media" />
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {property.brochure_url ? <Action grid accent={ACCENT.brochure} icon="document-text-outline" label="Brochure" onPress={() => WebBrowser.openBrowserAsync(property.brochure_url!).catch(() => {})} /> : null}
-                  {videos.length ? <Action grid accent={ACCENT.video} icon="videocam-outline" label={`Videos (${videos.length})`} onPress={() => WebBrowser.openBrowserAsync(videos[0]).catch(() => {})} /> : null}
+                  {property.brochure_url ? <Action grid accent={ACCENT.brochure} icon="document-text-outline" label="Brochure" onPress={() => openExternal(property.brochure_url)} /> : null}
+                  {videos.length ? <Action grid accent={ACCENT.video} icon="videocam-outline" label={`Videos (${videos.length})`} onPress={() => openExternal(videos[0])} /> : null}
                   {(property.documents ?? []).map((d, i) => (
-                    <Action key={i} grid accent={ACCENT.doc} icon="folder-open-outline" label={d.label || "Document"} onPress={() => WebBrowser.openBrowserAsync(d.url).catch(() => {})} />
+                    <Action key={i} grid accent={ACCENT.doc} icon="folder-open-outline" label={d.label || "Document"} onPress={() => openExternal(d.url)} />
                   ))}
                 </View>
               </>
@@ -488,6 +560,28 @@ export function PlotSheet({
               style={{ marginTop: 12, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
             >
               <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Book plot {plot.plot}</Text>
+            </Pressable>
+          ) : null}
+
+          {/* An on-hold plot the caller can release themselves (bug report 22).
+              `liveHold` is only ever their own hold unless they are an admin, so
+              the wording changes to say whose hold is being released. */}
+          {step === "detail" && status === "reserved" && liveHold ? (
+            <Pressable
+              onPress={() => withdrawHold(liveHold.id)}
+              disabled={busy}
+              style={{ marginTop: 12, borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surface, opacity: busy ? 0.5 : 1 }}
+            >
+              <Text style={{ color: colors.ink, fontSize: 14.5, fontWeight: "800" }}>
+                {busy
+                  ? "Withdrawing…"
+                  : liveHold.buyer_id === profile?.id
+                    ? `Withdraw my hold on plot ${plot.plot}`
+                    : `Release hold ${liveHold.ref}`}
+              </Text>
+              <Text style={{ color: colors.inkFaint, fontSize: 11.5, marginTop: 3 }}>
+                Reference {liveHold.ref} · the plot returns to sale immediately
+              </Text>
             </Pressable>
           ) : null}
         </View>

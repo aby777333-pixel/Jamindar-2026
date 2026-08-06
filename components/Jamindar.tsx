@@ -39,6 +39,7 @@ import {
   loadMemory,
   saveMemory,
   getOrCreateConversation,
+  startNewConversation,
   loadConversationMessages,
   translate,
   JAMINDAR_LANGUAGES,
@@ -221,6 +222,7 @@ export function JamindarSheet({
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [recording, setRecording] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -347,6 +349,41 @@ export function JamindarSheet({
     }
     playerRef.current = null;
     setSpeaking(false);
+  }
+
+  /**
+   * Clear chat (bug report 22).
+   *
+   * Opens a fresh conversation and shows the greeting again. The previous
+   * transcript is kept server-side — the sales desk and the language audit both
+   * read it — so nothing is destroyed and no confirmation dialog is needed.
+   * (Alert.alert is a no-op on react-native-web, so gating this behind one would
+   * have made the button dead on the web build.)
+   */
+  async function clearChat() {
+    if (clearing || busy) return;
+    stopSpeaking();
+    setClearing(true);
+    try {
+      if (profile?.id) {
+        const fresh = await startNewConversation(profile.id, language);
+        setConversationId(fresh);
+      }
+      setIntakeStep(null);
+      const name = memory?.call_name ? `, ${memory.call_name}` : "";
+      setMsgs([
+        {
+          role: "assistant",
+          content: `Namaste${name} 🙏 Fresh start. Ask me about plots, budgets, legal terms, or say "open properties", "book a site visit" — by voice or text.`,
+        },
+      ]);
+    } catch {
+      // Even if the new row could not be created, empty the screen — that is
+      // what was asked for. The old thread simply keeps receiving messages.
+      setMsgs([]);
+    } finally {
+      setClearing(false);
+    }
   }
 
   // Play one WAV chunk fully, resolving only when it finishes (or a safety timeout).
@@ -742,13 +779,23 @@ export function JamindarSheet({
           }}
         >
           {/* header */}
-          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 10 }}>
+          {/* A fourth control (Clear chat) joined this row, so the title block is
+              pinned to one line each — a wrapped subtitle used to push the
+              buttons out of alignment on narrow phones. */}
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, gap: 8 }}>
             <JamindarFace size={space.lg + space.xs} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "800", fontSize: 17, color: colors.ink }}>Jamindar</Text>
-              <Text style={{ color: colors.inkFaint, fontSize: 12 }}>Your voice property guide</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} style={{ fontWeight: "800", fontSize: 17, color: colors.ink }}>Jamindar</Text>
+              <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: 12 }}>Your voice property guide</Text>
             </View>
-            <Pressable onPress={() => router.push("/jamindar/settings")} style={{ padding: 6 }}>
+            {/* Clear chat (bug report 22) — hidden while the conversation is
+                already empty, so it never offers to clear nothing. */}
+            {msgs.length > 1 ? (
+              <Pressable onPress={clearChat} disabled={clearing || busy} style={{ padding: 6, opacity: clearing || busy ? 0.4 : 1 }} hitSlop={4}>
+                <Ionicons name={clearing ? "hourglass-outline" : "trash-outline"} size={19} color={colors.inkSoft} />
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => router.push("/jamindar/settings")} style={{ padding: 4 }}>
               <Ionicons name="options" size={20} color={colors.inkSoft} />
             </Pressable>
             <Pressable

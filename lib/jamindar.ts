@@ -134,6 +134,26 @@ export async function getOrCreateConversation(userId: string, language: string):
   return (created as { id: string }).id;
 }
 
+/**
+ * Start a brand-new conversation, whatever the resume window says.
+ *
+ * Bug report 22 asked for a "Clear chat" action. This opens a fresh thread
+ * rather than deleting the old one: the transcript stays intact for the sales
+ * desk and the voice audit trail, while the buyer gets an empty screen. Because
+ * `conversations.last_message_at` defaults to now(), the new row is the one
+ * getOrCreateConversation resumes next time — and it has no messages, so the
+ * assistant opens on its greeting.
+ */
+export async function startNewConversation(userId: string, language: string): Promise<string> {
+  const { data: created, error } = await supabase
+    .from("conversations")
+    .insert({ user_id: userId, title: "Jamindar chat", language })
+    .select("id")
+    .single();
+  if (error || !created) throw new Error(error?.message ?? "Could not start a new Jamindar conversation.");
+  return (created as { id: string }).id;
+}
+
 export async function loadConversationMessages(conversationId: string): Promise<ChatMsg[]> {
   const { data } = await supabase
     .from("conversation_messages")

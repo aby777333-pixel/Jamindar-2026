@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Text, View, FlatList, Pressable, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Card, Loading, Empty } from "@/components/ui";
 import { SiteVisitSheet } from "@/components/SiteVisitSheet";
@@ -96,6 +96,16 @@ export default function ManageVisits() {
             {isAdmin ? "Every booking across Jamin" : "Visits assigned to you"}
           </Text>
         </View>
+        {/* Bug report 21: this desk lists other people's visits. The bookings you
+            made yourself live on /visits, and there was no way across. */}
+        <Pressable
+          onPress={() => router.push("/visits" as Href)}
+          hitSlop={6}
+          style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}
+        >
+          <Ionicons name="person-circle-outline" size={15} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontWeight: "700", fontSize: 12 }}>My bookings</Text>
+        </Pressable>
       </View>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingBottom: 6 }}>
@@ -126,7 +136,14 @@ export default function ManageVisits() {
       {isLoading ? (
         <Loading />
       ) : list.length === 0 ? (
-        <Empty title="No site visits here" subtitle="Bookings will appear as buyers schedule them." />
+        <Empty
+          title="No site visits here"
+          subtitle={
+            isAdmin
+              ? "Bookings will appear as buyers schedule them."
+              : "Bookings will appear as buyers schedule them. Looking for a visit you booked yourself? Tap “My bookings” above."
+          }
+        />
       ) : (
         <FlatList
           data={list}

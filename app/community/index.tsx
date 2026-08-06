@@ -93,7 +93,10 @@ export default function Community() {
             <CommunityPostCard
               post={item}
               onOpen={() => router.push(`/community/${item.id}` as Href)}
-              onChanged={() => qc.invalidateQueries({ queryKey: ["community-feed"] })}
+              onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["community-feed"] });
+                qc.invalidateQueries({ queryKey: ["community-stats"] });
+              }}
             />
           )}
         />

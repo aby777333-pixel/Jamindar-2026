@@ -45,3 +45,6 @@ supabase/.temp/
 # local media working directory (originals + enhanced output)
 media-work/
 app-preview.html
+
+# netlify CLI local cache / build artifacts (function zips)
+.netlify/

@@ -532,6 +532,117 @@ export function PlotLegend() {
   );
 }
 
+/**
+ * Status colours for the plot LIST (bug report 22).
+ *
+ * Most layouts have a plot schedule but no traced geometry — for those the app
+ * showed a flat scan of the drawing under a green/yellow/grey legend, so the
+ * legend promised colour coding the picture could not possibly carry. This map
+ * drives a colour-coded list of the plots instead, and the key beside it is
+ * generated from the very same entries, so the two can never drift again.
+ *
+ * Deliberately NOT the drawing's FILL/STROKE above: on a sanctioned plan an
+ * available plot is left uncoloured (cream), which is correct for a drawing but
+ * reads as "no status shown" in a list. Here every state gets a solid tint.
+ */
+/**
+ * A FUNCTION, not a constant: `colors` is a live proxy onto the active palette,
+ * so a module-scope object would freeze light-mode hexes and stay light forever
+ * once dark mode is on. Every value resolves from a token that exists in both
+ * palettes rather than a literal, for the same reason.
+ */
+export function plotStatusChips(): Record<string, { bg: string; border: string; fg: string; label: string }> {
+  return {
+    available: { bg: colors.successSoft, border: colors.success, fg: colors.success, label: "Available" },
+    reserved:  { bg: colors.goldSoft, border: colors.gold, fg: colors.goldDark, label: "On hold" },
+    booked:    { bg: colors.brandSoft, border: colors.danger, fg: colors.danger, label: "Booked" },
+    sold:      { bg: colors.surfaceSunken, border: colors.inkFaint, fg: colors.inkSoft, label: "Sold" },
+    blocked:   { bg: colors.surfaceAlt, border: colors.border, fg: colors.inkFaint, label: "Not released" },
+  };
+}
+
+const PLOT_STATUS_ORDER = ["available", "reserved", "booked", "sold", "blocked"];
+
+const chipFor = (status?: string | null) => {
+  const chips = plotStatusChips();
+  return chips[(status ?? "available").toLowerCase()] ?? chips.available;
+};
+
+/** The key for PlotStatusGrid — only the states actually present are listed. */
+export function PlotStatusKey({ plots }: { plots: PlotRow[] }) {
+  const chips = plotStatusChips();
+  const present = PLOT_STATUS_ORDER.filter((k) =>
+    plots.some((p) => (p.status ?? "available").toLowerCase() === k),
+  );
+  if (!present.length) return null;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 2 }}>
+      {present.map((k) => {
+        const c = chips[k];
+        const n = plots.filter((p) => (p.status ?? "available").toLowerCase() === k).length;
+        return (
+          <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 13, height: 13, borderRadius: 4, backgroundColor: c.bg, borderWidth: 1.4, borderColor: c.border }} />
+            <Text style={{ fontSize: 11.5, color: colors.inkFaint }}>{c.label} · {n}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * Every plot in the schedule as a colour-coded tile, for layouts with no traced
+ * geometry. Tapping one opens the same PlotSheet the interactive plan opens, so
+ * a buyer can read the record and book from either surface.
+ */
+export function PlotStatusGrid({ plots, onSelect }: { plots: PlotRow[]; onSelect?: (p: PlotRow) => void }) {
+  if (!plots.length) return null;
+  // Numeric-aware ordering: "10" must not sort before "2".
+  const ordered = [...plots].sort((a, b) => {
+    const na = parseInt(String(a.plot).replace(/\D/g, ""), 10);
+    const nb = parseInt(String(b.plot).replace(/\D/g, ""), 10);
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+    return String(a.plot).localeCompare(String(b.plot));
+  });
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {ordered.map((p, i) => {
+        const c = chipFor(p.status);
+        return (
+          <Pressable
+            key={`${p.plot}-${i}`}
+            onPress={onSelect ? () => onSelect(p) : undefined}
+            style={{
+              flexGrow: 1,
+              flexBasis: "30%",
+              minWidth: 96,
+              backgroundColor: c.bg,
+              borderWidth: 1.4,
+              borderColor: c.border,
+              borderRadius: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 11,
+            }}
+          >
+            <Text style={{ fontSize: 14.5, fontWeight: "800", color: c.fg }}>
+              Plot {p.plot}{p.block ? ` · ${p.block}` : ""}
+            </Text>
+            <Text style={{ fontSize: 10.5, fontWeight: "700", color: c.fg, opacity: 0.85, marginTop: 1 }}>
+              {c.label}
+            </Text>
+            {p.size_sqft || p.facing ? (
+              <Text numberOfLines={1} style={{ fontSize: 11, color: colors.inkFaint, marginTop: 3 }}>
+                {[p.size_sqft ? `${p.size_sqft.toLocaleString("en-IN")} sq.ft` : null, p.facing].filter(Boolean).join(" · ")}
+              </Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** Availability totals across the schedule. */
 export function PlotTotals({ plots }: { plots: PlotRow[] }) {
   const counts = plots.reduce((a, p) => {
