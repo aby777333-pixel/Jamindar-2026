@@ -167,6 +167,7 @@
       <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
       <div class="navlab">Growth</div>
       <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
+      <a data-view="journal">📰 Jamin Journal <span class="badge" id="b-journal" style="display:none"></span></a>
       <a data-view="share">📣 Share & Brochures</a>
       <a data-view="quiz">🧭 Questionnaire</a>
     </nav>
@@ -265,16 +266,23 @@ async function refreshBadges(){
     if(n > 0){ el.style.display = "inline-flex"; el.textContent = n; }
     else el.style.display = "none";
   }
+  // The Journal badge is counted here rather than in admin_pending_counts, so
+  // adding the editorial console needed no change to a shared money-path RPC.
+  const jb = document.getElementById("b-journal");
+  if(jb){
+    const { count } = await sb.from("blog_posts").select("id",{count:"exact",head:true}).eq("status","in_review");
+    if(count > 0){ jb.style.display="inline-flex"; jb.textContent=count; } else jb.style.display="none";
+  }
 }
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz}[v])();
 }
 window.go = go;
 
@@ -2323,6 +2331,336 @@ window.saveShareCfg=async()=>{
   const {error}=await sb.from('site_config').upsert({key:'share',value,updated_at:new Date().toISOString()});
   if(error) return toast(error.message);
   toast('Share settings saved — live immediately');
+};
+
+/* ═════════════ JAMIN JOURNAL — editorial console (migration 0076) ═════════════
+ *
+ * The publishing half of the Blog CMS. It writes to blog_posts / blog_authors /
+ * blog_categories; RLS restricts every write to a super admin, so this console
+ * is the only place an article can be created or published from.
+ *
+ * Two rules are wired into the workflow rather than left to discipline:
+ *
+ *   1. Publishing is a deliberate act. An article only becomes public when
+ *      somebody presses Publish here — the public website reads
+ *      `status = 'published' AND published_at <= now()`, nothing else.
+ *   2. The website is statically generated, so a change reaches readers on the
+ *      next revalidation (within the hour) or on a redeploy. The console says
+ *      so rather than implying it is instant.
+ */
+const J_STATUSES = ["draft","in_review","approved","scheduled","published","unpublished","archived"];
+const J_KINDS = ["guide","explainer","location","insight","story","news","checklist","comparison"];
+const J_TONE = { draft:"", in_review:"gold", approved:"gold", scheduled:"gold",
+                 published:"g", unpublished:"", archived:"" };
+let JCUR = null;          // article being edited
+let JCACHE = { cats:[], authors:[], props:[] };
+let JFILTER = { status:"", q:"" };
+
+const jDate = (iso)=> iso ? new Date(iso).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
+const jSlugify = (s)=> String(s||"").toLowerCase().normalize("NFKD")
+  .replace(/[^a-z0-9\s-]/g,"").trim().replace(/\s+/g,"-").replace(/-+/g,"-").slice(0,70);
+
+/** Practical warnings, not a gamified score (§125). Each one names the fix. */
+function jHealth(p){
+  const out=[];
+  const seo=p.seo||{};
+  if(!seo.title) out.push("No SEO title");
+  else if(seo.title.length>60) out.push(`SEO title ${seo.title.length} chars (over 60)`);
+  if(!seo.description) out.push("No meta description");
+  else if(seo.description.length>160) out.push(`Meta description ${seo.description.length} chars (over 160)`);
+  if(!p.excerpt) out.push("No excerpt");
+  if(!p.cover_url) out.push("No cover image");
+  else if(!p.cover_alt) out.push("Cover has no alt text");
+  if(!p.author_id) out.push("No author");
+  if(!p.category_id) out.push("No category");
+  if((p.body||"").trim().split(/\s+/).filter(Boolean).length < 300) out.push("Thin content (under 300 words)");
+  if(!/^##\s/m.test(p.body||"")) out.push("No headings — the article gets no table of contents");
+  if(!(p.related_property_ids||[]).length) out.push("Not linked to any property");
+  if(p.review_due_at && new Date(p.review_due_at) < new Date()) out.push("Review overdue");
+  return out;
+}
+
+async function renderJournal(){
+  const [{data:posts,error},{data:cats},{data:authors},{data:props}] = await Promise.all([
+    sb.from("blog_posts").select("*").order("updated_at",{ascending:false}),
+    sb.from("blog_categories").select("*").order("sort"),
+    sb.from("blog_authors").select("*").order("name"),
+    sb.from("properties").select("id,title,city").order("created_at",{ascending:false}),
+  ]);
+  if(error){ $("#view").innerHTML=`<div class="card" style="padding:18px"><b>Could not load the Journal</b><p class="muted" style="font-size:13px">${esc(error.message)}</p></div>`; return; }
+  JCACHE = { cats:cats||[], authors:authors||[], props:props||[] };
+  const all = posts||[];
+
+  const by = (s)=> all.filter(p=>p.status===s).length;
+  const issues = all.filter(p=>jHealth(p).length).length;
+  const dueSoon = all.filter(p=>p.review_due_at && new Date(p.review_due_at) < new Date()).length;
+
+  let rows = all;
+  if(JFILTER.status) rows = rows.filter(p=>p.status===JFILTER.status);
+  if(JFILTER.q){ const q=JFILTER.q.toLowerCase();
+    rows = rows.filter(p=>[p.title,p.slug,p.excerpt,(p.tags||[]).join(" ")].join(" ").toLowerCase().includes(q)); }
+
+  const catName=(id)=> (JCACHE.cats.find(c=>c.id===id)||{}).name || "—";
+  const authName=(id)=> (JCACHE.authors.find(a=>a.id===id)||{}).name || "—";
+
+  $("#view").innerHTML = `
+  <div class="stats">
+    ${[["Published",by("published")],["In review",by("in_review")],["Drafts",by("draft")],["Needs attention",issues]]
+      .map(([l,n])=>`<div class="card" style="padding:16px"><div class="muted" style="font-size:11.5px;text-transform:uppercase;letter-spacing:.12em">${l}</div><div style="font-size:26px;font-weight:700;margin-top:4px">${n}</div></div>`).join("")}
+  </div>
+
+  <div class="card" style="padding:16px;margin:14px 0;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="chips" id="j-status">
+        <div class="chip ${JFILTER.status===""?"on":""}" data-s="">All ${all.length}</div>
+        ${J_STATUSES.filter(s=>by(s)).map(s=>`<div class="chip ${JFILTER.status===s?"on":""}" data-s="${s}">${s.replace("_"," ")} ${by(s)}</div>`).join("")}
+      </div>
+      <input id="j-q" placeholder="Search title, slug, tag…" value="${esc(JFILTER.q)}" style="flex:1;min-width:180px">
+      <button class="btn" onclick="openArticle()">+ New article</button>
+    </div>
+    ${dueSoon?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">⏰ ${dueSoon} article${dueSoon===1?"":"s"} past its review date — tax, registration and regulation drift, so these are worth a second read.</p>`:""}
+    <p class="muted" style="font-size:12px;margin:8px 0 0">The website is statically generated: a publish or an edit appears to readers on the next revalidation, within the hour, or immediately after a redeploy.</p>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    ${rows.length?`<table><thead><tr><th>Article</th><th>Status</th><th>Category</th><th>Author</th><th>Published</th><th>Health</th><th></th></tr></thead><tbody>
+    ${rows.map(p=>{const h=jHealth(p);return `<tr>
+      <td><b style="font-size:13.5px">${esc(p.title)}</b><div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
+      <td><span class="pill ${J_TONE[p.status]||""}">${esc(String(p.status).replace("_"," "))}</span></td>
+      <td class="muted">${esc(catName(p.category_id))}</td>
+      <td class="muted">${esc(authName(p.author_id))}</td>
+      <td class="muted">${jDate(p.published_at)}</td>
+      <td>${h.length?`<span class="muted" style="font-size:11.5px" title="${esc(h.join(" · "))}">⚠ ${h.length} to fix</span>`:`<span class="muted" style="font-size:11.5px;color:var(--success)">✓ healthy</span>`}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick="openArticle('${p.id}')">Edit</button>
+        ${p.status==="published"
+          ? `<button class="btn grey sm" onclick="jSetStatus('${p.id}','unpublished')">Unpublish</button>`
+          : `<button class="btn sm" onclick="jSetStatus('${p.id}','published')">Publish</button>`}
+      </td></tr>`;}).join("")}
+    </tbody></table>`
+    :`<div style="padding:22px"><p class="muted" style="font-size:13px;margin:0">Nothing matches that filter.</p></div>`}
+  </div>`;
+
+  document.querySelectorAll("#j-status .chip").forEach(c=>c.onclick=()=>{ JFILTER.status=c.dataset.s; renderJournal(); });
+  const q=$("#j-q"); q.oninput=()=>{ JFILTER.q=q.value; };
+  q.onkeydown=(e)=>{ if(e.key==="Enter") renderJournal(); };
+}
+
+/** Status transitions are their own action, separate from Save, so publishing
+ *  can never happen as a side effect of fixing a typo. */
+window.jSetStatus = async (id, status)=>{
+  const patch = { status };
+  if(status==="published"){
+    const { data } = await sb.from("blog_posts").select("published_at").eq("id",id).maybeSingle();
+    if(!data?.published_at) patch.published_at = new Date().toISOString();
+  }
+  const { error } = await sb.from("blog_posts").update(patch).eq("id", id);
+  if(error) return toast(error.message);
+  toast(status==="published" ? "Published — live on the next revalidation" : `Moved to ${status.replace("_"," ")}`);
+  renderJournal();
+};
+
+window.openArticle = async (id)=>{
+  JCUR = id
+    ? (await sb.from("blog_posts").select("*").eq("id",id).maybeSingle()).data
+    : { status:"draft", kind:"guide", tags:[], seo:{}, faqs:[], related_property_ids:[], related_locations:[],
+        author_id:(JCACHE.authors[0]||{}).id||null };
+  if(!JCUR) return toast("Article not found");
+  jRenderEditor();
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+function jField(label,key,ph="",hint=""){
+  return `<div><label>${label}</label><input data-j="${key}" value="${esc(JCUR[key]??"")}" placeholder="${esc(ph)}"/>${hint?`<div class="muted" style="font-size:11px;margin-top:3px">${esc(hint)}</div>`:""}</div>`;
+}
+function jSeoField(label,key,ph,max){
+  const v=(JCUR.seo||{})[key]??"";
+  return `<div><label>${label} <span class="muted" id="j-count-${key}" style="font-weight:400">${v.length}${max?`/${max}`:""}</span></label>
+    <input data-seo="${key}" value="${esc(v)}" placeholder="${esc(ph)}"/></div>`;
+}
+
+function jRenderEditor(){
+  const seo=JCUR.seo||{};
+  const catOpts=JCACHE.cats.map(c=>`<option value="${c.id}" ${JCUR.category_id===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
+  const authOpts=JCACHE.authors.map(a=>`<option value="${a.id}" ${JCUR.author_id===a.id?"selected":""}>${esc(a.name)}</option>`).join("");
+  const revOpts=`<option value="">— not reviewed —</option>`+JCACHE.authors.map(a=>`<option value="${a.id}" ${JCUR.reviewer_id===a.id?"selected":""}>${esc(a.name)}</option>`).join("");
+  const health=jHealth(JCUR);
+
+  $("#drawer").innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
+    <b style="font-size:16px">${JCUR.id?"Edit article":"New article"}</b>
+    <div><button class="btn grey sm" onclick="closeDrawer()">Close</button>
+      <button class="btn sm" onclick="jSave()">Save</button></div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    ${jField("Title","title","What a patta is, and why buyers ask for it first")}
+    <div style="margin-top:10px">${jField("URL slug","slug","what-is-patta","Changing this on a published article records a 301 automatically.")}</div>
+    <div style="margin-top:6px"><button class="btn ghost sm" onclick="jAutoSlug()">Generate slug from title</button></div>
+    <div style="margin-top:10px"><label>Excerpt</label><textarea data-j="excerpt" rows="2" style="width:100%">${esc(JCUR.excerpt??"")}</textarea></div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label>Format</label><select data-j="kind">${J_KINDS.map(k=>`<option value="${k}" ${JCUR.kind===k?"selected":""}>${k}</option>`).join("")}</select></div>
+      <div><label>Category</label><select data-j="category_id"><option value="">—</option>${catOpts}</select></div>
+      <div><label>Author</label><select data-j="author_id">${authOpts}</select></div>
+      <div><label>Reviewed by</label><select data-j="reviewer_id">${revOpts}</select></div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <label>Body <span class="muted" style="font-weight:400">Markdown — ## heading, - list, **bold**, [link](url)</span></label>
+    <textarea data-j="body" rows="18" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6">${esc(JCUR.body??"")}</textarea>
+    <div class="muted" style="font-size:11.5px;margin-top:6px">Each <b>##</b> heading becomes an entry in the article's table of contents.</div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <b style="font-size:13.5px">Cover</b>
+    <div style="margin-top:8px">${jField("Cover image URL","cover_url","https://…")}</div>
+    <div style="margin-top:10px">${jField("Cover alt text","cover_alt","What the photograph shows","Required for accessibility and image SEO.")}</div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <b style="font-size:13.5px">Search appearance</b>
+    <p class="muted" style="font-size:12px;margin:4px 0 10px">A guide to how the result may look. Google composes the final snippet itself.</p>
+    <div style="border:1px solid var(--hair);border-radius:10px;padding:12px;background:#fff">
+      <div style="color:#1a0dab;font-size:16px;line-height:1.3" id="j-prev-title">${esc(seo.title||JCUR.title||"Article title")}</div>
+      <div style="color:#006621;font-size:12.5px;margin-top:2px">jaminproperties.com/journal/<span id="j-prev-slug">${esc(JCUR.slug||"slug")}</span></div>
+      <div style="color:#545454;font-size:12.5px;margin-top:3px" id="j-prev-desc">${esc(seo.description||JCUR.excerpt||"Meta description…")}</div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      ${jSeoField("SEO title","title","Under 60 characters",60)}
+      ${jSeoField("Focus keyword","focus_keyword","patta tamil nadu")}
+    </div>
+    <div style="margin-top:10px"><label>Meta description <span class="muted" id="j-count-description" style="font-weight:400">${(seo.description||"").length}/160</span></label>
+      <textarea data-seo="description" rows="2" style="width:100%">${esc(seo.description??"")}</textarea></div>
+    <div class="grid2" style="margin-top:10px">
+      ${jSeoField("Canonical URL","canonical","Leave blank for the default")}
+      ${jSeoField("Social share image","og_image","https://…")}
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+      <input type="checkbox" data-seo-bool="noindex" ${seo.noindex?"checked":""}/> Hide from search engines (noindex)
+    </label>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <b style="font-size:13.5px">Connections</b>
+    <p class="muted" style="font-size:12px;margin:4px 0 8px">Linked properties appear at the end of the article, read live — never copy a price into the body.</p>
+    <div class="chips" id="j-props">
+      ${JCACHE.props.map(p=>`<div class="chip ${(JCUR.related_property_ids||[]).includes(p.id)?"on":""}" data-p="${p.id}">${esc(p.title)}</div>`).join("")}
+    </div>
+    <div style="margin-top:10px">${jField("Tags","__tags","plots, dtcp, legal","Comma separated.")}</div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <b style="font-size:13.5px">Questions &amp; disclaimer</b>
+    <div id="j-faqs" style="margin-top:8px">
+      ${(JCUR.faqs||[]).map((f,i)=>jFaqRow(f,i)).join("")}
+    </div>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="jAddFaq()">+ Add a question</button>
+    <div style="margin-top:12px"><label>Disclaimer</label>
+      <textarea data-j="disclaimer" rows="3" style="width:100%" placeholder="Required on anything touching law, tax or finance.">${esc(JCUR.disclaimer??"")}</textarea></div>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="jStdDisclaimer()">Use the standard disclaimer</button>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <b style="font-size:13.5px">Workflow</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Status</label><select data-j="status">${J_STATUSES.map(s=>`<option value="${s}" ${JCUR.status===s?"selected":""}>${s.replace("_"," ")}</option>`).join("")}</select></div>
+      <div><label>Publish date</label><input type="datetime-local" data-j="__published" value="${JCUR.published_at?new Date(JCUR.published_at).toISOString().slice(0,16):""}"/></div>
+      <div><label>Information reviewed on</label><input type="date" data-j="__reviewed" value="${JCUR.reviewed_at?JCUR.reviewed_at.slice(0,10):""}"/></div>
+      <div><label>Review again by</label><input type="date" data-j="__reviewdue" value="${JCUR.review_due_at?JCUR.review_due_at.slice(0,10):""}"/></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+      <input type="checkbox" data-j-bool="is_featured" ${JCUR.is_featured?"checked":""}/> Feature on the Journal home page
+    </label>
+  </div>
+
+  ${health.length?`<div class="card" style="padding:14px;margin-bottom:12px;border-color:var(--gold)">
+    <b style="font-size:13.5px">Before publishing</b>
+    <ul style="margin:8px 0 0;padding-left:18px">${health.map(h=>`<li class="muted" style="font-size:12.5px">${esc(h)}</li>`).join("")}</ul>
+  </div>`:`<div class="card" style="padding:14px;margin-bottom:12px"><span class="muted" style="font-size:12.5px;color:var(--success)">✓ Nothing outstanding on this article.</span></div>`}
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px">
+    <button class="btn" onclick="jSave()">Save</button>
+    ${JCUR.id&&JCUR.status!=="published"?`<button class="btn" style="background:var(--success)" onclick="jSave(true)">Save &amp; publish</button>`:""}
+    ${JCUR.id?`<button class="btn ghost" onclick="window.open('https://jamin-properties-web.netlify.app/journal/${encodeURIComponent(JCUR.slug||"")}','_blank')">Open on the site</button>`:""}
+    <button class="btn grey" onclick="closeDrawer()">Cancel</button>
+  </div>`;
+
+  // live SEO preview + counters
+  const sync=()=>{
+    const t=$('[data-seo="title"]').value || $('[data-j="title"]').value;
+    const d=$('[data-seo="description"]').value || $('[data-j="excerpt"]').value;
+    $("#j-prev-title").textContent = t || "Article title";
+    $("#j-prev-desc").textContent  = d || "Meta description…";
+    $("#j-prev-slug").textContent  = $('[data-j="slug"]').value || "slug";
+    $("#j-count-title").textContent = `${$('[data-seo="title"]').value.length}/60`;
+    $("#j-count-description").textContent = `${$('[data-seo="description"]').value.length}/160`;
+  };
+  ['[data-seo="title"]','[data-seo="description"]','[data-j="title"]','[data-j="excerpt"]','[data-j="slug"]']
+    .forEach(s=>{ const el=$(s); if(el) el.oninput=sync; });
+
+  $("#j-props").querySelectorAll(".chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
+  $('[data-j="__tags"]').value = (JCUR.tags||[]).join(", ");
+}
+
+function jFaqRow(f,i){
+  return `<div class="j-faq" style="border:1px solid var(--hair);border-radius:10px;padding:10px;margin-bottom:8px">
+    <input class="j-q" placeholder="Question" value="${esc(f.q||"")}" style="width:100%">
+    <textarea class="j-a" rows="2" placeholder="Answer" style="width:100%;margin-top:6px">${esc(f.a||"")}</textarea>
+    <button class="btn grey sm" style="margin-top:6px" onclick="this.closest('.j-faq').remove()">Remove</button>
+  </div>`;
+}
+window.jAddFaq = ()=>{ $("#j-faqs").insertAdjacentHTML("beforeend", jFaqRow({},0)); };
+window.jAutoSlug = ()=>{ const t=$('[data-j="title"]').value; $('[data-j="slug"]').value = jSlugify(t); $("#j-prev-slug").textContent = jSlugify(t)||"slug"; };
+window.jStdDisclaimer = ()=>{ $('[data-j="disclaimer"]').value =
+  "This article is general educational information about buying land in Tamil Nadu. It is not legal, tax or financial advice. Rules, charges and procedures change, and the position for a particular plot depends on its own records. Verify the current requirements with the relevant authority, or with a qualified professional, before you commit to a purchase."; };
+
+window.jSave = async (publish=false)=>{
+  const get=(k)=>{ const el=document.querySelector(`[data-j="${k}"]`); return el?el.value:undefined; };
+  const seo={};
+  document.querySelectorAll("[data-seo]").forEach(el=>{ const v=el.value.trim(); if(v) seo[el.dataset.seo]=v; });
+  document.querySelectorAll("[data-seo-bool]").forEach(el=>{ if(el.checked) seo[el.dataset.seoBool]=true; });
+
+  const faqs=[...document.querySelectorAll("#j-faqs .j-faq")]
+    .map(r=>({q:r.querySelector(".j-q").value.trim(), a:r.querySelector(".j-a").value.trim()}))
+    .filter(f=>f.q && f.a);
+
+  const title=(get("title")||"").trim();
+  if(!title) return toast("A title is required");
+  const slug=(get("slug")||"").trim() || jSlugify(title);
+
+  const payload={
+    title, slug,
+    excerpt:(get("excerpt")||"").trim()||null,
+    body:get("body")||null,
+    kind:get("kind")||"guide",
+    category_id:get("category_id")||null,
+    author_id:get("author_id")||null,
+    reviewer_id:get("reviewer_id")||null,
+    cover_url:(get("cover_url")||"").trim()||null,
+    cover_alt:(get("cover_alt")||"").trim()||null,
+    tags:(get("__tags")||"").split(",").map(s=>s.trim()).filter(Boolean),
+    seo, faqs,
+    disclaimer:(get("disclaimer")||"").trim()||null,
+    related_property_ids:[...$("#j-props").querySelectorAll(".chip.on")].map(c=>c.dataset.p),
+    is_featured: !!document.querySelector('[data-j-bool="is_featured"]')?.checked,
+    status: publish ? "published" : (get("status")||"draft"),
+  };
+  const pub=get("__published"), rev=get("__reviewed"), due=get("__reviewdue");
+  payload.published_at = pub ? new Date(pub).toISOString() : (payload.status==="published" ? new Date().toISOString() : null);
+  payload.reviewed_at  = rev ? new Date(rev).toISOString() : null;
+  payload.review_due_at= due ? new Date(due).toISOString() : null;
+
+  const q = JCUR.id
+    ? sb.from("blog_posts").update(payload).eq("id",JCUR.id)
+    : sb.from("blog_posts").insert(payload);
+  const { error } = await q;
+  if(error){
+    // The commonest failure by far is a slug that already exists.
+    return toast(/duplicate key/i.test(error.message) ? "That slug is already used by another article" : error.message);
+  }
+  toast(payload.status==="published" ? "Saved and published — live on the next revalidation" : "Saved");
+  closeDrawer(); renderJournal();
 };
 </script>
 </body>
