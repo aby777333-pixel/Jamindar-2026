@@ -53,6 +53,46 @@ const SCRIPTS: Record<string, RegExp> = {
 const EMPTY_FALLBACK =
   "Sorry, I did not catch that. Could you say it again, or ask me about plots, budget, location or legal terms?";
 
+// ── anonymous rate limiting (0080) ──────────────────────────────────────────
+// ⚠️ Jamindar now has a PUBLIC entry point: the Jamin Properties website calls
+// this endpoint with the anon key and no signed-in user. Every call spends real
+// money on the Sarvam key, so an unauthenticated caller has to be capped or a
+// script could drain the balance in an afternoon.
+//
+// Reached ONLY when there is no signed-in user, so the app — where every
+// Jamindar user is authenticated — behaves exactly as it did before.
+const RATE_SALT = "jamin-anon-v1";
+
+/** A stable, non-identifying handle for one caller. The counter needs to tell
+ *  two visitors apart; that does not require storing anybody's address. */
+async function clientHash(req: Request): Promise<string> {
+  const fwd = req.headers.get("x-forwarded-for") ?? "";
+  const ip = fwd.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "";
+  if (!ip) return "";
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(RATE_SALT + ip));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function anonGate(admin: any, req: Request): Promise<{ ok: boolean; message: string }> {
+  try {
+    const hash = await clientHash(req);
+    const { data, error } = await admin.rpc("ai_anon_take", { p_hash: hash, p_hour_limit: 20, p_day_limit: 80 });
+    // A transport failure is OUR fault, not the visitor's, so it fails open —
+    // only an explicit refusal from the limiter closes the door.
+    if (error) return { ok: true, message: "" };
+    if ((data as any)?.ok) return { ok: true, message: "" };
+    const scope = String((data as any)?.scope ?? "hour");
+    return {
+      ok: false,
+      message: scope === "day"
+        ? "You have reached today's limit for Jamindar. Our sales desk can answer straight away — please call or send an enquiry."
+        : "Jamindar is catching up with your questions. Please try again in a few minutes, or contact the sales desk for anything urgent.",
+    };
+  } catch (_) {
+    return { ok: true, message: "" };
+  }
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
@@ -423,6 +463,13 @@ Deno.serve(async (req) => {
 
     const payload = await req.json();
     const action = payload.action as string;
+
+    // ⚠️ Unauthenticated callers only — see anonGate above. A signed-in app
+    // user never reaches this branch.
+    if (!userId) {
+      const gate = await anonGate(admin, req);
+      if (!gate.ok) return json({ error: gate.message, rateLimited: true }, 429);
+    }
 
     // Buyer report 29-07 ("speech should be human"): user-facing replies are
     // translated in "modern-colloquial" mode — natural, everyday spoken
