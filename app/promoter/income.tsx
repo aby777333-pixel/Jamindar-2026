@@ -464,11 +464,18 @@ export default function SalesIncome() {
             </View>
           ) : null}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs, paddingRight: space.md }} style={{ marginBottom: space.xs, flexGrow: 0 }}>
+          {/* Bug report 07-08 #4: this was the one chip row still inside a
+              horizontal ScrollView, and it rendered half-height with the
+              labels sliced off — a nested scroller has to negotiate its own
+              cross-axis height with the parent ScrollView, and `Chip` asks to
+              flexGrow, so the two disagreed. The two rows on either side of it
+              (segments above, statuses below) already wrap, never measure and
+              always render at full height; this one now matches them. */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginBottom: space.xs }}>
             {RANGES.map((r) => (
               <Chip key={r.key} label={r.label} on={range === r.key} onPress={() => setRange(r.key)} />
             ))}
-          </ScrollView>
+          </View>
 
           {range === "custom" ? (
             <View style={{ flexDirection: "row", gap: space.xs, marginBottom: space.xs }}>

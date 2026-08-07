@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Text, View, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Redirect } from "expo-router";
@@ -20,10 +20,35 @@ export default function Welcome() {
   // heavily font-scaled screen genuinely does overflow, it still scrolls
   // rather than hiding the button. The tolerance is a few pixels rather than
   // one, so sub-pixel rounding at 2.75x density cannot flip it on its own.
+  //
+  // Bug report 07-08 #8 — it STILL dragged. Sizing the mascot from the window
+  // is a guess: 27% of the height happens to fit most phones and misses some
+  // by a handful of points, and a handful of points is all it takes. So stop
+  // guessing and measure. When the content comes back taller than the
+  // viewport, trim the mascot by exactly the overflow; the card below it has
+  // flexGrow:1 and soaks the reclaimed space up, so the next pass measures
+  // content === viewport and the loop settles after one step. Monotonic and
+  // clamped, so it cannot oscillate: `trim` only ever grows, and never past
+  // MASCOT_MIN. If a genuinely tiny screen still overflows at the smallest
+  // mascot, scrollNeeded stays true and the button remains reachable.
   const { height: winH } = useWindowDimensions();
-  const mascot = Math.max(150, Math.min(236, Math.round(winH * 0.27)));
+  const MASCOT_MIN = 112;
+  const mascotBase = Math.max(150, Math.min(236, Math.round(winH * 0.27)));
+  const [trim, setTrim] = useState(0);
+  const mascot = Math.max(MASCOT_MIN, mascotBase - trim);
   const [contentH, setContentH] = useState(0);
   const [viewH, setViewH] = useState(0);
+
+  // A rotation or a fold changes the window, which changes the base size — let
+  // the mascot grow back and re-measure from scratch.
+  useEffect(() => { setTrim(0); }, [winH]);
+
+  useEffect(() => {
+    if (contentH <= 0 || viewH <= 0) return;
+    const over = contentH - viewH;
+    if (over <= 2) return;
+    setTrim((t) => Math.min(Math.max(0, mascotBase - MASCOT_MIN), t + over));
+  }, [contentH, viewH, mascotBase]);
 
   // ⚠️ Default to SCROLLABLE and only lock once both measurements have actually
   // arrived. Locking by default looks identical most of the time and is a trap

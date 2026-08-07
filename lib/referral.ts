@@ -127,20 +127,37 @@ export async function shareVia(
       // asset. So do the honest best thing — put the invite on the clipboard,
       // open the app, and tell the user it is ready to paste.
       // ⚠️ Deliberately NOT canOpenURL(). Since Android 11 that returns false
-      // for any scheme missing from the manifest's <queries>, which here lists
-      // only https — so an installed Instagram would still look absent and
-      // every user would land on the fallback. Attempting the open and
+      // for any scheme missing from the manifest's <queries> — the same
+      // filtering that made the report below happen. Attempting the open and
       // catching the rejection is accurate on both platforms.
+      //
+      // Bug report 07-08 #7: "Instagram isn't installed" on a phone with
+      // Instagram installed. Android 11+ package visibility does not just
+      // filter queries — an implicit intent aimed at a package the manifest
+      // cannot see fails to resolve, so `instagram://app` threw and we
+      // announced the app was missing. The manifest now declares
+      // com.instagram.android (plugins/withAndroidQueries.js), which fixes the
+      // scheme outright on the next build. This https fallback covers the
+      // phones already carrying the older build: Instagram claims
+      // instagram.com as a verified app link, so an installed app still opens,
+      // and a phone without it lands on Instagram on the web rather than
+      // reading an untrue message.
       await Clipboard.setStringAsync(text);
+      const paste = "Invite copied — paste it into your story, post or DM";
       try {
         await Linking.openURL("instagram://app");
-        return "Invite copied — paste it into your story, post or DM";
+        return paste;
       } catch {
-        // Bug report 17: this used to fall back to Share.share, which pops the
-        // very "Open with" chooser the report objects to — off a button that
-        // says Instagram. The text is already on the clipboard, and "More" is
-        // right there for anyone who wants the system sheet.
-        return "Instagram isn't installed — invite copied to your clipboard";
+        try {
+          await Linking.openURL("https://www.instagram.com/");
+          return paste;
+        } catch {
+          // Bug report 17: this used to fall back to Share.share, which pops
+          // the very "Open with" chooser the report objects to — off a button
+          // that says Instagram. The text is already on the clipboard, and
+          // "More" is right there for anyone who wants the system sheet.
+          return "Couldn't open Instagram — the invite is on your clipboard";
+        }
       }
     }
     case "more":

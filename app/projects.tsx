@@ -106,7 +106,14 @@ export default function Projects() {
         </View>
       </View>
 
-      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingBottom: 4 }}>
+      {/* Bug report 07-08 #1: "there is no Future filter". There always was —
+          PROJECT_PHASES has carried `future` since the four tiles were added —
+          but five chips on one un-wrapped row are wider than a phone, so the
+          last one sat off the right edge with nothing to hint at it. Wrapping
+          is the pattern the rest of the app settled on for exactly this (Sales
+          Income segments, explorer chips): every option stays visible instead
+          of hiding behind a scroll affordance testers read as "broken". */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingBottom: 4 }}>
         {(["all", ...PROJECT_PHASES.map((p) => p.phase)] as const).map((k) => {
           const on = phase === k;
           return (

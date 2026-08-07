@@ -220,10 +220,27 @@ export async function removeCommunityPost(postId: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Update a post in place, keeping its likes and replies (0072). Own posts
- *  only; admins may moderate anyone's. */
-export async function editCommunityPost(postId: string, body: string): Promise<void> {
-  const { error } = await supabase.rpc("edit_community_post", { p_id: postId, p_body: body });
+/**
+ * Update a post in place, keeping its likes and replies (0072). Own posts
+ * only; admins may moderate anyone's.
+ *
+ * Pass `media` to also detach attachments (0075). It must be the list that
+ * should REMAIN — the server rejects anything that was not already on the
+ * post, so an edit can never add media through this path. Leave it undefined
+ * and the attachments are untouched, which keeps the call identical to the one
+ * every shipped build makes.
+ */
+export async function editCommunityPost(
+  postId: string,
+  body: string,
+  media?: CommunityMedia[],
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    "edit_community_post",
+    media === undefined
+      ? { p_id: postId, p_body: body }
+      : { p_id: postId, p_body: body, p_media: media },
+  );
   if (error) throw error;
 }
 

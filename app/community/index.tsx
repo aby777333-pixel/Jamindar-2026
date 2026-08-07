@@ -6,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
+import { ZoomableImageViewer } from "@/components/ImageViewer";
+import { openExternal } from "@/lib/browser";
 import { useAuth } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
 import { IMG } from "@/lib/img";
@@ -127,6 +129,12 @@ export function CommunityPostCard({
   const canEdit = canDelete;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.body ?? "");
+  // Bug report 07-08 #3: editing only ever reached the text, so pulling one
+  // wrong screenshot meant deleting the post and losing its likes and replies.
+  // The draft carries the attachments too; the server (0075) accepts only a
+  // subset of what is already there, so this can remove but never add.
+  const [draftMedia, setDraftMedia] = useState<CommunityMedia[]>(post.media ?? []);
+  const [preview, setPreview] = useState<CommunityMedia | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   // All-languages support (owner: every language must be choosable): tapping
   // Translate opens the full 10-language chip row; the reader's saved
@@ -194,15 +202,31 @@ export function CommunityPostCard({
     ]);
   }
 
+  function startEdit() {
+    setDraft(post.body ?? "");
+    setDraftMedia(post.media ?? []);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setDraft(post.body ?? "");
+    setDraftMedia(post.media ?? []);
+    setEditing(false);
+  }
+
   async function onSaveEdit() {
     const body = draft.trim();
-    if (!body && !(post.media?.length ?? 0)) {
-      Alert.alert("Nothing to post", "Write something, or keep the original.");
+    const original = post.media ?? [];
+    // The attachments are only sent when the author actually detached one —
+    // an unchanged edit keeps making the exact two-argument call it always has.
+    const mediaChanged = draftMedia.length !== original.length;
+    if (!body && draftMedia.length === 0) {
+      Alert.alert("Nothing to post", "Write something, or keep an attachment.");
       return;
     }
     setSavingEdit(true);
     try {
-      await editCommunityPost(post.id, body);
+      await editCommunityPost(post.id, body, mediaChanged ? draftMedia : undefined);
       setEditing(false);
       // Clear any translation — it belongs to the text that just changed.
       setTranslated(null);
@@ -260,9 +284,50 @@ export function CommunityPostCard({
               fontSize: 14.5, lineHeight: 21, color: colors.ink, minHeight: 90, textAlignVertical: "top",
             }}
           />
+          {/* Attachments, each with its own ✕. The row previews (photos in the
+              pinch-zoom viewer, everything else in the in-app browser) and the
+              cross detaches — the same two hit targets the composer uses, so
+              editing and posting behave identically. */}
+          {draftMedia.length > 0 ? (
+            <View style={{ gap: 8 }}>
+              {draftMedia.map((m, i) => (
+                <Pressable
+                  key={m.url + i}
+                  onPress={() => (m.type === "image" ? setPreview(m) : openExternal(m.url))}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8 }}
+                >
+                  {m.type === "image" ? (
+                    <Image source={{ uri: IMG.tile(m.url) }} style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.surfaceSunken }} />
+                  ) : (
+                    <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name={m.type === "video" ? "videocam" : m.type === "audio" ? "mic" : m.type === "pdf" ? "document-text" : "document-attach"} size={18} color={colors.brand} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ color: colors.ink, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
+                      {m.name || (m.type === "image" ? "Photo" : m.type === "video" ? "Video" : m.type === "audio" ? "Voice note" : "File")}
+                    </Text>
+                    <Text style={{ color: colors.inkFaint, fontSize: 11, marginTop: 1 }}>Tap to preview</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setDraftMedia((all) => all.filter((_, j) => j !== i))}
+                    hitSlop={10}
+                    accessibilityLabel="Remove this attachment"
+                    style={{ padding: 2 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color={colors.inkFaint} />
+                  </Pressable>
+                </Pressable>
+              ))}
+              <Text style={{ color: colors.inkFaint, fontSize: 11 }}>
+                Removed attachments are detached when you save. New files can be added from a new post.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
             <Pressable
-              onPress={() => { setDraft(post.body ?? ""); setEditing(false); }}
+              onPress={cancelEdit}
               hitSlop={6}
               style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}
             >
@@ -334,7 +399,10 @@ export function CommunityPostCard({
         </View>
       ) : null}
 
-      <CommunityMediaBlock media={post.media} onOpenVideos={onOpen} />
+      {/* While editing, the removable rows above ARE the attachment list —
+          rendering the gallery as well would show the same files twice, one
+          copy of which cannot be removed. */}
+      {editing ? null : <CommunityMediaBlock media={post.media} onOpenVideos={onOpen} />}
 
       {/* actions */}
       {!hideActions ? (
@@ -357,7 +425,7 @@ export function CommunityPostCard({
           ) : null}
           {canEdit && !editing ? (
             <Pressable
-              onPress={() => { setDraft(post.body ?? ""); setEditing(true); }}
+              onPress={startEdit}
               hitSlop={8}
               accessibilityLabel="Edit post"
             >
@@ -370,6 +438,19 @@ export function CommunityPostCard({
             </Pressable>
           ) : null}
         </View>
+      ) : null}
+
+      {/* Mounted only while a preview is open. The viewer holds six reanimated
+          shared values, and the feed renders a card per post — leaving one
+          permanently mounted in every row would put that cost on scrolling for
+          a modal almost nobody has open. */}
+      {preview ? (
+        <ZoomableImageViewer
+          visible
+          uri={preview.url}
+          title={preview.name || "Attached photo"}
+          onClose={() => setPreview(null)}
+        />
       ) : null}
     </Card>
   );

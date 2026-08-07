@@ -30,6 +30,22 @@ export default function Support() {
   const router = useRouter();
   const [open, setOpen] = useState<number | null>(0);
 
+  // Bug report 07-08 #5: the screen dragged and sprang back even though every
+  // card already fitted. Android's default overscroll gives a ScrollView that
+  // rubber-band whether or not there is anything to scroll to, and the FAQ
+  // rows expand, so the content genuinely does overflow sometimes. Measuring
+  // both heights lets the screen sit still when it fits and still scroll the
+  // moment an answer opens.
+  //
+  // ⚠️ Same trap the Welcome screen documents: default to SCROLLABLE and only
+  // lock once BOTH measurements have arrived. onLayout/onContentSizeChange do
+  // not fire on the web build, and locking an unmeasured screen would put the
+  // FAQ below the fold with no way to reach it.
+  const [contentH, setContentH] = useState(0);
+  const [viewH, setViewH] = useState(0);
+  const measured = contentH > 0 && viewH > 0;
+  const scrollNeeded = !measured || contentH > viewH + 4;
+
   // The admin-configured help desk (platform_contacts.jamin_desk) — the same
   // record the Admin Console edits, so changes are live here immediately.
   const { data: desk } = useQuery({
@@ -59,7 +75,15 @@ export default function Support() {
         <Text style={{ fontSize: T.subhead.fontSize, fontWeight: "600", color: colors.ink, letterSpacing: -0.4 }}>Support</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+        scrollEnabled={scrollNeeded}
+        onContentSizeChange={(_, h) => setContentH(h)}
+        onLayout={(e) => setViewH(e.nativeEvent.layout.height)}
+      >
         {/* help desk — every channel opens the native app (dialer/WhatsApp/SMS/mail) */}
         <Card style={{ marginBottom: space.md, gap: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

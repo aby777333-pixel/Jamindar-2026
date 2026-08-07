@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Text, View, ScrollView, Image, Pressable, Alert, Share, Linking, ActivityIndicator, Modal, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -80,6 +80,14 @@ export default function PropertyDetail() {
   const [contactOpen, setContactOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [videoIndex, setVideoIndex] = useState(0);
+  // Real shape of each clip, learned from expo-video's sourceLoad and kept per
+  // uri so switching walkthroughs never re-guesses one it has already measured
+  // (bug report 07-08 #2 — see the hero below).
+  const [videoAspects, setVideoAspects] = useState<Record<string, number>>({});
+  const noteVideoAspect = useCallback((uri: string, ratio: number) => {
+    if (!(ratio > 0) || !Number.isFinite(ratio)) return;
+    setVideoAspects((m) => (m[uri] === ratio ? m : { ...m, [uri]: ratio }));
+  }, []);
   // Live dimensions, not a one-off Dimensions.get(): the fullscreen viewer
   // unlocks rotation, so width/height must follow the device.
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
@@ -403,11 +411,37 @@ export default function PropertyDetail() {
   }
   const activeTab: TabKey = tabs.includes(tab) ? tab : "overview";
 
+  // ── hero geometry ─────────────────────────────────────────────────────────
+  // Bug report 07-08 #2: "large black bars above and below the video… utilise
+  // the unused black space for the Walkthrough tabs and the Photos/Videos
+  // toggle". The player used to sit in the same fixed 250pt box as the photo
+  // carousel, so a landscape clip was letterboxed inside it AND the chrome was
+  // laid on top of the picture, costing screen twice over.
+  //
+  // Now the frame is built from the clip: the player gets exactly the height
+  // its own aspect ratio asks for (no letterbox left to waste), and the two
+  // controls get bands of their own above and below it. Nothing overlaps the
+  // picture any more, and the total is the same order of height as before.
+  //
+  // The ratio arrives asynchronously and never arrives at all on the web
+  // build, where expo-video reports no video tracks — 16:9 is the fallback,
+  // which is what every walkthrough shot so far has been.
+  const HERO_H = 250;
+  const VIDEO_TOP_BAR = 52;   // clears the back button (12 + 8 padding + 22 icon)
+  const VIDEO_CHIP_BAR = 38;  // the Walkthrough / Drone chips
+  const currentVideo = allVideos[videoIndex];
+  const videoAspect = (currentVideo ? videoAspects[currentVideo] : 0) || 16 / 9;
+  // Clamped so a portrait or ultra-wide clip cannot take over the screen or
+  // shrink to a strip.
+  const videoH = Math.round(Math.max(170, Math.min(320, SCREEN_W / videoAspect)));
+  const videosBoxH = VIDEO_TOP_BAR + videoH + (allVideos.length > 1 ? VIDEO_CHIP_BAR : 0);
+  const heroH = mediaMode === "photos" ? HERO_H : videosBoxH;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surfaceAlt }} edges={["top"]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
         {/* gallery — swipeable photos / videos + tap to fullscreen */}
-        <View style={{ height: 250, backgroundColor: colors.surfaceSunken }}>
+        <View style={{ height: heroH, backgroundColor: colors.surfaceSunken }}>
           {mediaMode === "photos" ? (
             images.length > 0 ? (
               <ScrollView
@@ -423,7 +457,7 @@ export default function PropertyDetail() {
                     the carousel, sharp in full screen". IMG.hero is the token
                     meant for exactly this box. */}
                 {images.map((uri, i) => (
-                  <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: 250 }}>
+                  <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: HERO_H }}>
                     <Image source={{ uri: IMG.hero(uri) }} style={{ width: "100%", height: "100%" }} />
                   </Pressable>
                 ))}
@@ -434,54 +468,76 @@ export default function PropertyDetail() {
               </View>
             )
           ) : (
-            // Plays in place, filling the media frame, with native controls and
-            // a fullscreen button — no more bouncing out to the browser.
+            // Plays in place, sized to the clip, with native controls and a
+            // fullscreen button — no more bouncing out to the browser.
+            //
+            // A vertical stack, not overlays: the toggle sits in the band above
+            // the picture and the walkthrough chips in the band below it, so
+            // the space the letterbox used to waste now carries the controls
+            // and the picture itself is never covered.
             <View style={{ flex: 1, backgroundColor: "#000" }}>
-              {allVideos[videoIndex] ? (
-                <InlineVideo key={allVideos[videoIndex]} uri={allVideos[videoIndex]} height={250} />
-              ) : null}
+              {/* Band under the back button / Photos–Videos toggle / heart,
+                  which are absolutely positioned over the whole frame. */}
+              <View style={{ height: VIDEO_TOP_BAR }} />
+              {currentVideo ? (
+                <InlineVideo key={currentVideo} uri={currentVideo} height={videoH} onAspect={noteVideoAspect} />
+              ) : (
+                <View style={{ height: videoH }} />
+              )}
               {allVideos.length > 1 ? (
-                // Bug 28-07: these chips sat at the bottom, colliding with the
-                // player's progress bar/controls — they now sit at the top,
-                // under the Photos/Videos toggle, clear of every control.
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={{ position: "absolute", top: 52, left: 0, right: 0 }}
-                  contentContainerStyle={{ paddingHorizontal: 12, gap: 6 }}
-                >
-                  {allVideos.map((_, i) => (
-                    <Pressable
-                      key={i}
-                      onPress={() => setVideoIndex(i)}
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 999,
-                        backgroundColor: i === videoIndex ? "#fff" : "rgba(0,0,0,0.55)",
-                      }}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: i === videoIndex ? colors.ink : "#fff" }}>
-                        {i < (property.videos?.length ?? 0) ? `Walkthrough ${i + 1}` : "Drone"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                // Bug 28-07: these chips sat at the bottom ON the player,
+                // colliding with its progress bar. Bug 07-08 #2: moving them to
+                // the top only traded one collision for another. They now have
+                // a band of their own, off the picture entirely.
+                <View style={{ height: VIDEO_CHIP_BAR, justifyContent: "center" }}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ height: VIDEO_CHIP_BAR }}
+                    contentContainerStyle={{ paddingHorizontal: 12, gap: 6, alignItems: "center" }}
+                  >
+                    {allVideos.map((_, i) => (
+                      <Pressable
+                        key={i}
+                        onPress={() => setVideoIndex(i)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 999,
+                          backgroundColor: i === videoIndex ? "#fff" : "rgba(255,255,255,0.16)",
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: i === videoIndex ? colors.ink : "#fff" }}>
+                          {i < (property.videos?.length ?? 0) ? `Walkthrough ${i + 1}` : "Drone"}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
               ) : null}
             </View>
           )}
-          <LinearGradient colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 90 }} pointerEvents="none" />
-          <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 70 }} pointerEvents="none" />
-          <Pressable onPress={() => router.back()} style={{ position: "absolute", top: 12, left: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
+          {/* The scrims exist to keep the back arrow and heart readable over a
+              photo. In Videos mode they sit on plain black bands and would only
+              muddy them. */}
+          {mediaMode === "photos" ? (
+            <>
+              <LinearGradient colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 90 }} pointerEvents="none" />
+              <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 70 }} pointerEvents="none" />
+            </>
+          ) : null}
+          {/* On a photo these need a dark scrim to read; on the Videos frame's
+              black band a dark circle is invisible, so lift them instead. */}
+          <Pressable onPress={() => router.back()} style={{ position: "absolute", top: 12, left: 12, backgroundColor: mediaMode === "photos" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.14)", borderRadius: 20, padding: 8 }}>
             <Ionicons name="arrow-back" size={22} color="#fff" />
           </Pressable>
           {/* Audit 29-07: favourites are per-user, not buyer-only — promoters and
               admins save from the explorer rails, so the heart must match here. */}
-          <Pressable onPress={toggleFav} style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8 }}>
+          <Pressable onPress={toggleFav} style={{ position: "absolute", top: 12, right: 12, backgroundColor: mediaMode === "photos" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.14)", borderRadius: 20, padding: 8 }}>
             <Ionicons name={isFav ? "heart" : "heart-outline"} size={22} color={isFav ? colors.brand : "#fff"} />
           </Pressable>
           {allVideos.length > 0 ? (
-            <View style={{ position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, padding: 3 }}>
+            <View style={{ position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", backgroundColor: mediaMode === "photos" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.14)", borderRadius: 999, padding: 3 }}>
               {(["photos", "videos"] as const).map((m) => (
                 <Pressable key={m} onPress={() => setMediaMode(m)} style={{ paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, backgroundColor: mediaMode === m ? "#fff" : "transparent" }}>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: mediaMode === m ? colors.ink : "#fff" }}>{m === "photos" ? "Photos" : "Videos"}</Text>
@@ -823,11 +879,35 @@ function VideosTab({ videos, drone }: { videos: string[]; drone: string[] }) {
 }
 
 /** Inline player. Keyed by uri by callers so a source change reloads cleanly. */
-function InlineVideo({ uri, height }: { uri: string; height: number }) {
+function InlineVideo({
+  uri,
+  height,
+  onAspect,
+}: {
+  uri: string;
+  height: number;
+  /** Called once the clip's real width/height are known, so the hero can frame
+   *  it without letterboxing (bug report 07-08 #2). Optional — the tab-level
+   *  players below are fixed-height and do not need it. */
+  onAspect?: (uri: string, ratio: number) => void;
+}) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.muted = false;
   });
+
+  useEffect(() => {
+    if (!onAspect) return;
+    // `sourceLoad` is the only place expo-video hands over the track size.
+    // On web availableVideoTracks is a documented empty stub, so this simply
+    // never fires there and the caller keeps its 16:9 default.
+    const sub = player.addListener("sourceLoad", (e) => {
+      const size = e?.availableVideoTracks?.[0]?.size;
+      if (size?.width && size?.height) onAspect(uri, size.width / size.height);
+    });
+    return () => sub.remove();
+  }, [player, uri, onAspect]);
+
   return (
     <VideoView
       style={{ width: "100%", height }}
