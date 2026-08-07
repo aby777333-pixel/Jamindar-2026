@@ -1695,18 +1695,45 @@ window.commExportGuests = ()=>{
 };
 
 // ───────── site visits ─────────
+// A visit can now arrive from two places: the app, where a signed-in buyer
+// books it, and the public website, where a guest does (0079). A website
+// booking has no buyer profile to join to — its contact details live in
+// guest_name / guest_phone / guest_email on the row itself. Reading only
+// `buyer` would have shown every one of them as "—" with no way to call back.
+function visitWho(v){
+  if(v.buyer) return {
+    name: v.buyer.full_name || 'Member',
+    sub: [v.buyer.member_code, v.buyer.mobile ? '+'+v.buyer.mobile : ''].filter(Boolean).join(' · '),
+    tel: v.buyer.mobile || '' };
+  if(v.guest_name || v.guest_phone) return {
+    name: v.guest_name || 'Website visitor',
+    sub: [v.guest_phone ? '+91 '+v.guest_phone : '', v.guest_email || ''].filter(Boolean).join(' · '),
+    tel: v.guest_phone ? '91'+v.guest_phone : '' };
+  return { name: '—', sub: '', tel: '' };
+}
+function visitWhen(v){
+  if(v.scheduled_at){
+    const d = new Date(v.scheduled_at).toLocaleDateString('en-IN',
+      {weekday:'short',day:'numeric',month:'short',timeZone:'Asia/Kolkata'});
+    return `<b>${esc(d)}</b>${v.slot_label?`<div class="muted" style="font-size:12px">${esc(v.slot_label)}</div>`:''}`;
+  }
+  return v.preferred_date ? esc(v.preferred_date) : '—';
+}
 async function renderVisits(){
   const status = window.__visitFilter || "";
   let q = sb.from("site_visits").select("*, buyer:profiles!site_visits_buyer_id_fkey(member_code,full_name,mobile), property:properties!site_visits_property_id_fkey(title,locality,city)").order("created_at",{ascending:false}).limit(300);
-  if(status) q = q.eq("status", status);
+  if(status==='website') q = q.eq("source","website");
+  else if(status) q = q.eq("status", status);
   const { data } = await q; const rows=data||[];
   const chip=(v,l)=>`<button class="btn ${((window.__visitFilter||'')===v)?'':'grey'} sm" onclick="visitFilter('${v}')">${l}</button>`;
-  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('requested','Requested')}${chip('confirmed','Confirmed')}${chip('completed','Completed')}${chip('cancelled','Cancelled')}</div>
-    ${rows.length? `<table><thead><tr><th>Property</th><th>Buyer</th><th>Preferred</th><th>Status</th><th></th></tr></thead><tbody>
-      ${rows.map(v=>{const st={requested:'warn',confirmed:'',completed:'ok',cancelled:'red'}[v.status]||'grey';
-      return `<tr><td><b>${esc(v.property?.title||'Property')}</b><div class="muted" style="font-size:12px">${esc([v.property?.locality,v.property?.city].filter(Boolean).join(', '))}</div></td>
-      <td>${esc(v.buyer?.full_name||'—')}<div class="muted" style="font-size:12px">${esc(v.buyer?.member_code||'')}${v.buyer?.mobile?' · +'+esc(v.buyer.mobile):''}</div></td>
-      <td class="muted">${v.preferred_date?esc(v.preferred_date):'—'}</td>
+  const nWeb = rows.filter(r=>r.source==='website').length;
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('requested','Requested')}${chip('confirmed','Confirmed')}${chip('completed','Completed')}${chip('cancelled','Cancelled')}${chip('website','🌐 From the website')}
+    <span class="muted" style="font-size:12px;flex:1;text-align:right">${nWeb?`${nWeb} booked on the public site`:''}</span></div>
+    ${rows.length? `<table><thead><tr><th>Property</th><th>Who</th><th>When</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(v=>{const st={requested:'warn',confirmed:'',completed:'ok',cancelled:'red'}[v.status]||'grey'; const w=visitWho(v);
+      return `<tr><td><b>${esc(v.property?.title||'Property')}</b><div class="muted" style="font-size:12px">${esc([v.property?.locality,v.property?.city].filter(Boolean).join(', '))}</div>${v.visit_ref?`<div class="muted" style="font-size:11px">${esc(v.visit_ref)}</div>`:''}</td>
+      <td>${esc(w.name)} ${v.source==='website'?`<span class="pill gold" style="font-size:10px">website</span>`:''}<div class="muted" style="font-size:12px">${esc(w.sub)}</div>${w.tel?`<div style="margin-top:4px;display:flex;gap:6px"><a class="btn sm" href="tel:+${esc(w.tel)}">Call</a><a class="btn grey sm" target="_blank" rel="noopener" href="https://wa.me/${esc(w.tel)}">WhatsApp</a></div>`:''}${v.notes?`<div class="muted" style="font-size:11px;max-width:280px;white-space:pre-wrap;margin-top:4px">${esc(v.notes)}</div>`:''}</td>
+      <td class="muted">${visitWhen(v)}</td>
       <td><span class="pill ${st}">${esc(v.status)}</span></td>
       <td style="text-align:right">${(v.status!=='confirmed'&&v.status!=='completed'&&v.status!=='cancelled')?`<button class="btn sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button> `:''}${v.status!=='completed'&&v.status!=='cancelled'?`<button class="btn gold sm" onclick="setVisit('${v.id}','completed')">Complete</button> `:''}${v.status!=='cancelled'?`<button class="btn ghost sm" onclick="setVisit('${v.id}','cancelled')">Cancel</button>`:''}${v.status==='cancelled'?`<button class="btn sm" onclick="setVisit('${v.id}','requested')">Reopen</button> <button class="btn gold sm" onclick="setVisit('${v.id}','confirmed')">Confirm</button>`:''}${v.status==='completed'?` <button class="btn grey sm" onclick="setVisit('${v.id}','confirmed')">Revert to Confirmed</button>`:''}</td></tr>`;}).join('')}</tbody></table>`
       : `<div class="empty card">No site visits.</div>`}`;
