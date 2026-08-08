@@ -2500,6 +2500,95 @@ window.openArticle = async (id)=>{
 function jField(label,key,ph="",hint=""){
   return `<div><label>${label}</label><input data-j="${key}" value="${esc(JCUR[key]??"")}" placeholder="${esc(ph)}"/>${hint?`<div class="muted" style="font-size:11px;margin-top:3px">${esc(hint)}</div>`:""}</div>`;
 }
+/** A journal field with an Upload button beside it. `attr` is "j" for a column
+ *  on blog_posts and "seo" for a key inside the seo jsonb. */
+function jFieldUp(label,key,accept,ph="",hint="",attr="j"){
+  const v = attr==="seo" ? ((JCUR.seo||{})[key]??"") : (JCUR[key]??"");
+  return `<div><label>${label}</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input data-${attr}="${key}" value="${esc(v)}" placeholder="${esc(ph)}" style="flex:1;min-width:0"/>
+      <button class="btn grey sm" type="button" style="flex:none" onclick="jUpload('${key}','${accept}','${attr}')">⬆ Upload</button>
+    </div>
+    ${hint?`<div class="muted" style="font-size:11px;margin-top:3px">${esc(hint)}</div>`:""}</div>`;
+}
+
+/**
+ * Journal uploads.
+ *
+ * Files go to the existing public `property-media` bucket under a `journal/`
+ * prefix rather than to a new bucket. The console already has working write
+ * access there and the website already reads from it, so this needs no new
+ * storage policy — and a policy gap on a public bucket is a worse outcome than
+ * an imperfect folder name.
+ *
+ * ⚠️ The upload only fills the field in. Nothing is written to the article
+ * until Save, which is why every toast says so — an uploaded file with an
+ * unsaved article is a file the website will never show.
+ */
+window.jUpload=(key,accept,attr="j")=>{
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=accept;
+  inp.onchange=async()=>{
+    const raw=inp.files&&inp.files[0]; if(!raw) return;
+    toast("Uploading…");
+    try{
+      const f = accept.startsWith("image") ? await compressImage(raw) : raw;
+      const url = await jPutFile(f);
+      const field=document.querySelector(`#drawer [data-${attr}="${key}"]`);
+      if(field){ field.value=url; field.dispatchEvent(new Event("input",{bubbles:true})); }
+      toast("Uploaded — press Save to apply");
+    }catch(e){ toast(e.message||"Upload failed"); }
+  };
+  inp.click();
+};
+
+/** Shared put: slug-foldered so an article's files stay together, and the
+ *  original filename is kept (sanitised) because the owner recognises files by
+ *  name in the storage browser. */
+async function jPutFile(f){
+  const folder = (JCUR.slug||JCUR.id||"drafts").toString().replace(/[^a-z0-9-]/gi,"_");
+  const path = `journal/${folder}/${Date.now()}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
+  // ⚠️ Storage reads the Blob's OWN type, not this option, so a File whose type
+  // the browser guessed wrong uploads as octet-stream and the browser then
+  // downloads the PDF instead of opening it. Re-wrap to be certain.
+  const type = f.type || (/\.pdf$/i.test(f.name) ? "application/pdf" : "application/octet-stream");
+  const blob = f.type === type ? f : new Blob([f], { type });
+  const {error} = await sb.storage.from("property-media").upload(path, blob, {contentType:type, upsert:true});
+  if(error) throw error;
+  return sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * Attachments drop straight into the body as Markdown, because that is the only
+ * thing the website actually renders — there is no attachments column on
+ * blog_posts, and inventing one would mean a migration plus a reader change for
+ * something a link already does.
+ *
+ * An image becomes `![alt](url)` and anything else `[name](url)`.
+ */
+window.jAttach=(accept)=>{
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=accept; inp.multiple=true;
+  inp.onchange=async()=>{
+    const files=[...(inp.files||[])]; if(!files.length) return;
+    const box=document.querySelector('#drawer [data-j="body"]'); if(!box) return;
+    toast(`Uploading ${files.length} file${files.length>1?"s":""}…`);
+    try{
+      const lines=[];
+      for(const raw of files){
+        const isImg=/^image\//.test(raw.type);
+        const f=isImg?await compressImage(raw):raw;
+        const url=await jPutFile(f);
+        const name=raw.name.replace(/\.[a-z0-9]+$/i,"").replace(/[_-]+/g," ");
+        lines.push(isImg ? `![${name}](${url})` : `[${name}](${url})`);
+      }
+      const sep = box.value.trim() ? "\n\n" : "";
+      box.value = box.value + sep + lines.join("\n\n");
+      box.dispatchEvent(new Event("input",{bubbles:true}));
+      box.focus();
+      toast("Added to the body — press Save to apply");
+    }catch(e){ toast(e.message||"Upload failed"); }
+  };
+  inp.click();
+};
 function jSeoField(label,key,ph,max){
   const v=(JCUR.seo||{})[key]??"";
   return `<div><label>${label} <span class="muted" id="j-count-${key}" style="font-weight:400">${v.length}${max?`/${max}`:""}</span></label>
@@ -2537,12 +2626,20 @@ function jRenderEditor(){
     <label>Body <span class="muted" style="font-weight:400">Markdown — ## heading, - list, **bold**, [link](url)</span></label>
     <textarea data-j="body" rows="18" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6">${esc(JCUR.body??"")}</textarea>
     <div class="muted" style="font-size:11.5px;margin-top:6px">Each <b>##</b> heading becomes an entry in the article's table of contents.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px;border-top:1px solid var(--hair);padding-top:10px">
+      <b style="font-size:12px">Add to the article</b>
+      <button class="btn grey sm" type="button" onclick="jAttach('image/*')">⬆ Image</button>
+      <button class="btn grey sm" type="button" onclick="jAttach('application/pdf')">⬆ PDF</button>
+      <button class="btn grey sm" type="button" onclick="jAttach('*/*')">⬆ Other file</button>
+      <span class="muted" style="font-size:11.5px">Appended to the end of the body as Markdown — move the line to place it.</span>
+    </div>
   </div>
 
   <div class="card" style="padding:14px;margin-bottom:12px">
     <b style="font-size:13.5px">Cover</b>
-    <div style="margin-top:8px">${jField("Cover image URL","cover_url","https://…")}</div>
+    <div style="margin-top:8px">${jFieldUp("Cover image","cover_url","image/*","Paste a URL or upload →","Large images are resized before upload.")}</div>
     <div style="margin-top:10px">${jField("Cover alt text","cover_alt","What the photograph shows","Required for accessibility and image SEO.")}</div>
+    <div id="j-cover-prev" style="margin-top:10px"></div>
   </div>
 
   <div class="card" style="padding:14px;margin-bottom:12px">
@@ -2561,7 +2658,7 @@ function jRenderEditor(){
       <textarea data-seo="description" rows="2" style="width:100%">${esc(seo.description??"")}</textarea></div>
     <div class="grid2" style="margin-top:10px">
       ${jSeoField("Canonical URL","canonical","Leave blank for the default")}
-      ${jSeoField("Social share image","og_image","https://…")}
+      ${jFieldUp("Social share image","og_image","image/*","Paste a URL or upload →","","seo")}
     </div>
     <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
       <input type="checkbox" data-seo-bool="noindex" ${seo.noindex?"checked":""}/> Hide from search engines (noindex)
@@ -2625,6 +2722,20 @@ function jRenderEditor(){
   };
   ['[data-seo="title"]','[data-seo="description"]','[data-j="title"]','[data-j="excerpt"]','[data-j="slug"]']
     .forEach(s=>{ const el=$(s); if(el) el.oninput=sync; });
+
+  // The cover is the one field where "did that upload actually work" is not
+  // answerable from a URL string, so it is shown rather than described. Also
+  // catches a pasted URL that 404s, which used to reach the website unnoticed.
+  const coverSync=()=>{
+    const box=$("#j-cover-prev"); const url=($('[data-j="cover_url"]')||{}).value||"";
+    if(!box) return;
+    box.innerHTML = url
+      ? `<img src="${esc(url)}" alt="" style="max-height:132px;border-radius:8px;border:1px solid var(--hair);display:block"
+             onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'muted',style:'font-size:11.5px',textContent:'That image URL will not load.'}))"/>`
+      : `<div class="muted" style="font-size:11.5px">No cover yet — the website falls back to a text-only card, and the article is flagged "2 to fix".</div>`;
+  };
+  const coverInput=$('[data-j="cover_url"]'); if(coverInput) coverInput.oninput=coverSync;
+  coverSync();
 
   $("#j-props").querySelectorAll(".chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
   $('[data-j="__tags"]').value = (JCUR.tags||[]).join(", ");
