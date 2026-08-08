@@ -2800,12 +2800,17 @@ function jRenderEditor(){
   const revOpts=`<option value="">— not reviewed —</option>`+JCACHE.authors.map(a=>`<option value="${a.id}" ${JCUR.reviewer_id===a.id?"selected":""}>${esc(a.name)}</option>`).join("");
   const health=jHealth(JCUR);
 
+  // ⚠️ `.dh` + `.body`, the same shell the property editor uses. This panel used
+  // to write its own header straight into #drawer and skip `.body` entirely,
+  // which is where all the horizontal padding lives — so every control sat
+  // flush against the panel edge and the Save row looked cropped.
   $("#drawer").innerHTML=`
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
-    <b style="font-size:16px">${JCUR.id?"Edit article":"New article"}</b>
-    <div><button class="btn grey sm" onclick="closeDrawer()">Close</button>
-      <button class="btn sm" onclick="jSave()">Save</button></div>
+  <div class="dh">
+    <button class="btn grey sm" onclick="closeDrawer()">&#10005;</button>
+    <h3>${JCUR.id?"Edit article":"New article"}</h3>
+    <button class="btn" onclick="jSave()">Save</button>
   </div>
+  <div class="body">
 
   <div class="card" style="padding:14px;margin-bottom:12px">
     ${jField("Title","title","What a patta is, and why buyers ask for it first")}
@@ -2920,6 +2925,7 @@ function jRenderEditor(){
     ${JCUR.id&&JCUR.status!=="published"?`<button class="btn" style="background:var(--success)" onclick="jSave(true)">Save &amp; publish</button>`:""}
     ${JCUR.id?`<button class="btn ghost" onclick="window.open('https://jamin-properties-web.netlify.app/journal/${encodeURIComponent(JCUR.slug||"")}','_blank')">Open on the site</button>`:""}
     <button class="btn grey" onclick="closeDrawer()">Cancel</button>
+  </div>
   </div>`;
 
   // live SEO preview + counters
