@@ -2535,7 +2535,20 @@ window.jUpload=(key,accept,attr="j")=>{
       const url = await jPutFile(f);
       const field=document.querySelector(`#drawer [data-${attr}="${key}"]`);
       if(field){ field.value=url; field.dispatchEvent(new Event("input",{bubbles:true})); }
-      toast("Uploaded — press Save to apply");
+
+      // ⚠️ Persist immediately on an article that already exists. Filling the
+      // field and relying on a separate Save lost a cover once already: the
+      // upload succeeded, the field showed the URL, and the record still had
+      // null because Save was never pressed. A file the owner watched upload
+      // should not be able to evaporate.
+      if(JCUR.id && attr==="j"){
+        JCUR[key]=url;
+        const {error}=await sb.from("blog_posts").update({[key]:url}).eq("id",JCUR.id);
+        if(error){ toast("Uploaded, but saving it failed — press Save. "+error.message); return; }
+        toast("Uploaded and saved");
+        return;
+      }
+      toast(JCUR.id ? "Uploaded — press Save to apply" : "Uploaded — press Save to create the article");
     }catch(e){ toast(e.message||"Upload failed"); }
   };
   inp.click();
@@ -2555,6 +2568,110 @@ async function jPutFile(f){
   const {error} = await sb.storage.from("property-media").upload(path, blob, {contentType:type, upsert:true});
   if(error) throw error;
   return sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * Paste keeps its formatting.
+ *
+ * ⚠️ This is why the first long guide arrived on the website as a wall of grey
+ * paragraphs: a plain <textarea> only ever receives the `text/plain` flavour of
+ * the clipboard, so every heading, bold run and list from Word, Google Docs or
+ * ChatGPT was silently discarded at paste time. Nothing downstream could
+ * recover it — the markers were never stored.
+ *
+ * So read the `text/html` flavour instead and convert it to the Markdown the
+ * website already renders. Falls through to the browser's own plain-text paste
+ * when the clipboard carries no HTML, which is what copying from a terminal or
+ * another textarea does.
+ *
+ * H1 becomes `##`, not `#`. The article title is already the page's one h1, and
+ * a document's H1 is nearly always a repeat of it.
+ */
+function htmlToMarkdown(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("style,script,meta,link,title").forEach(n=>n.remove());
+
+  const inline = (node)=>{
+    let out="";
+    node.childNodes.forEach(c=>{
+      if(c.nodeType===3){ out += c.nodeValue.replace(/\s+/g," "); return; }
+      if(c.nodeType!==1) return;
+      const t=c.tagName.toLowerCase();
+      const inner=inline(c);
+      if(!inner.trim() && t!=="br"){ return; }
+      // Google Docs and Word express bold as a style, not a <b>.
+      const w=(c.style&&c.style.fontWeight)||"";
+      const bold = t==="b"||t==="strong"||w==="bold"||(+w>=600);
+      const ital = t==="i"||t==="em"||(c.style&&c.style.fontStyle==="italic");
+      if(t==="br") out+="\n";
+      else if(t==="a"&&c.getAttribute("href")) out+=`[${inner}](${c.getAttribute("href")})`;
+      else if(t==="code") out+="`"+inner+"`";
+      else if(bold) out+=`**${inner.trim()}**`;
+      else if(ital) out+=`*${inner.trim()}*`;
+      else if(t==="img"&&c.getAttribute("src")) out+=`![${c.getAttribute("alt")||""}](${c.getAttribute("src")})`;
+      else out+=inner;
+    });
+    return out;
+  };
+
+  const out=[];
+  const walk=(node)=>{
+    node.childNodes.forEach(c=>{
+      if(c.nodeType===3){ const t=c.nodeValue.trim(); if(t) out.push(t); return; }
+      if(c.nodeType!==1) return;
+      const tag=c.tagName.toLowerCase();
+      if(/^h[1-6]$/.test(tag)){
+        const lvl = tag==="h1"||tag==="h2" ? "##" : "###";
+        const t=inline(c).trim(); if(t) out.push(`${lvl} ${t}`);
+        return;
+      }
+      if(tag==="p"){ const t=inline(c).trim(); if(t) out.push(t); return; }
+      if(tag==="br"){ return; }
+      if(tag==="hr"){ out.push("---"); return; }
+      if(tag==="blockquote"){ const t=inline(c).trim(); if(t) out.push("> "+t.replace(/\n+/g," ")); return; }
+      if(tag==="ul"||tag==="ol"){
+        // ⚠️ One block with single newlines, not one entry per item. The
+        // reader closes a list at the first blank line, so pushing items
+        // separately would render six one-item lists instead of one list of six.
+        const ordered = tag==="ol";
+        const rows=[]; let i=0;
+        c.querySelectorAll(":scope > li").forEach(li=>{
+          i++;
+          const t=inline(li).trim().replace(/\n+/g," ");
+          if(t) rows.push(ordered ? `${i}. ${t}` : `- ${t}`);
+        });
+        if(rows.length) out.push(rows.join("\n"));
+        return;
+      }
+      if(tag==="img"&&c.getAttribute("src")){ out.push(`![${c.getAttribute("alt")||""}](${c.getAttribute("src")})`); return; }
+      if(tag==="table"){
+        // No table syntax on the reader, so flatten to lines rather than lose it.
+        c.querySelectorAll("tr").forEach(tr=>{
+          const cells=[...tr.children].map(td=>inline(td).trim()).filter(Boolean);
+          if(cells.length) out.push(cells.join(" — "));
+        });
+        return;
+      }
+      walk(c);
+    });
+  };
+  walk(doc.body);
+
+  return out
+    .map(s=>s.replace(/ /g," ").replace(/[ \t]+/g," ").trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .replace(/\n{3,}/g,"\n\n");
+}
+
+/** Insert at the caret rather than replacing, so a paste into the middle of an
+ *  existing draft behaves like a paste. */
+function insertAtCaret(el,text){
+  const s=el.selectionStart??el.value.length, e=el.selectionEnd??el.value.length;
+  el.value = el.value.slice(0,s) + text + el.value.slice(e);
+  const pos=s+text.length;
+  el.setSelectionRange(pos,pos);
+  el.dispatchEvent(new Event("input",{bubbles:true}));
 }
 
 /**
@@ -2736,6 +2853,25 @@ function jRenderEditor(){
   };
   const coverInput=$('[data-j="cover_url"]'); if(coverInput) coverInput.oninput=coverSync;
   coverSync();
+
+  // Rich paste. Without this the textarea takes only the plain-text flavour of
+  // the clipboard and every heading and bold run is lost before it is ever
+  // stored — which is exactly what happened to the first long guide.
+  const bodyBox=$('[data-j="body"]');
+  if(bodyBox) bodyBox.addEventListener("paste",(e)=>{
+    const html=e.clipboardData&&e.clipboardData.getData("text/html");
+    if(!html) return;                  // plain text — let the browser do it
+    e.preventDefault();
+    try{
+      const md=htmlToMarkdown(html);
+      if(!md) return;
+      insertAtCaret(bodyBox,md);
+      toast("Pasted with headings, bold and lists kept");
+    }catch(err){
+      insertAtCaret(bodyBox,(e.clipboardData.getData("text/plain")||""));
+      toast("Pasted as plain text");
+    }
+  });
 
   $("#j-props").querySelectorAll(".chip").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
   $('[data-j="__tags"]').value = (JCUR.tags||[]).join(", ");
