@@ -467,7 +467,7 @@ window.upToField=(key,accept)=>{
     const folder = CUR.id || "drafts";
     const path=`${folder}/links/${Date.now()}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
     const {error}=await sb.storage.from("property-media").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:true});
-    if(error){ toast(error.message); return; }
+    if(error){ toast(storageMessage(error)); return; }
     const url=sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
     const field=document.querySelector(`#drawer [data-k="${key}"]`);
     if(field) field.value=url;
@@ -2544,7 +2544,7 @@ window.jUpload=(key,accept,attr="j")=>{
       if(JCUR.id && attr==="j"){
         JCUR[key]=url;
         const {error}=await sb.from("blog_posts").update({[key]:url}).eq("id",JCUR.id);
-        if(error){ toast("Uploaded, but saving it failed — press Save. "+error.message); return; }
+        if(error){ toast("Uploaded, but saving it failed — press Save. "+storageMessage(error)); return; }
         toast("Uploaded and saved");
         return;
       }
@@ -2554,10 +2554,38 @@ window.jUpload=(key,accept,attr="j")=>{
   inp.click();
 };
 
+/**
+ * ⚠️ Turn a storage rejection into something the owner can act on.
+ *
+ * `property-media` is guarded by `is_super_admin()`, which reads `auth.uid()`.
+ * When the console has been open long enough for the access token to expire the
+ * request goes up effectively anonymous, the policy says no, and Postgres
+ * answers "new row violates row-level security policy" — which is true, and
+ * tells the person holding the mouse nothing at all. The session is the fault
+ * nine times out of ten, so check it first and say so.
+ */
+async function assertUploadSession(){
+  const { data } = await sb.auth.getUser();
+  if(!data?.user){
+    throw new Error("Your session has expired. Reload this page and sign in again, then retry the upload.");
+  }
+}
+function storageMessage(err){
+  const m = String(err?.message || err || "");
+  if(/row-level security|violates.*policy/i.test(m)){
+    return "Upload refused: this session is not signed in as an admin any more. Reload and sign in again.";
+  }
+  if(/exceeded the maximum allowed size|payload too large|413/i.test(m)){
+    return "That file is over the project upload limit. Use a smaller image, or raise the cap in Supabase → Storage.";
+  }
+  return m || "Upload failed.";
+}
+
 /** Shared put: slug-foldered so an article's files stay together, and the
  *  original filename is kept (sanitised) because the owner recognises files by
  *  name in the storage browser. */
 async function jPutFile(f){
+  await assertUploadSession();
   const folder = (JCUR.slug||JCUR.id||"drafts").toString().replace(/[^a-z0-9-]/gi,"_");
   const path = `journal/${folder}/${Date.now()}_${f.name.replace(/[^a-z0-9.]/gi,"_")}`;
   // ⚠️ Storage reads the Blob's OWN type, not this option, so a File whose type
@@ -2566,7 +2594,7 @@ async function jPutFile(f){
   const type = f.type || (/\.pdf$/i.test(f.name) ? "application/pdf" : "application/octet-stream");
   const blob = f.type === type ? f : new Blob([f], { type });
   const {error} = await sb.storage.from("property-media").upload(path, blob, {contentType:type, upsert:true});
-  if(error) throw error;
+  if(error) throw new Error(storageMessage(error));
   return sb.storage.from("property-media").getPublicUrl(path).data.publicUrl;
 }
 
