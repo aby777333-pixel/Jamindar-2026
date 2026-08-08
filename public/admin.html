@@ -2664,6 +2664,87 @@ function htmlToMarkdown(html){
     .replace(/\n{3,}/g,"\n\n");
 }
 
+/**
+ * FORMATTING TOOLBAR
+ *
+ * The body is Markdown, and expecting the owner to remember that a heading is
+ * two hashes and a space is how articles end up as flat grey text. These
+ * buttons write the marker; the writer never has to know the syntax.
+ *
+ * Everything works on the current selection and restores it afterwards, so a
+ * click never loses the writer's place — the single thing that makes a toolbar
+ * feel broken.
+ */
+function jBody(){ return document.querySelector('#drawer [data-j="body"]'); }
+
+function jApply(el, start, end, text, selStart, selEnd){
+  el.value = el.value.slice(0,start) + text + el.value.slice(end);
+  el.focus();
+  el.setSelectionRange(selStart, selEnd);
+  el.dispatchEvent(new Event("input",{bubbles:true}));
+}
+
+/** Wrap the selection, or drop the markers in and put the caret between them
+ *  so typing continues inside the emphasis. Clicking again unwraps. */
+function jWrap(mark){
+  const el=jBody(); if(!el) return;
+  const s=el.selectionStart, e=el.selectionEnd, sel=el.value.slice(s,e);
+  const outer=el.value.slice(s-mark.length, e+mark.length);
+  if(sel && outer===mark+sel+mark){        // already wrapped — toggle off
+    jApply(el, s-mark.length, e+mark.length, sel, s-mark.length, e-mark.length);
+    return;
+  }
+  const body = sel || "text";
+  jApply(el, s, e, mark+body+mark, s+mark.length, s+mark.length+body.length);
+}
+
+/** Prefix every line the selection touches. `ordered` renumbers as it goes. */
+function jPrefix(prefix, ordered){
+  const el=jBody(); if(!el) return;
+  const s=el.selectionStart, e=el.selectionEnd;
+  const from=el.value.lastIndexOf("\n", s-1)+1;
+  const toIdx=el.value.indexOf("\n", e);
+  const to= toIdx===-1 ? el.value.length : toIdx;
+  const block=el.value.slice(from,to) || "";
+  const lines=block.split("\n");
+  // Clicking the same control again lifts the prefix, so it toggles.
+  const already=lines.every(l=>!l.trim() || new RegExp("^\\s*"+(ordered?"\\d+\\.":prefix.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))+"\\s").test(l));
+  const out=lines.map((l,i)=>{
+    if(already) return l.replace(ordered?/^\s*\d+\.\s/:new RegExp("^\\s*"+prefix.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s"),"");
+    if(!l.trim() && lines.length>1) return l;
+    return (ordered?`${i+1}. `:prefix) + l;
+  }).join("\n");
+  jApply(el, from, to, out, from, from+out.length);
+}
+
+/** A link keeps the selected words as the label and leaves the URL selected,
+ *  so the next thing typed or pasted is the address. */
+function jLink(){
+  const el=jBody(); if(!el) return;
+  const s=el.selectionStart, e=el.selectionEnd;
+  const label=el.value.slice(s,e) || "link text";
+  const text=`[${label}](https://)`;
+  const urlAt = s + label.length + 3;
+  jApply(el, s, e, text, urlAt, urlAt + 8);
+}
+
+window.jFmt=(kind)=>{
+  const el=jBody(); if(!el) return;
+  if(kind==="h2") return jPrefix("## ");
+  if(kind==="h3") return jPrefix("### ");
+  if(kind==="bold") return jWrap("**");
+  if(kind==="italic") return jWrap("*");
+  if(kind==="ul") return jPrefix("- ");
+  if(kind==="ol") return jPrefix("", true);
+  if(kind==="quote") return jPrefix("> ");
+  if(kind==="link") return jLink();
+  if(kind==="hr"){
+    const s=el.selectionStart;
+    const pad = s>0 && el.value[s-1]!=="\n" ? "\n\n" : "";
+    jApply(el, s, s, pad+"---\n\n", s+pad.length+5, s+pad.length+5);
+  }
+};
+
 /** Insert at the caret rather than replacing, so a paste into the middle of an
  *  existing draft behaves like a paste. */
 function insertAtCaret(el,text){
@@ -2740,7 +2821,21 @@ function jRenderEditor(){
   </div>
 
   <div class="card" style="padding:14px;margin-bottom:12px">
-    <label>Body <span class="muted" style="font-weight:400">Markdown — ## heading, - list, **bold**, [link](url)</span></label>
+    <label>Body <span class="muted" style="font-weight:400">Paste from Word or Docs and the formatting is kept</span></label>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin:6px 0 6px;padding:6px;border:1px solid var(--hair);border-radius:8px;background:#fafafa">
+      <button class="btn grey sm" type="button" title="Heading (##)" onclick="jFmt('h2')" style="font-weight:700">H2</button>
+      <button class="btn grey sm" type="button" title="Sub-heading (###)" onclick="jFmt('h3')" style="font-weight:700">H3</button>
+      <span style="width:1px;height:18px;background:var(--hair);margin:0 3px"></span>
+      <button class="btn grey sm" type="button" title="Bold — Ctrl+B" onclick="jFmt('bold')" style="font-weight:800">B</button>
+      <button class="btn grey sm" type="button" title="Italic — Ctrl+I" onclick="jFmt('italic')" style="font-style:italic">I</button>
+      <span style="width:1px;height:18px;background:var(--hair);margin:0 3px"></span>
+      <button class="btn grey sm" type="button" title="Bulleted list" onclick="jFmt('ul')">&bull; List</button>
+      <button class="btn grey sm" type="button" title="Numbered list" onclick="jFmt('ol')">1. List</button>
+      <button class="btn grey sm" type="button" title="Quote" onclick="jFmt('quote')">&ldquo; Quote</button>
+      <span style="width:1px;height:18px;background:var(--hair);margin:0 3px"></span>
+      <button class="btn grey sm" type="button" title="Link — Ctrl+K" onclick="jFmt('link')">&#128279; Link</button>
+      <button class="btn grey sm" type="button" title="Divider" onclick="jFmt('hr')">&mdash; Divider</button>
+    </div>
     <textarea data-j="body" rows="18" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6">${esc(JCUR.body??"")}</textarea>
     <div class="muted" style="font-size:11.5px;margin-top:6px">Each <b>##</b> heading becomes an entry in the article's table of contents.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px;border-top:1px solid var(--hair);padding-top:10px">
@@ -2858,6 +2953,15 @@ function jRenderEditor(){
   // the clipboard and every heading and bold run is lost before it is ever
   // stored — which is exactly what happened to the first long guide.
   const bodyBox=$('[data-j="body"]');
+
+  // The shortcuts every writer already has in their fingers.
+  if(bodyBox) bodyBox.addEventListener("keydown",(e)=>{
+    if(!(e.ctrlKey||e.metaKey) || e.altKey) return;
+    const k=e.key.toLowerCase();
+    const map={b:"bold", i:"italic", k:"link"};
+    if(map[k]){ e.preventDefault(); jFmt(map[k]); }
+  });
+
   if(bodyBox) bodyBox.addEventListener("paste",(e)=>{
     const html=e.clipboardData&&e.clipboardData.getData("text/html");
     if(!html) return;                  // plain text — let the browser do it
