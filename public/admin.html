@@ -2673,11 +2673,37 @@ function htmlToMarkdown(html){
       }
       if(tag==="img"&&c.getAttribute("src")){ out.push(`![${c.getAttribute("alt")||""}](${c.getAttribute("src")})`); return; }
       if(tag==="table"){
-        // No table syntax on the reader, so flatten to lines rather than lose it.
-        c.querySelectorAll("tr").forEach(tr=>{
-          const cells=[...tr.children].map(td=>inline(td).trim()).filter(Boolean);
-          if(cells.length) out.push(cells.join(" — "));
-        });
+        // ⚠️ This used to read "No table syntax on the reader, so flatten to
+        // lines rather than lose it" and join the cells with an em dash. That
+        // was true when it was written and it stopped being true on
+        // 2026-08-09, when the reader learned GFM pipe tables — but the
+        // flattening stayed, so every pasted table since has been silently
+        // turned into prose. The published comparison of plot vs apartment vs
+        // villa read "Move in — No, you must build first — Usually immediate",
+        // three values with nothing tying them to their columns, which is
+        // unreadable as a comparison and useless to a screen reader.
+        //
+        // A converter that quietly downgrades is worse than one that fails: the
+        // author sees their table go in and cannot tell anything was lost until
+        // it is published. Emit the table.
+        const rows=[...c.querySelectorAll("tr")].map(tr=>
+          [...tr.children].map(td=>
+            // A literal pipe inside a cell would end that cell early, and
+            // newlines inside a cell would end the whole row.
+            inline(td).replace(/\s*\n\s*/g," ").replace(/\|/g,"\\|").trim()
+          )
+        ).filter(r=>r.some(cell=>cell!==""));
+        if(rows.length){
+          const width=Math.max(...rows.map(r=>r.length));
+          const pad=r=>{ const o=r.slice(); while(o.length<width) o.push(""); return o; };
+          // A table pasted without a header row still needs the divider, or the
+          // reader treats the whole thing as prose. The first row becomes the
+          // header, which is what a pasted table almost always means anyway.
+          const head=pad(rows[0]);
+          const lines=[`| ${head.join(" | ")} |`, `|${" --- |".repeat(width)}`];
+          rows.slice(1).forEach(r=>lines.push(`| ${pad(r).join(" | ")} |`));
+          out.push(lines.join("\n"));
+        }
         return;
       }
       walk(c);
@@ -2756,6 +2782,28 @@ function jLink(){
   jApply(el, s, e, text, urlAt, urlAt + 8);
 }
 
+/**
+ * A starter table, with the first heading selected so the writer types straight
+ * over it.
+ *
+ * Three columns and two rows because an empty grid is harder to fill in than a
+ * small one to edit. The divider row is what makes it a table rather than three
+ * lines of pipes — the reader will not treat it as one without it, so it is
+ * written for the author rather than left to be remembered.
+ */
+function jTable(){
+  const el=jBody(); if(!el) return;
+  const s=el.selectionStart;
+  const pad = s>0 && el.value[s-1]!=="\n" ? "\n\n" : "";
+  const text = pad +
+    "| Heading | Heading | Heading |\n" +
+    "| --- | --- | --- |\n" +
+    "|  |  |  |\n" +
+    "|  |  |  |\n\n";
+  const firstAt = s + pad.length + 2;   // just past "| "
+  jApply(el, s, s, text, firstAt, firstAt + 7);
+}
+
 window.jFmt=(kind)=>{
   const el=jBody(); if(!el) return;
   if(kind==="h2") return jPrefix("## ");
@@ -2766,6 +2814,7 @@ window.jFmt=(kind)=>{
   if(kind==="ol") return jPrefix("", true);
   if(kind==="quote") return jPrefix("> ");
   if(kind==="link") return jLink();
+  if(kind==="table") return jTable();
   if(kind==="hr"){
     const s=el.selectionStart;
     const pad = s>0 && el.value[s-1]!=="\n" ? "\n\n" : "";
@@ -2867,9 +2916,28 @@ function jRenderEditor(){
       <button class="btn grey sm" type="button" title="Quote" onclick="jFmt('quote')">&ldquo; Quote</button>
       <span style="width:1px;height:18px;background:var(--hair);margin:0 3px"></span>
       <button class="btn grey sm" type="button" title="Link — Ctrl+K" onclick="jFmt('link')">&#128279; Link</button>
+      <button class="btn grey sm" type="button" title="Table" onclick="jFmt('table')">&#9638; Table</button>
       <button class="btn grey sm" type="button" title="Divider" onclick="jFmt('hr')">&mdash; Divider</button>
+      <span style="flex:1"></span>
+      <!-- Editor size only. It changes nothing about the article — the reader
+           sets its own type — so it is deliberately labelled and parked at the
+           far end, away from the controls that DO change the text. -->
+      <label class="muted" style="font-size:11.5px;font-weight:600;margin:0">Editor size</label>
+      <select id="j-body-size" style="width:auto;padding:4px 8px;font-size:12px;border-radius:8px">
+        <option value="13">Small</option>
+        <option value="15">Medium</option>
+        <option value="17">Large</option>
+        <option value="20">Extra large</option>
+      </select>
     </div>
-    <textarea data-j="body" rows="18" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.6">${esc(JCUR.body??"")}</textarea>
+    <!-- ⚠️ Inter, not the monospace this used to be. The body is Markdown, so a
+         fixed-width face was the obvious choice and the wrong one: the owner
+         writes prose here, and prose is judged by how it reads. Inter is also
+         what the published article is set in, so what is typed now resembles
+         what a reader gets. The cost is that pipe tables no longer line up as
+         columns while being typed — the Table button exists so nobody has to
+         align them by eye anyway. -->
+    <textarea data-j="body" rows="18" style="width:100%;font-family:inherit;font-size:15px;line-height:1.7">${esc(JCUR.body??"")}</textarea>
     <div class="muted" style="font-size:11.5px;margin-top:6px">Each <b>##</b> heading becomes an entry in the article's table of contents.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px;border-top:1px solid var(--hair);padding-top:10px">
       <b style="font-size:12px">Add to the article</b>
@@ -3001,6 +3069,21 @@ function jRenderEditor(){
     if(map[k]){ e.preventDefault(); jFmt(map[k]); }
   });
 
+  // Editor size. Remembered, because a writer who needs larger type needs it
+  // every time and not once — having to set it on every article is the same as
+  // not having the control. localStorage rather than the profile: it is a
+  // property of the screen being used, not of the person.
+  const sizeSel=document.getElementById("j-body-size");
+  if(bodyBox && sizeSel){
+    const saved=localStorage.getItem("j-body-size")||"15";
+    sizeSel.value=[...sizeSel.options].some(o=>o.value===saved) ? saved : "15";
+    bodyBox.style.fontSize=sizeSel.value+"px";
+    sizeSel.addEventListener("change",()=>{
+      bodyBox.style.fontSize=sizeSel.value+"px";
+      localStorage.setItem("j-body-size",sizeSel.value);
+    });
+  }
+
   if(bodyBox) bodyBox.addEventListener("paste",(e)=>{
     const html=e.clipboardData&&e.clipboardData.getData("text/html");
     if(!html) return;                  // plain text — let the browser do it
@@ -3009,7 +3092,7 @@ function jRenderEditor(){
       const md=htmlToMarkdown(html);
       if(!md) return;
       insertAtCaret(bodyBox,md);
-      toast("Pasted with headings, bold and lists kept");
+      toast("Pasted with headings, bold, lists and tables kept");
     }catch(err){
       insertAtCaret(bodyBox,(e.clipboardData.getData("text/plain")||""));
       toast("Pasted as plain text");
