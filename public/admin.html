@@ -2970,6 +2970,16 @@ function jRenderEditor(){
     <div style="margin-top:10px"><label>Meta description <span class="muted" id="j-count-description" style="font-weight:400">${(seo.description||"").length}/160</span></label>
       <textarea data-seo="description" rows="2" style="width:100%">${esc(seo.description??"")}</textarea></div>
     <div class="grid2" style="margin-top:10px">
+      ${jSeoField("Secondary keywords","secondary_keywords","villa buying checklist india, gated community risks")}
+      ${jSeoField("Long-tail phrases","long_tail","questions to ask before buying a villa in tamil nadu")}
+    </div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">
+      Comma separated. These are planning fields for the writer, not meta tags &mdash;
+      Google has ignored a keywords meta tag for years, and nothing here is published
+      to the page. Their job is to keep the focus, the supporting terms and the long
+      questions in one place instead of inside the article body.
+    </p>
+    <div class="grid2" style="margin-top:10px">
       ${jSeoField("Canonical URL","canonical","Leave blank for the default")}
       ${jFieldUp("Social share image","og_image","image/*","Paste a URL or upload →","","seo")}
     </div>
