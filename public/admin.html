@@ -2432,6 +2432,22 @@ async function renderJournal(){
   const catName=(id)=> (JCACHE.cats.find(c=>c.id===id)||{}).name || "—";
   const authName=(id)=> (JCACHE.authors.find(a=>a.id===id)||{}).name || "—";
 
+  /* ⚠️ THE BADGE MARKS THE ARTICLE READERS ACTUALLY SEE IN THE LEAD SLOT, which
+     is not the same thing as `is_featured`. The Journal leads with the pinned
+     article if one is pinned and with the most recently published otherwise, so
+     badging `is_featured` alone told an editor nothing whenever nobody had
+     pinned anything — and the lead slot is never empty. Worse, three articles
+     were pinned at once on 2026-08-11 and the badge sat on all three while only
+     one of them led, which is how a 10 Aug piece kept the slot from an 11 Aug
+     one without anything in the console saying so.
+
+     This is the website's rule, computed here: newest first, pin wins if there
+     is one. `jSave` now unpins the others, so the two agree — but this stays
+     defensive because a pin can also be set by SQL. */
+  const jPub = all.filter(p=>p.status==="published")
+    .sort((a,b)=> new Date(b.published_at||0) - new Date(a.published_at||0));
+  const leadId = ((jPub.find(p=>p.is_featured) || jPub[0]) || {}).id;
+
   $("#view").innerHTML = `
   <div class="stats">
     ${[["Published",by("published")],["In review",by("in_review")],["Drafts",by("draft")],["Needs attention",issues]]
@@ -2454,7 +2470,7 @@ async function renderJournal(){
   <div class="card" style="padding:0;overflow:hidden">
     ${rows.length?`<table><thead><tr><th>Article</th><th>Status</th><th>Category</th><th>Author</th><th>Published</th><th>Health</th><th></th></tr></thead><tbody>
     ${rows.map(p=>{const h=jHealth(p);return `<tr>
-      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.is_featured?` <span class="pill" style="background:var(--gold-soft,#FDF7E8);color:#8a6410;border:1px solid rgba(234,163,23,.4)">LEAD</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
+      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.id===leadId?` <span class="pill" style="background:var(--gold-soft,#FDF7E8);color:#8a6410;border:1px solid rgba(234,163,23,.4)" title="${p.is_featured?"Pinned to the lead slot":"Leads because it is the most recently published"}">LEAD</span>`:""}${p.is_featured&&p.id!==leadId?` <span class="pill" style="background:#FDECEC;color:#9b1c1c;border:1px solid rgba(155,28,28,.3)" title="Pinned, but another article is in the lead slot — open it and untick the pin">PINNED</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
       <td><span class="pill ${J_TONE[p.status]||""}">${esc(String(p.status).replace("_"," "))}</span></td>
       <td class="muted">${esc(catName(p.category_id))}</td>
       <td class="muted">${esc(authName(p.author_id))}</td>
@@ -3024,7 +3040,8 @@ function jRenderEditor(){
     <div class="muted" style="font-size:11.5px;margin-top:4px">
       Pins this article to the big lead slot and <b>overrides the newest one</b> until it is unticked.
       Leave it off and the Journal always leads with the most recently published article.
-      The list marks whichever article is currently <b>LEAD</b>.
+      <b>Only one article can be pinned</b> — ticking this unpins whichever one is pinned now.
+      The list marks whichever article is currently <b>LEAD</b>, pinned or not.
     </div>
   </div>
 
@@ -3171,6 +3188,24 @@ window.jSave = async (publish=false)=>{
     // The commonest failure by far is a slug that already exists.
     return toast(/duplicate key/i.test(error.message) ? "That slug is already used by another article" : error.message);
   }
+
+  /* ⚠️ THE LEAD SLOT HOLDS EXACTLY ONE ARTICLE, so pinning one unpins the rest.
+     Nothing enforced that before and three articles ended up pinned at once;
+     the website's sort then handed the slot to whichever of them the database
+     returned first, which is how an older piece led over a newer one with the
+     console showing LEAD on all three.
+
+     Deliberately a SEPARATE statement rather than `.select()` on the save
+     above: the save is the important half and must not start failing because
+     a returning-row read hits a policy. If this half fails the article is
+     still saved, and the list will show the extra pin as PINNED rather than
+     pretending it is gone. Resolved by slug because an insert has no id yet
+     and the slug is unique — that is the constraint the error above reports. */
+  if(payload.is_featured){
+    const { data:me } = await sb.from("blog_posts").select("id").eq("slug",slug).maybeSingle();
+    if(me?.id) await sb.from("blog_posts").update({is_featured:false}).eq("is_featured",true).neq("id",me.id);
+  }
+
   toast(payload.status==="published" ? "Saved and published — live on the next revalidation" : "Saved");
   closeDrawer(); renderJournal();
 };
