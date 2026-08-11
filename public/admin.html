@@ -165,6 +165,8 @@
       <a data-view="visits">🗓 Visits <span class="badge" id="b-visits" style="display:none"></span></a>
       <a data-view="leads">📇 Leads <span class="badge" id="b-leads" style="display:none"></span></a>
       <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
+      <div class="navlab">The Vault</div>
+      <a data-view="vault">🔐 The Vault <span class="badge" id="b-vault" style="display:none"></span></a>
       <div class="navlab">Growth</div>
       <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
       <a data-view="journal">📰 Jamin Journal <span class="badge" id="b-journal" style="display:none"></span></a>
@@ -277,12 +279,12 @@ async function refreshBadges(){
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz}[v])();
+  ({dashboard:renderDashboard,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault}[v])();
 }
 window.go = go;
 
@@ -3172,6 +3174,689 @@ window.jSave = async (publish=false)=>{
   toast(payload.status==="published" ? "Saved and published — live on the next revalidation" : "Saved");
   closeDrawer(); renderJournal();
 };
+
+// ═════════ THE VAULT (0081/0082) — the private desk, inside the console ═════
+//
+// §9 asks for a private CRM rather than another list. Two things follow from
+// that and are worth knowing before editing anything below.
+//
+// ⚠️ ONE VIEW, MANY TABS. The brief names seventeen navigation items. Most of
+// them are not seventeen datasets — "Buy Mandates" and "Rental Mandates" are
+// one table filtered by `intent`, and "Clients" and "Owners" are the same rows
+// seen from the other end. Building seventeen sidebar entries would have meant
+// building empty pages to fill them, which is the failure this console has
+// avoided everywhere else. So: one nav item, tabs inside it, and each tab is
+// backed by rows that exist.
+//
+// ⚠️ VISIBILITY IS THE ONLY DESTRUCTIVE CONTROL HERE. Everything else in this
+// section is a status change an administrator can undo. Publishing an owner's
+// property is not: it is the one action that can break a promise the owner made
+// a decision about on the website. It therefore asks for confirmation, and the
+// confirmation says the owner's own words back.
+//
+// ⚠️ NOTHING HERE EVER DISCLOSES ONE PARTY TO THE OTHER. A match is an
+// administrator's private note that two records might fit. There is no control
+// that emails a client an owner's number, because §8 forbids one.
+
+const V_STATUS = ["new","contacted","qualified","search_active","presented","visit","negotiation","documentation","closed","paused","lost","do_not_contact"];
+const V_STAGE  = ["submitted","identity_verified","documents_received","property_reviewed","due_diligence_pending","vault_verified","listed","withdrawn","closed"];
+const V_VIS    = ["off_market","private","public"];
+const V_TABS   = [
+  ["overview","Overview"],["requests","Client requests"],["offers","Owner offers"],
+  ["listings","Vault properties"],["matches","Matches"],
+  ["destinations","Destinations"],["categories","Categories"],["settings","Settings"],
+];
+
+const vWhen = (t)=>{ try{ return new Date(t).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return t||"—"; } };
+const vWords = (s)=>esc(String(s||"").replace(/_/g," "));
+const vVisPill = (v)=>({public:"ok",private:"warn",off_market:"red"}[v]||"grey");
+
+async function renderVault(){
+  const tab = window.__vaultTab || "overview";
+  const chip = (v,l)=>`<button class="btn ${tab===v?"":"grey"} sm" onclick="vaultTab('${v}')">${esc(l)}</button>`;
+  $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${V_TABS.map(([v,l])=>chip(v,l)).join("")}</div><div id="v-body">${SKELETON}</div>`;
+  await ({overview:vOverview,requests:vRequests,offers:vOffers,listings:vListings,matches:vMatches,destinations:vDestinations,categories:vCategories,settings:vSettings}[tab])();
+}
+window.renderVault = renderVault;
+window.vaultTab = (v)=>{ window.__vaultTab=v; renderVault(); };
+
+// ───────── overview (§9's dashboard) ─────────
+async function vOverview(){
+  const c = (t,f)=>{ let q=sb.from(t).select("id",{count:"exact",head:true}); if(f) q=f(q); return q.then(r=>r.count||0); };
+  const [reqNew,reqActive,buy,rent,sell,lease,offOff,offAll,pub,priv,off,matches,due,recentR,recentO] = await Promise.all([
+    c("vault_requests",q=>q.eq("status","new")),
+    c("vault_requests",q=>q.in("status",["qualified","search_active","presented","visit","negotiation","documentation"])),
+    c("vault_requests",q=>q.eq("intent","buy")),
+    c("vault_requests",q=>q.eq("intent","rent")),
+    c("vault_offers",q=>q.eq("intent","sell")),
+    c("vault_offers",q=>q.eq("intent","lease")),
+    c("vault_offers",q=>q.eq("off_market",true)),
+    c("vault_offers"),
+    c("vault_listings",q=>q.eq("visibility","public").eq("published",true)),
+    c("vault_listings",q=>q.eq("visibility","private")),
+    c("vault_listings",q=>q.eq("visibility","off_market")),
+    c("vault_matches",q=>q.eq("status","suggested")),
+    c("vault_requests",q=>q.not("follow_up_on","is",null).lte("follow_up_on",new Date().toISOString().slice(0,10))),
+    sb.from("vault_requests").select("id,reference,name,intent,status,asset_sought,preferred_location,created_at").order("created_at",{ascending:false}).limit(6).then(r=>r.data||[]),
+    sb.from("vault_offers").select("id,reference,owner_name,intent,stage,property_type,off_market,created_at").order("created_at",{ascending:false}).limit(6).then(r=>r.data||[]),
+  ]);
+
+  const stat=(n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}"`:""}><div class="n" style="color:${col||"var(--ink)"}">${n}</div><div class="l">${esc(l)}</div></div>`;
+
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      The Vault is a <b>desk</b>, not a catalogue. A client says what they want; an owner offers what they have; you match the two by hand.
+      Nothing an owner sends is public until you make it public — see <b>Vault properties</b>.</p></div>
+    <div class="stats">
+      ${stat(reqNew,"New client requests","var(--brand)","vaultTab('requests')")}
+      ${stat(reqActive,"Searches active",null,"vaultTab('requests')")}
+      ${stat(offAll,"Properties offered",null,"vaultTab('offers')")}
+      ${stat(matches,"Matches to review",matches?"var(--gold-dark)":null,"vaultTab('matches')")}
+    </div>
+    <div class="stats" style="margin-top:12px">
+      ${stat(buy,"Buy mandates")}${stat(rent,"Rental mandates")}${stat(sell,"Sell mandates")}${stat(lease,"Lease mandates")}
+    </div>
+    <div class="stats" style="margin-top:12px">
+      ${stat(pub,"Public Vault","var(--success)","vaultTab('listings')")}
+      ${stat(priv,"Private Vault",null,"vaultTab('listings')")}
+      ${stat(off,"Off-market listings",null,"vaultTab('listings')")}
+      ${stat(offOff,"Owners who asked for off-market","var(--brand)","vaultTab('offers')")}
+    </div>
+    ${due?`<div class="card" style="padding:14px 18px;margin-top:14px;border-color:var(--gold)"><b>${due}</b> follow-up${due===1?"":"s"} due today or overdue. <button class="btn sm" onclick="vaultTab('requests')">Open requests</button></div>`:""}
+    <div class="grid2" style="margin-top:14px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin:0 0 10px;font-size:14px">Latest client requests</h3>
+        ${recentR.length?recentR.map(r=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--hair);cursor:pointer" onclick="vOpenRequest('${r.id}')">
+            <span class="pill grey">${vWords(r.intent)}</span>
+            <span style="flex:1;font-size:13px"><b>${esc(r.name)}</b> <span class="muted">${esc(r.asset_sought||r.preferred_location||"")}</span></span>
+            <span class="muted" style="font-size:11.5px">${vWhen(r.created_at)}</span></div>`).join(""):`<p class="muted" style="font-size:13px">Nothing yet.</p>`}
+      </div>
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin:0 0 10px;font-size:14px">Latest owner offers</h3>
+        ${recentO.length?recentO.map(r=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--hair);cursor:pointer" onclick="vOpenOffer('${r.id}')">
+            <span class="pill ${r.off_market?"red":"grey"}">${r.off_market?"off-market":vWords(r.intent)}</span>
+            <span style="flex:1;font-size:13px"><b>${esc(r.owner_name)}</b> <span class="muted">${esc(r.property_type||"")}</span></span>
+            <span class="muted" style="font-size:11.5px">${vWhen(r.created_at)}</span></div>`).join(""):`<p class="muted" style="font-size:13px">Nothing yet.</p>`}
+      </div>
+    </div>`;
+}
+
+// ───────── client requests (§4, §7, §10) ─────────
+async function vRequests(){
+  const f = window.__vReqFilter || {};
+  let q = sb.from("vault_requests").select("*").order("created_at",{ascending:false}).limit(300);
+  if(f.intent) q = q.eq("intent", f.intent);
+  if(f.status) q = q.eq("status", f.status);
+  const {data,error} = await q;
+  if(error){ $("#v-body").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+  const chip=(k,v,l)=>`<button class="btn ${((f[k]||"")===v)?"":"grey"} sm" onclick="vReqFilter('${k}','${v}')">${esc(l)}</button>`;
+
+  $("#v-body").innerHTML = `
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap">
+      ${chip("intent","","All")}${chip("intent","buy","Buy mandates")}${chip("intent","rent","Rental mandates")}
+      <span style="width:14px"></span>
+      ${chip("status","","Any stage")}${chip("status","new","New")}${chip("status","search_active","Searching")}${chip("status","negotiation","Negotiation")}${chip("status","closed","Closed")}
+    </div>
+    ${rows.length?`<table><thead><tr><th>Ref</th><th>Client</th><th>Wants</th><th>Budget</th><th>Stage</th><th>When</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr style="cursor:pointer" onclick="vOpenRequest('${r.id}')">
+        <td><b>${esc(r.reference)}</b><div class="muted" style="font-size:11.5px">${vWords(r.intent)}</div></td>
+        <td><b>${esc(r.name)}</b><div class="muted" style="font-size:12px">+91 ${esc(r.mobile)}${r.email?" · "+esc(r.email):""}</div></td>
+        <td style="max-width:300px"><div style="font-size:13px">${esc(r.asset_sought||"—")}</div><div class="muted" style="font-size:11.5px">${esc(r.preferred_location||"")}</div></td>
+        <td class="muted">${esc(r.budget_range||"—")}</td>
+        <td><span class="pill ${r.status==="new"?"warn":r.status==="closed"?"ok":r.status==="lost"||r.status==="do_not_contact"?"red":"grey"}">${vWords(r.status)}</span></td>
+        <td class="muted" style="font-size:12px">${vWhen(r.created_at)}${r.follow_up_on?`<div class="pill warn" style="margin-top:4px">follow up ${esc(r.follow_up_on)}</div>`:""}</td></tr>`).join("")}
+    </tbody></table>`:`<div class="empty card">No client requests yet.</div>`}`;
+}
+window.vReqFilter = (k,v)=>{ window.__vReqFilter = {...(window.__vReqFilter||{}), [k]:v}; vRequests(); };
+
+window.vOpenRequest = async (id)=>{
+  const {data:r} = await sb.from("vault_requests").select("*").eq("id",id).maybeSingle();
+  if(!r) return toast("Request not found");
+  const line=(l,v)=>v?`<div style="padding:8px 0;border-top:1px solid var(--hair)"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">${esc(l)}</div><div style="font-size:13.5px;white-space:pre-wrap">${esc(v)}</div></div>`:"";
+  $("#drawer").innerHTML = `
+    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${esc(r.reference)} · ${esc(r.name)}</h3>
+      <span class="pill grey">${vWords(r.intent)}</span></div>
+    <div class="body">
+      <div class="card" style="padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <a class="btn sm" href="tel:+91${esc(r.mobile)}">Call</a>
+          <a class="btn grey sm" target="_blank" rel="noopener" href="https://wa.me/91${esc(r.whatsapp||r.mobile)}">WhatsApp</a>
+          ${r.email?`<a class="btn grey sm" href="mailto:${esc(r.email)}">Email</a>`:""}
+          <span class="muted" style="font-size:12px">Prefers ${esc(r.preferred_contact||"—")}</span>
+        </div>
+      </div>
+
+      <label>Stage</label>
+      <select onchange="vSetRequest('${r.id}',{status:this.value})">
+        ${V_STATUS.map(s=>`<option value="${s}"${s===r.status?" selected":""}>${vWords(s)}</option>`).join("")}
+      </select>
+
+      <label style="margin-top:12px">Follow up on</label>
+      <input type="date" value="${esc(r.follow_up_on||"")}" onchange="vSetRequest('${r.id}',{follow_up_on:this.value||null})"/>
+
+      <label style="margin-top:12px">Internal notes</label>
+      <textarea rows="3" onchange="vSetRequest('${r.id}',{internal_notes:this.value})">${esc(r.internal_notes||"")}</textarea>
+
+      <h3 style="margin:20px 0 4px;font-size:14px">The requirement</h3>
+      ${line("Brief", r.brief)}
+      ${line("Asset sought", r.asset_sought)}
+      ${line("Preferred location", r.preferred_location)}
+      ${line("Alternative locations", r.alt_locations)}
+      ${line("Budget", r.budget_range)}
+      ${line("Approximate size", r.approx_size)}
+      ${line("Intended use", r.intended_use)}
+      ${line("Required features", r.required_features)}
+      ${line(r.intent==="rent"?"Preferred check-in":"Preferred possession", r.possession_date)}
+      ${line("Duration", r.rental_duration)}
+      ${line("Additional requirements", r.additional_requirements)}
+
+      ${r.confidential_notes?`<div class="card" style="padding:12px 14px;margin-top:14px;border-color:var(--brand)">
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand)">Confidential — desk only</div>
+        <div style="font-size:13.5px;white-space:pre-wrap;margin-top:4px">${esc(r.confidential_notes)}</div>
+        <div class="muted" style="font-size:11.5px;margin-top:6px">Never shown on the website and never included when a property is presented.</div></div>`:""}
+
+      ${(r.attachments||[]).length?`<h3 style="margin:20px 0 4px;font-size:14px">Attachments</h3>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Private bucket. Each link is a signed URL valid for one hour.</div>
+        ${r.attachments.map(p=>`<div style="padding:6px 0"><button class="btn ghost sm" onclick="vOpenFile('${esc(p)}')">${esc(p.split("/").pop())}</button></div>`).join("")}`:""}
+
+      <h3 style="margin:22px 0 4px;font-size:14px">Matching</h3>
+      <p class="muted" style="font-size:12.5px;margin:0 0 10px">Suggestions only. Nothing is sent to anyone, and no contact details are exchanged, until you act on it yourself.</p>
+      <button class="btn" onclick="vFindMatches('${r.id}')">Find potential matches</button>
+      <div id="v-matchbox" style="margin-top:12px"></div>
+
+      <div class="muted" style="font-size:11.5px;margin-top:22px">Received ${vWhen(r.created_at)}${r.ref?` · via ${esc(r.ref)}`:""}${r.source_url?`<br>${esc(r.source_url)}`:""}</div>
+    </div>`;
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+window.vSetRequest = async (id,patch)=>{
+  const {error} = await sb.from("vault_requests").update({...patch, updated_at:new Date().toISOString()}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Saved"); if((window.__vaultTab||"")==="requests") vRequests();
+};
+
+// ───────── owner offers (§5, §11, §12) ─────────
+async function vOffers(){
+  const f = window.__vOffFilter || {};
+  let q = sb.from("vault_offers").select("*").order("created_at",{ascending:false}).limit(300);
+  if(f.intent) q = q.eq("intent", f.intent);
+  if(f.stage)  q = q.eq("stage", f.stage);
+  if(f.off === "1") q = q.eq("off_market", true);
+  const {data,error} = await q;
+  if(error){ $("#v-body").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+  const chip=(k,v,l)=>`<button class="btn ${((f[k]||"")===v)?"":"grey"} sm" onclick="vOffFilter('${k}','${v}')">${esc(l)}</button>`;
+
+  $("#v-body").innerHTML = `
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap">
+      ${chip("intent","","All")}${chip("intent","sell","Sell mandates")}${chip("intent","lease","Lease mandates")}
+      <span style="width:14px"></span>
+      ${chip("off","","Any visibility")}${chip("off","1","Owner asked off-market")}
+      <span style="width:14px"></span>
+      ${chip("stage","","Any stage")}${chip("stage","submitted","Submitted")}${chip("stage","vault_verified","Vault verified")}${chip("stage","listed","Listed")}
+    </div>
+    ${rows.length?`<table><thead><tr><th>Ref</th><th>Owner</th><th>Property</th><th>Expects</th><th>Verification</th><th>Visibility</th></tr></thead><tbody>
+      ${rows.map(o=>`<tr style="cursor:pointer" onclick="vOpenOffer('${o.id}')">
+        <td><b>${esc(o.reference)}</b><div class="muted" style="font-size:11.5px">${vWords(o.intent)}</div></td>
+        <td><b>${esc(o.owner_name)}</b><div class="muted" style="font-size:12px">+91 ${esc(o.mobile)}</div></td>
+        <td style="max-width:280px"><div style="font-size:13px">${esc(o.property_type||"—")}</div><div class="muted" style="font-size:11.5px">${esc(o.property_location||"")}</div></td>
+        <td class="muted">${esc(o.expected_price||o.expected_rent||"—")}</td>
+        <td><span class="pill ${o.stage==="vault_verified"?"ok":o.stage==="submitted"?"warn":"grey"}">${vWords(o.stage)}</span></td>
+        <td><span class="pill ${vVisPill(o.visibility)}">${vWords(o.visibility)}</span>${o.off_market?`<div class="muted" style="font-size:11px;margin-top:3px">owner asked</div>`:""}</td></tr>`).join("")}
+    </tbody></table>`:`<div class="empty card">No properties offered yet.</div>`}`;
+}
+window.vOffFilter = (k,v)=>{ window.__vOffFilter = {...(window.__vOffFilter||{}), [k]:v}; vOffers(); };
+
+window.vOpenOffer = async (id)=>{
+  const {data:o} = await sb.from("vault_offers").select("*").eq("id",id).maybeSingle();
+  if(!o) return toast("Offer not found");
+  const line=(l,v)=>v?`<div style="padding:8px 0;border-top:1px solid var(--hair)"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">${esc(l)}</div><div style="font-size:13.5px;white-space:pre-wrap">${esc(v)}</div></div>`:"";
+  const files=(label,arr)=>(arr||[]).length?`<h3 style="margin:18px 0 4px;font-size:14px">${esc(label)}</h3>${arr.map(p=>`<div style="padding:5px 0"><button class="btn ghost sm" onclick="vOpenFile('${esc(p)}')">${esc(p.split("/").pop())}</button></div>`).join("")}`:"";
+
+  $("#drawer").innerHTML = `
+    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${esc(o.reference)} · ${esc(o.owner_name)}</h3>
+      <span class="pill ${vVisPill(o.visibility)}">${vWords(o.visibility)}</span></div>
+    <div class="body">
+      ${o.off_market?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-color:var(--brand)">
+        <b style="color:var(--brand)">The owner asked for this to be kept off-market.</b>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">It must never appear in the public Vault. Changing visibility below does not erase this — the request stays on the record.</div></div>`:""}
+
+      <div class="card" style="padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <a class="btn sm" href="tel:+91${esc(o.mobile)}">Call</a>
+          <a class="btn grey sm" target="_blank" rel="noopener" href="https://wa.me/91${esc(o.whatsapp||o.mobile)}">WhatsApp</a>
+          ${o.email?`<a class="btn grey sm" href="mailto:${esc(o.email)}">Email</a>`:""}
+          ${o.map_link?`<a class="btn ghost sm" target="_blank" rel="noopener" href="${esc(o.map_link)}">Map</a>`:""}
+        </div>
+      </div>
+
+      <label>Verification stage</label>
+      <select onchange="vSetOffer('${o.id}',{stage:this.value})">
+        ${V_STAGE.map(s=>`<option value="${s}"${s===o.stage?" selected":""}>${vWords(s)}</option>`).join("")}
+      </select>
+      <div class="muted" style="font-size:11.5px;margin-top:5px">Only <b>vault_verified</b> is ever shown to the public, and it reads “Reviewed by Jamin” — never “legally verified”.</div>
+
+      <label style="margin-top:12px">Visibility</label>
+      <select onchange="vSetOfferVisibility('${o.id}',this.value,${o.off_market?"true":"false"},this)">
+        ${V_VIS.map(v=>`<option value="${v}"${v===o.visibility?" selected":""}>${vWords(v)}</option>`).join("")}
+      </select>
+
+      <label style="margin-top:12px">Internal notes</label>
+      <textarea rows="3" onchange="vSetOffer('${o.id}',{internal_notes:this.value})">${esc(o.internal_notes||"")}</textarea>
+
+      <h3 style="margin:20px 0 4px;font-size:14px">The property</h3>
+      ${line("Type", o.property_type)}
+      ${line("Location", o.property_location)}
+      ${line("Description", o.description)}
+      ${line("Expected sale price", o.expected_price)}
+      ${line("Expected rent / lease", o.expected_rent)}
+      ${line("Land area", o.land_area)}
+      ${line("Built-up area", o.built_area)}
+      ${line("Bedrooms", o.bedrooms)}
+      ${line("Ownership", o.ownership_status)}
+      ${line("Availability", o.availability)}
+      ${line("Furnishing", o.furnishing)}
+      ${line("Amenities", o.amenities)}
+      ${line("Coordinates", o.coordinates)}
+      ${line("Special instructions", o.special_instructions)}
+
+      <div class="muted" style="font-size:12px;margin-top:16px">Files are held in a private bucket. Links below are signed and valid for one hour.</div>
+      ${files("Photographs", o.photos)}
+      ${files("Video", o.videos)}
+      ${files("Brochure", o.brochures)}
+      ${files("Documents", o.documents)}
+
+      <h3 style="margin:22px 0 6px;font-size:14px">Publish to the Vault</h3>
+      <p class="muted" style="font-size:12.5px;margin:0 0 10px">Creates a Vault property from this offer. It is created <b>off-market</b>; making it public is a separate, deliberate step under Vault properties.</p>
+      <button class="btn" onclick="vDraftListing('${o.id}')">Create a Vault property from this offer</button>
+
+      <div class="muted" style="font-size:11.5px;margin-top:22px">Received ${vWhen(o.created_at)}${o.source_url?`<br>${esc(o.source_url)}`:""}</div>
+    </div>`;
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+window.vSetOffer = async (id,patch)=>{
+  const {error} = await sb.from("vault_offers").update({...patch, updated_at:new Date().toISOString()}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Saved"); if((window.__vaultTab||"")==="offers") vOffers();
+};
+
+// ⚠️ The one confirmation in this section, and it exists because this is the
+// one action that can break a promise the owner made a decision about.
+window.vSetOfferVisibility = async (id,value,ownerAskedOffMarket,el)=>{
+  if(value==="public" && ownerAskedOffMarket){
+    const ok = confirm("This owner explicitly asked to be kept OFF-MARKET.\n\nMaking it public contradicts what they were promised on the website. Continue only if the owner has since agreed.\n\nMake it public anyway?");
+    if(!ok){ if(el) el.value = "off_market"; return; }
+  }
+  await vSetOffer(id,{visibility:value});
+};
+
+// Signed URL, generated on demand and never stored — §20: no predictable public
+// path to an owner's title deed.
+window.vOpenFile = async (path)=>{
+  const {data,error} = await sb.storage.from("vault").createSignedUrl(path, 3600);
+  if(error||!data?.signedUrl) return toast(error?.message||"Could not open that file");
+  window.open(data.signedUrl,"_blank","noopener");
+};
+
+// ───────── Vault properties (§6 visibility, §13 dossier) ─────────
+async function vListings(){
+  const f = window.__vListFilter || "";
+  let q = sb.from("vault_listings").select("*").order("created_at",{ascending:false}).limit(300);
+  if(f) q = q.eq("visibility", f);
+  const {data,error} = await q;
+  if(error){ $("#v-body").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+  const chip=(v,l)=>`<button class="btn ${f===v?"":"grey"} sm" onclick="vListFilter('${v}')">${esc(l)}</button>`;
+
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      <b>Public</b> shows on jaminproperties.com/vault. <b>Private</b> and <b>off-market</b> are invisible to the website — the database refuses them to an anonymous reader, so this is not a display setting.
+      A property must be <b>public AND published</b> to appear.</p></div>
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap">
+      ${chip("","All")}${chip("public","Public Vault")}${chip("private","Private Vault")}${chip("off_market","Off-market")}
+      <span class="grow"></span><button class="btn sm" onclick="vOpenListing('')">+ New Vault property</button>
+    </div>
+    ${rows.length?`<table><thead><tr><th>Property</th><th>Where</th><th>Visibility</th><th>Published</th><th>Discreet</th><th>Stage</th></tr></thead><tbody>
+      ${rows.map(l=>`<tr style="cursor:pointer" onclick="vOpenListing('${l.id}')">
+        <td><b>${esc(l.title)}</b><div class="muted" style="font-size:11.5px">${esc(l.slug||"no slug")}</div></td>
+        <td class="muted">${esc([l.locality,l.state].filter(Boolean).join(", ")||"—")}</td>
+        <td><span class="pill ${vVisPill(l.visibility)}">${vWords(l.visibility)}</span></td>
+        <td>${l.published?'<span class="pill ok">live</span>':'<span class="pill grey">draft</span>'}</td>
+        <td>${l.discreet?'<span class="pill warn">masked</span>':'<span class="muted">—</span>'}</td>
+        <td class="muted">${vWords(l.stage)}</td></tr>`).join("")}
+    </tbody></table>`:`<div class="empty card">No Vault properties yet. Create one from an owner offer, or add one directly.</div>`}`;
+}
+window.vListFilter = (v)=>{ window.__vListFilter=v; vListings(); };
+
+let VLCUR = null;
+window.vOpenListing = async (id)=>{
+  VLCUR = id ? (await sb.from("vault_listings").select("*").eq("id",id).maybeSingle()).data
+             : { title:"", visibility:"off_market", stage:"submitted", intent:"sale", published:false, discreet:false, price_on_request:true, amenities:[], images:[] };
+  if(!VLCUR) return toast("Not found");
+  const f=(l,k,ph="",t="text")=>`<div><label>${esc(l)}</label><input data-vl="${k}" type="${t}" value="${esc(VLCUR[k]??"")}" placeholder="${esc(ph)}"/></div>`;
+  const ta=(l,k,rows=3)=>`<div><label>${esc(l)}</label><textarea data-vl="${k}" rows="${rows}">${esc(VLCUR[k]||"")}</textarea></div>`;
+  const sel=(l,k,opts)=>`<div><label>${esc(l)}</label><select data-vl="${k}">${opts.map(o=>`<option value="${o}"${o===VLCUR[k]?" selected":""}>${vWords(o)}</option>`).join("")}</select></div>`;
+  const bool=(l,k)=>`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" data-vlb="${k}"${VLCUR[k]?" checked":""}/> <span>${esc(l)}</span></label>`;
+
+  $("#drawer").innerHTML = `
+    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${VLCUR.id?"Edit Vault property":"New Vault property"}</h3></div>
+    <div class="body">
+      ${f("Title","title")}
+      ${f("Slug (the URL)","slug","private-estate-coorg")}
+      ${f("Headline","headline")}
+      ${ta("Summary","summary",2)}
+      ${ta("The story","story",6)}
+      <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr">
+        ${f("Locality","locality")}${f("State","state")}
+        ${f("Category slug","category_slug","coffee-estates")}${f("Destination slug","destination_slug","coorg")}
+        ${f("Land area","land_area")}${f("Built-up area","built_area")}
+        ${f("Bedrooms","bedrooms","","number")}${f("Price shown","price_display","Leave blank for on request")}
+      </div>
+      <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-top:10px">
+        ${sel("Terms","intent",["sale","rent","both"])}
+        ${sel("Visibility","visibility",V_VIS)}
+        ${sel("Verification stage","stage",V_STAGE)}
+        ${f("Sort","sort","100","number")}
+      </div>
+      ${bool("Published (must also be public to appear on the website)","published")}
+      ${bool("Price on request","price_on_request")}
+      ${bool("Featured","featured")}
+      ${bool("Discreet — publish its existence only","discreet")}
+      ${f("Discreet label","discreet_label","Private estate")}
+      <div class="muted" style="font-size:11.5px;margin-top:4px">A discreet property shows only this label and its state. The real title, locality, story, gallery and brochure are never rendered.</div>
+      ${ta("Amenities (one per line)","__amenities",3)}
+      ${ta("Image URLs (one per line)","__images",3)}
+      ${f("Brochure URL","brochure_url")}
+      <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-top:10px">
+        ${f("Map latitude","map_lat","","number")}${f("Map longitude","map_lng","","number")}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn" onclick="vSaveListing()">Save</button>
+        <button class="btn grey" onclick="closeDrawer()">Cancel</button>
+      </div>
+    </div>`;
+  const am=$('#drawer [data-vl="__amenities"]'); if(am) am.value=(VLCUR.amenities||[]).join("\n");
+  const im=$('#drawer [data-vl="__images"]');    if(im) im.value=(VLCUR.images||[]).join("\n");
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+window.vSaveListing = async ()=>{
+  const g=(k)=>{ const el=$(`#drawer [data-vl="${k}"]`); return el?el.value.trim():""; };
+  const b=(k)=>!!$(`#drawer [data-vlb="${k}"]`)?.checked;
+  const num=(k)=>{ const v=g(k); return v===""?null:Number(v); };
+  const lines=(k)=>g(k).split("\n").map(x=>x.trim()).filter(Boolean);
+  if(!g("title")) return toast("A title is required");
+
+  const payload = {
+    title:g("title"), slug:g("slug")||null, headline:g("headline")||null,
+    summary:g("summary")||null, story:g("story")||null,
+    locality:g("locality")||null, state:g("state")||null,
+    category_slug:g("category_slug")||null, destination_slug:g("destination_slug")||null,
+    land_area:g("land_area")||null, built_area:g("built_area")||null,
+    bedrooms:num("bedrooms"), price_display:g("price_display")||null,
+    intent:g("intent"), visibility:g("visibility"), stage:g("stage"),
+    sort:num("sort")??100,
+    published:b("published"), price_on_request:b("price_on_request"),
+    featured:b("featured"), discreet:b("discreet"),
+    discreet_label:g("discreet_label")||null,
+    amenities:lines("__amenities"), images:lines("__images"),
+    brochure_url:g("brochure_url")||null,
+    map_lat:num("map_lat"), map_lng:num("map_lng"),
+    updated_at:new Date().toISOString(),
+  };
+  if(payload.visibility==="public" && payload.published){
+    if(!confirm("This will be visible to everyone on jaminproperties.com/vault.\n\nPublish it?")) return;
+  }
+  const q = VLCUR.id ? sb.from("vault_listings").update(payload).eq("id",VLCUR.id) : sb.from("vault_listings").insert(payload);
+  const {error} = await q;
+  if(error) return toast(/duplicate key/i.test(error.message) ? "That slug is already used" : error.message);
+  toast("Saved — live on the website's next revalidation");
+  closeDrawer(); vListings();
+};
+
+window.vDraftListing = async (offerId)=>{
+  const {data:o} = await sb.from("vault_offers").select("*").eq("id",offerId).maybeSingle();
+  if(!o) return toast("Offer not found");
+  // Created OFF-MARKET whatever the owner's answer was. Upgrading it is a
+  // separate deliberate act, which is the whole point of §6.
+  const {error} = await sb.from("vault_listings").insert({
+    title:o.property_type ? `${o.property_type}${o.property_location?" — "+o.property_location:""}` : `Vault property ${o.reference}`,
+    summary:o.description||null, locality:o.property_location||null,
+    land_area:o.land_area||null, built_area:o.built_area||null, bedrooms:o.bedrooms,
+    intent:o.intent==="lease"?"rent":"sale",
+    visibility:"off_market", stage:o.stage, published:false,
+    price_display:o.expected_price||o.expected_rent||null,
+    owner_offer_id:o.id,
+  });
+  if(error) return toast(error.message);
+  await sb.from("vault_offers").update({stage:"listed", updated_at:new Date().toISOString()}).eq("id",offerId);
+  toast("Vault property created, off-market");
+  closeDrawer(); window.__vaultTab="listings"; renderVault();
+};
+
+// ───────── matches (§8) ─────────
+// ⚠️ The scoring is deliberately crude and deliberately visible. It is a way of
+// putting a shortlist in front of a person, not a recommendation engine — a
+// requirement worth crores is not matched by string overlap, and pretending
+// otherwise would make an administrator trust it.
+function vScore(req, cand){
+  const hay = [cand.title,cand.summary,cand.locality,cand.state,cand.property_type,cand.property_location,cand.description,cand.category_slug,cand.destination_slug].filter(Boolean).join(" ").toLowerCase();
+  const want = [req.asset_sought,req.preferred_location,req.alt_locations,req.brief].filter(Boolean).join(" ").toLowerCase();
+  const words = [...new Set(want.split(/[^a-z]+/).filter(w=>w.length>3))];
+  const hits = words.filter(w=>hay.includes(w));
+  return { score: Math.min(100, hits.length*18), reason: hits.length?`Matched on: ${hits.slice(0,6).join(", ")}`:"No overlap in the words used" };
+}
+
+window.vFindMatches = async (requestId)=>{
+  const box = $("#v-matchbox"); if(box) box.innerHTML = `<div class="skel" style="height:90px"></div>`;
+  const [{data:req},{data:listings},{data:offers},{data:existing}] = await Promise.all([
+    sb.from("vault_requests").select("*").eq("id",requestId).maybeSingle(),
+    sb.from("vault_listings").select("id,title,summary,locality,state,category_slug,destination_slug,visibility").limit(200),
+    sb.from("vault_offers").select("id,reference,owner_name,property_type,property_location,description,intent,off_market").limit(200),
+    sb.from("vault_matches").select("listing_id,offer_id").eq("request_id",requestId),
+  ]);
+  if(!req || !box) return;
+  const seen = new Set((existing||[]).flatMap(m=>[m.listing_id,m.offer_id].filter(Boolean)));
+  const cands = [
+    ...(listings||[]).map(l=>({kind:"listing", id:l.id, label:l.title, meta:[l.locality,l.state].filter(Boolean).join(", "), tag:l.visibility, raw:l})),
+    ...(offers||[]).map(o=>({kind:"offer", id:o.id, label:`${o.property_type||"Property"} · ${o.reference}`, meta:o.property_location||"", tag:o.off_market?"off_market":o.intent, raw:o})),
+  ].filter(c=>!seen.has(c.id))
+   .map(c=>({...c, ...vScore(req,c.raw)}))
+   .sort((a,b)=>b.score-a.score).slice(0, 8);
+
+  box.innerHTML = cands.length? `<div class="muted" style="font-size:12px;margin-bottom:8px">${cands.length} candidate${cands.length===1?"":"s"}, ranked by word overlap. Read them — the ranking is a shortcut, not a judgement.</div>` +
+    cands.map(c=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--hair)">
+      <span class="pill ${vVisPill(c.tag)}">${vWords(c.tag)}</span>
+      <span style="flex:1;font-size:13px"><b>${esc(c.label)}</b><div class="muted" style="font-size:11.5px">${esc(c.meta)} · ${esc(c.reason)}</div></span>
+      <span class="muted" style="font-size:12px">${c.score}</span>
+      <button class="btn sm" onclick="vSaveMatch('${requestId}','${c.kind}','${c.id}',${c.score},'${esc(c.reason).replace(/'/g,"")}')">Keep</button>
+    </div>`).join("")
+    : `<div class="muted" style="font-size:13px">Nothing to suggest yet — or everything has already been noted against this request.</div>`;
+};
+
+window.vSaveMatch = async (requestId,kind,id,score,reason)=>{
+  const row = { request_id:requestId, score:Number(score)||0, reason, status:"suggested" };
+  row[kind==="listing"?"listing_id":"offer_id"] = id;
+  const {error} = await sb.from("vault_matches").insert(row);
+  if(error) return toast(/duplicate|unique/i.test(error.message)?"Already noted against this request":error.message);
+  toast("Noted. Nothing has been sent to anyone.");
+  vFindMatches(requestId);
+};
+
+async function vMatches(){
+  const {data,error} = await sb.from("vault_matches")
+    .select("*, request:vault_requests(reference,name,intent,asset_sought), listing:vault_listings(title,visibility), offer:vault_offers(reference,owner_name,property_type,off_market)")
+    .order("created_at",{ascending:false}).limit(300);
+  if(error){ $("#v-body").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      A match is your own private note that two records might fit. Approving one records your judgement — it does not notify anybody, and it never exchanges contact details between a client and an owner.</p></div>
+    ${rows.length?`<table><thead><tr><th>Client requirement</th><th>Candidate</th><th>Why</th><th>Score</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(m=>`<tr>
+        <td><b>${esc(m.request?.reference||"—")}</b><div class="muted" style="font-size:12px">${esc(m.request?.name||"")} · ${esc(m.request?.asset_sought||"")}</div></td>
+        <td>${m.listing_id?`<b>${esc(m.listing?.title||"Vault property")}</b><div class="muted" style="font-size:11.5px">${vWords(m.listing?.visibility||"")}</div>`
+                          :`<b>${esc(m.offer?.property_type||"Owner offer")}</b><div class="muted" style="font-size:11.5px">${esc(m.offer?.reference||"")}${m.offer?.off_market?" · off-market":""}</div>`}</td>
+        <td class="muted" style="max-width:260px;font-size:12px">${esc(m.reason||"—")}</td>
+        <td class="muted">${m.score}</td>
+        <td><span class="pill ${m.status==="approved"?"ok":m.status==="rejected"?"red":"warn"}">${vWords(m.status)}</span></td>
+        <td style="text-align:right">${m.status==="suggested"?`<button class="btn sm" onclick="vJudgeMatch('${m.id}','approved')">Approve</button> <button class="btn ghost sm" onclick="vJudgeMatch('${m.id}','rejected')">Reject</button>`:""}</td>
+      </tr>`).join("")}
+    </tbody></table>`:`<div class="empty card">No matches noted yet. Open a client request and use “Find potential matches”.</div>`}`;
+}
+window.vJudgeMatch = async (id,status)=>{
+  const patch = { status };
+  if(status==="approved"){ patch.approved_at = new Date().toISOString(); patch.approved_by = (await sb.auth.getUser()).data?.user?.id || null; }
+  const {error} = await sb.from("vault_matches").update(patch).eq("id",id);
+  if(error) return toast(error.message);
+  toast(status==="approved"?"Approved — nothing sent":"Rejected"); vMatches();
+};
+
+// ───────── destinations + categories (§17, §2 — §19 says never hard-code) ────
+async function vDestinations(){
+  const {data} = await sb.from("vault_destinations").select("*").order("sort");
+  const rows = data||[];
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      The places The Vault names on the website. Leave <b>image</b> blank and the site draws its own engraved plate — a designed placeholder, not a broken image. Paste a URL to replace it with a photograph.</p></div>
+    <div class="toolbar"><span class="grow"></span><button class="btn sm" onclick="vEditTaxon('destination','')">+ New destination</button></div>
+    ${rows.length?`<table><thead><tr><th>Name</th><th>Tagline</th><th>Region</th><th>Sort</th><th>Live</th></tr></thead><tbody>
+      ${rows.map(d=>`<tr style="cursor:pointer" onclick="vEditTaxon('destination','${d.id}')">
+        <td><b>${esc(d.name)}</b><div class="muted" style="font-size:11.5px">${esc(d.slug)}${d.image_url?" · photo":" · plate"}</div></td>
+        <td class="muted">${esc(d.tagline||"—")}</td><td class="muted">${esc(d.region||"—")}</td>
+        <td class="muted">${d.sort}</td><td>${d.active?'<span class="pill ok">shown</span>':'<span class="pill grey">hidden</span>'}</td></tr>`).join("")}
+    </tbody></table>`:`<div class="empty card">No destinations.</div>`}`;
+}
+
+async function vCategories(){
+  const {data} = await sb.from("vault_categories").select("*").order("sort");
+  const rows = data||[];
+  const fams = [...new Set(rows.map(r=>r.family))];
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      What The Vault says it handles. <b>Family</b> is the heading a category appears under on the website — type the same family name to add to an existing group, or a new one to start a group.</p></div>
+    <div class="toolbar"><span class="grow"></span><button class="btn sm" onclick="vEditTaxon('category','')">+ New category</button></div>
+    ${fams.map(f=>`<div class="card" style="padding:14px 18px;margin-bottom:12px">
+      <h3 style="margin:0 0 8px;font-size:14px">${esc(f)}</h3>
+      ${rows.filter(r=>r.family===f).map(c=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--hair);cursor:pointer" onclick="vEditTaxon('category','${c.id}')">
+        <span style="flex:1;font-size:13px"><b>${esc(c.label)}</b> <span class="muted">${esc(c.note||"")}</span></span>
+        ${c.active?"":'<span class="pill grey">hidden</span>'}<span class="muted">›</span></div>`).join("")}
+    </div>`).join("") || `<div class="empty card">No categories.</div>`}`;
+}
+
+let VTCUR = null, VTKIND = "";
+window.vEditTaxon = async (kind,id)=>{
+  VTKIND = kind;
+  const table = kind==="destination" ? "vault_destinations" : "vault_categories";
+  VTCUR = id ? (await sb.from(table).select("*").eq("id",id).maybeSingle()).data
+             : (kind==="destination" ? {name:"",slug:"",tagline:"",region:"",sort:100,active:true}
+                                     : {family:"",slug:"",label:"",note:"",sort:100,active:true});
+  const f=(l,k,ph="",t="text")=>`<div><label>${esc(l)}</label><input data-vt="${k}" type="${t}" value="${esc(VTCUR[k]??"")}" placeholder="${esc(ph)}"/></div>`;
+  $("#drawer").innerHTML = `
+    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${id?"Edit":"New"} ${esc(kind)}</h3></div>
+    <div class="body">
+      ${kind==="destination" ? `${f("Name","name","Coorg")}${f("Slug","slug","coorg")}${f("Tagline","tagline","Coffee estates & plantation living")}${f("Region","region","Karnataka")}`
+                             : `${f("Family","family","Heritage India")}${f("Label","label","Havelis")}${f("Slug","slug","havelis")}${f("Note","note","Courtyard mansions of the north and west.")}`}
+      ${f("Image URL (blank draws the engraved plate)","image_url")}
+      ${f("Sort","sort","100","number")}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" data-vtb="active"${VTCUR.active?" checked":""}/> <span>Shown on the website</span></label>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn" onclick="vSaveTaxon()">Save</button>
+        <button class="btn grey" onclick="closeDrawer()">Cancel</button>
+        ${id?`<span class="grow"></span><button class="btn ghost sm" onclick="vDeleteTaxon('${id}')">Delete</button>`:""}
+      </div>
+    </div>`;
+  $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
+};
+
+window.vSaveTaxon = async ()=>{
+  const g=(k)=>{ const el=$(`#drawer [data-vt="${k}"]`); return el?el.value.trim():""; };
+  const table = VTKIND==="destination" ? "vault_destinations" : "vault_categories";
+  const payload = VTKIND==="destination"
+    ? { name:g("name"), slug:g("slug"), tagline:g("tagline")||null, region:g("region")||null }
+    : { family:g("family"), label:g("label"), slug:g("slug"), note:g("note")||null };
+  payload.image_url = g("image_url")||null;
+  payload.sort = Number(g("sort"))||100;
+  payload.active = !!$(`#drawer [data-vtb="active"]`)?.checked;
+  if(!payload.slug) return toast("A slug is required");
+  const q = VTCUR.id ? sb.from(table).update(payload).eq("id",VTCUR.id) : sb.from(table).insert(payload);
+  const {error} = await q;
+  if(error) return toast(/duplicate key/i.test(error.message)?"That slug is already used":error.message);
+  toast("Saved"); closeDrawer(); renderVault();
+};
+
+window.vDeleteTaxon = async (id)=>{
+  if(!confirm("Delete this permanently?\n\nHiding it (untick “Shown on the website”) keeps the record and any property pointing at it.")) return;
+  const table = VTKIND==="destination" ? "vault_destinations" : "vault_categories";
+  const {error} = await sb.from(table).delete().eq("id",id);
+  if(error) return toast(error.message);
+  toast("Deleted"); closeDrawer(); renderVault();
+};
+
+// ───────── settings (§19 — the website's copy, editable without a deploy) ────
+async function vSettings(){
+  const {data} = await sb.from("vault_settings").select("*").order("key");
+  const rows = data||[];
+  const get=(k)=>rows.find(r=>r.key===k)?.value ?? null;
+  const hero = get("hero")||{}, promise = get("promise")||[], faq = get("faq")||[], legal = get("legal")||{};
+  const f=(l,id,v,ph="")=>`<div style="margin-bottom:10px"><label>${esc(l)}</label><input id="${id}" value="${esc(v||"")}" placeholder="${esc(ph)}"/></div>`;
+  const t=(l,id,v,rows_=3)=>`<div style="margin-bottom:10px"><label>${esc(l)}</label><textarea id="${id}" rows="${rows_}">${esc(v||"")}</textarea></div>`;
+
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      Everything the website says on /vault. Saving takes effect on the next page revalidation — no deploy.
+      ⚠️ The register matters: no “exclusive”, no “VIP”, no “ultimate luxury”. The audience works out who this is for from the restraint.</p></div>
+
+    <div class="card" style="padding:16px 18px;margin-bottom:14px">
+      <h3 style="margin:0 0 10px;font-size:14px">Hero</h3>
+      ${f("Eyebrow","vs-h-eyebrow",hero.eyebrow)}
+      ${f("Title","vs-h-title",hero.title)}
+      ${t("Lead","vs-h-lead",hero.lead,2)}
+      ${t("Standfirst (used in “The idea”)","vs-h-note",hero.note,2)}
+      <button class="btn sm" onclick="vSaveSetting('hero')">Save hero</button>
+    </div>
+
+    <div class="card" style="padding:16px 18px;margin-bottom:14px">
+      <h3 style="margin:0 0 10px;font-size:14px">Standing lines</h3>
+      ${t("One per line","vs-promise",promise.join("\n"),6)}
+      <button class="btn sm" onclick="vSaveSetting('promise')">Save lines</button>
+    </div>
+
+    <div class="card" style="padding:16px 18px;margin-bottom:14px">
+      <h3 style="margin:0 0 10px;font-size:14px">Questions the desk is asked</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">One per block. Put the question on its own line, then the answer on the next line, and leave a blank line between blocks.</div>
+      ${t("FAQ","vs-faq",faq.map(x=>`${x.q}\n${x.a}`).join("\n\n"),10)}
+      <button class="btn sm" onclick="vSaveSetting('faq')">Save FAQ</button>
+    </div>
+
+    <div class="card" style="padding:16px 18px">
+      <h3 style="margin:0 0 10px;font-size:14px">Legal notices</h3>
+      ${t("Introduction","vs-l-intro",legal.intro,2)}
+      ${t("Restricted categories","vs-l-restricted",legal.restricted,4)}
+      ${t("Verification","vs-l-verification",legal.verification,3)}
+      ${t("Privacy","vs-l-privacy",legal.privacy,3)}
+      <button class="btn sm" onclick="vSaveSetting('legal')">Save notices</button>
+    </div>`;
+}
+
+window.vSaveSetting = async (key)=>{
+  const g=(id)=>($("#"+id)?.value||"").trim();
+  let value;
+  if(key==="hero") value = {eyebrow:g("vs-h-eyebrow"),title:g("vs-h-title"),lead:g("vs-h-lead"),note:g("vs-h-note")};
+  else if(key==="promise") value = g("vs-promise").split("\n").map(x=>x.trim()).filter(Boolean);
+  else if(key==="faq") value = g("vs-faq").split(/\n\s*\n/).map(block=>{
+      const [q,...rest] = block.split("\n");
+      return {q:(q||"").trim(), a:rest.join(" ").trim()};
+    }).filter(x=>x.q && x.a);
+  else value = {intro:g("vs-l-intro"),restricted:g("vs-l-restricted"),verification:g("vs-l-verification"),privacy:g("vs-l-privacy")};
+
+  const {error} = await sb.from("vault_settings").upsert({key, value, is_public:true, updated_at:new Date().toISOString()},{onConflict:"key"});
+  if(error) return toast(error.message);
+  toast("Saved — live on the website's next revalidation");
+};
+
 </script>
 </body>
 </html>
