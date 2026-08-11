@@ -3203,7 +3203,7 @@ const V_STAGE  = ["submitted","identity_verified","documents_received","property
 const V_VIS    = ["off_market","private","public"];
 const V_TABS   = [
   ["overview","Overview"],["requests","Client requests"],["offers","Owner offers"],
-  ["listings","Vault properties"],["matches","Matches"],
+  ["listings","Vault properties"],["matches","Matches"],["gallery","Gallery"],
   ["destinations","Destinations"],["categories","Categories"],["settings","Settings"],
 ];
 
@@ -3215,7 +3215,7 @@ async function renderVault(){
   const tab = window.__vaultTab || "overview";
   const chip = (v,l)=>`<button class="btn ${tab===v?"":"grey"} sm" onclick="vaultTab('${v}')">${esc(l)}</button>`;
   $("#view").innerHTML = `<div class="toolbar" style="gap:6px;flex-wrap:wrap">${V_TABS.map(([v,l])=>chip(v,l)).join("")}</div><div id="v-body">${SKELETON}</div>`;
-  await ({overview:vOverview,requests:vRequests,offers:vOffers,listings:vListings,matches:vMatches,destinations:vDestinations,categories:vCategories,settings:vSettings}[tab])();
+  await ({overview:vOverview,requests:vRequests,offers:vOffers,listings:vListings,matches:vMatches,gallery:vGallery,destinations:vDestinations,categories:vCategories,settings:vSettings}[tab])();
 }
 window.renderVault = renderVault;
 window.vaultTab = (v)=>{ window.__vaultTab=v; renderVault(); };
@@ -3365,7 +3365,10 @@ window.vOpenRequest = async (id)=>{
       <button class="btn" onclick="vFindMatches('${r.id}')">Find potential matches</button>
       <div id="v-matchbox" style="margin-top:12px"></div>
 
-      <div class="muted" style="font-size:11.5px;margin-top:22px">Received ${vWhen(r.created_at)}${r.ref?` · via ${esc(r.ref)}`:""}${r.source_url?`<br>${esc(r.source_url)}`:""}</div>
+      <div style="display:flex;align-items:center;margin-top:22px">
+        <div class="muted" style="flex:1;font-size:11.5px">Received ${vWhen(r.created_at)}${r.ref?` · via ${esc(r.ref)}`:""}${r.source_url?`<br>${esc(r.source_url)}`:""}</div>
+        <button class="btn ghost sm" onclick="vDeleteRow('vault_requests','${r.id}','client request','requests')">Delete</button>
+      </div>
     </div>`;
   $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
 };
@@ -3471,7 +3474,10 @@ window.vOpenOffer = async (id)=>{
       <p class="muted" style="font-size:12.5px;margin:0 0 10px">Creates a Vault property from this offer. It is created <b>off-market</b>; making it public is a separate, deliberate step under Vault properties.</p>
       <button class="btn" onclick="vDraftListing('${o.id}')">Create a Vault property from this offer</button>
 
-      <div class="muted" style="font-size:11.5px;margin-top:22px">Received ${vWhen(o.created_at)}${o.source_url?`<br>${esc(o.source_url)}`:""}</div>
+      <div style="display:flex;align-items:center;margin-top:22px">
+        <div class="muted" style="flex:1;font-size:11.5px">Received ${vWhen(o.created_at)}${o.source_url?`<br>${esc(o.source_url)}`:""}</div>
+        <button class="btn ghost sm" onclick="vDeleteRow('vault_offers','${o.id}','owner submission','offers')">Delete</button>
+      </div>
     </div>`;
   $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
 };
@@ -3567,18 +3573,27 @@ window.vOpenListing = async (id)=>{
       ${f("Discreet label","discreet_label","Private estate")}
       <div class="muted" style="font-size:11.5px;margin-top:4px">A discreet property shows only this label and its state. The real title, locality, story, gallery and brochure are never rendered.</div>
       ${ta("Amenities (one per line)","__amenities",3)}
-      ${ta("Image URLs (one per line)","__images",3)}
+
+      <label style="margin-top:14px">Photographs</label>
+      <p class="muted" style="font-size:11.5px;margin:0 0 6px">The first one is the cover and the dossier's hero. Reorder with the arrows. Uploads go to the PUBLIC bucket — the only one the website can render.</p>
+      <div id="v-images"></div>
+      <input type="file" accept="image/*" multiple onchange="vPickImages(this)" style="margin-top:8px"/>
+      ${VLCUR.owner_offer_id ? `<div style="margin-top:12px">
+        <button class="btn grey sm" onclick="vPullOwnerPhotos('${VLCUR.owner_offer_id}')">Pull photographs from the owner's submission</button>
+        <div id="v-ownerphotos" style="margin-top:8px"></div>
+      </div>` : ""}
       ${f("Brochure URL","brochure_url")}
       <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-top:10px">
         ${f("Map latitude","map_lat","","number")}${f("Map longitude","map_lng","","number")}
       </div>
-      <div style="display:flex;gap:10px;margin-top:20px">
+      <div style="display:flex;gap:10px;margin-top:20px;align-items:center">
         <button class="btn" onclick="vSaveListing()">Save</button>
         <button class="btn grey" onclick="closeDrawer()">Cancel</button>
+        ${VLCUR.id ? `<span style="flex:1"></span><button class="btn ghost sm" onclick="vDeleteRow('vault_listings','${VLCUR.id}','property','listings')">Delete property</button>` : ""}
       </div>
     </div>`;
   const am=$('#drawer [data-vl="__amenities"]'); if(am) am.value=(VLCUR.amenities||[]).join("\n");
-  const im=$('#drawer [data-vl="__images"]');    if(im) im.value=(VLCUR.images||[]).join("\n");
+  VLCUR.images = VLCUR.images || []; vRenderImages();
   $("#drawer").classList.add("open"); $("#drawer-bg").classList.add("open");
 };
 
@@ -3601,7 +3616,7 @@ window.vSaveListing = async ()=>{
     published:b("published"), price_on_request:b("price_on_request"),
     featured:b("featured"), discreet:b("discreet"),
     discreet_label:g("discreet_label")||null,
-    amenities:lines("__amenities"), images:lines("__images"),
+    amenities:lines("__amenities"), images:(VLCUR.images||[]),
     brochure_url:g("brochure_url")||null,
     map_lat:num("map_lat"), map_lng:num("map_lng"),
     updated_at:new Date().toISOString(),
@@ -3702,7 +3717,7 @@ async function vMatches(){
         <td class="muted" style="max-width:260px;font-size:12px">${esc(m.reason||"—")}</td>
         <td class="muted">${m.score}</td>
         <td><span class="pill ${m.status==="approved"?"ok":m.status==="rejected"?"red":"warn"}">${vWords(m.status)}</span></td>
-        <td style="text-align:right">${m.status==="suggested"?`<button class="btn sm" onclick="vJudgeMatch('${m.id}','approved')">Approve</button> <button class="btn ghost sm" onclick="vJudgeMatch('${m.id}','rejected')">Reject</button>`:""}</td>
+        <td style="text-align:right">${m.status==="suggested"?`<button class="btn sm" onclick="vJudgeMatch('${m.id}','approved')">Approve</button> <button class="btn ghost sm" onclick="vJudgeMatch('${m.id}','rejected')">Reject</button> `:""}<button class="btn ghost sm" onclick="vDeleteRow('vault_matches','${m.id}','match','matches')">✕</button></td>
       </tr>`).join("")}
     </tbody></table>`:`<div class="empty card">No matches noted yet. Open a client request and use “Find potential matches”.</div>`}`;
 }
@@ -3855,6 +3870,284 @@ window.vSaveSetting = async (key)=>{
   const {error} = await sb.from("vault_settings").upsert({key, value, is_public:true, updated_at:new Date().toISOString()},{onConflict:"key"});
   if(error) return toast(error.message);
   toast("Saved — live on the website's next revalidation");
+};
+
+
+// ═════════ THE VAULT — MEDIA, AND DELETING THINGS ═══════════════════════════
+//
+// ⚠️ TWO BUCKETS, AND THEY ARE NOT INTERCHANGEABLE.
+//
+//   `vault`          private, anon may WRITE and only a super admin may read.
+//                    Everything the public sends us lands here: an owner's
+//                    photographs and title documents, a client's reference
+//                    images. There is no public URL for anything in it, by
+//                    design (§20).
+//   `property-media` public, super admin only for writes. This is what the
+//                    website can actually render, and it is the only host
+//                    `next.config.ts` allows next/image to optimise.
+//
+// So publishing an owner's photograph is a COPY between buckets, not a flag.
+// `vPullOwnerPhotos` does exactly that, one file at a time, on a click — which
+// is the right shape: it means an administrator has looked at the picture and
+// decided it may be public, rather than a checkbox moving twelve files at once.
+//
+// ⚠️ A COPY IS A DISCLOSURE. The private bucket is where an owner's discretion
+// lives. Moving a file out of it makes that file world-readable to anyone with
+// the URL, forever, whatever the listing's visibility says afterwards. The
+// confirm on that button is not boilerplate.
+
+const VAULT_PUBLIC_BUCKET = "property-media";
+const VAULT_PUBLIC_PREFIX = "vault";
+
+/** Upload one browser File into the public bucket, return its public URL.
+ *  ⚠️ The File is re-wrapped as a Blob: Storage reads the Blob's own `.type`,
+ *  and some browsers hand over a File with an empty type for anything they do
+ *  not recognise, which the bucket then rejects with a MIME error. */
+async function vUploadPublic(file, folder) {
+  const safe = (file.name || "file").replace(/[^\w.\-]+/g, "-").slice(-80);
+  const path = `${VAULT_PUBLIC_PREFIX}/${folder}/${crypto.randomUUID().slice(0, 8)}-${safe}`;
+  const blob = new Blob([await file.arrayBuffer()], {
+    type: file.type || "application/octet-stream",
+  });
+  const { error } = await sb.storage
+    .from(VAULT_PUBLIC_BUCKET)
+    .upload(path, blob, { contentType: blob.type, upsert: false });
+  if (error) throw new Error(error.message);
+  return sb.storage.from(VAULT_PUBLIC_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** The reverse of the URL above — only for objects we put there ourselves. */
+function vPublicPathFromUrl(url) {
+  const m = String(url || "").match(
+    new RegExp(`/object/public/${VAULT_PUBLIC_BUCKET}/(${VAULT_PUBLIC_PREFIX}/.+)$`),
+  );
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// ───────── the listing's image manager ─────────
+// VLCUR.images is the source of truth while the drawer is open; this redraws
+// the strip from it and nothing else touches the DOM.
+window.vRenderImages = () => {
+  const box = $("#v-images");
+  if (!box) return;
+  const imgs = VLCUR.images || [];
+  box.innerHTML = imgs.length
+    ? imgs
+        .map(
+          (u, i) => `
+      <div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--hair)">
+        <img src="${esc(u)}" alt="" style="width:74px;height:52px;object-fit:cover;border-radius:8px;background:var(--sunken);flex:none" loading="lazy"/>
+        <span style="flex:1;min-width:0">
+          <span style="display:block;font-size:12.5px;font-weight:${i === 0 ? 700 : 500}">${i === 0 ? "Cover" : "Image " + (i + 1)}</span>
+          <span class="muted" style="display:block;font-size:11px;word-break:break-all">${esc(u.split("/").pop())}</span>
+        </span>
+        <button class="btn ghost sm" onclick="vMoveImage(${i},-1)" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+        <button class="btn ghost sm" onclick="vMoveImage(${i},1)" ${i === imgs.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+        <button class="btn ghost sm" onclick="vRemoveImage(${i})" title="Remove">✕</button>
+      </div>`,
+        )
+        .join("")
+    : `<p class="muted" style="font-size:12.5px;margin:6px 0">No photographs yet. The first one becomes the cover and the hero of the dossier.</p>`;
+};
+
+window.vMoveImage = (i, dir) => {
+  const imgs = VLCUR.images || [];
+  const j = i + dir;
+  if (j < 0 || j >= imgs.length) return;
+  [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+  vRenderImages();
+};
+
+window.vRemoveImage = async (i) => {
+  const imgs = VLCUR.images || [];
+  const url = imgs[i];
+  const path = vPublicPathFromUrl(url);
+  // Only offer to delete the FILE when we are the ones who put it there. A
+  // pasted URL might be the app's own property media, shared with a listing
+  // that is not this one.
+  const alsoDelete =
+    path && confirm("Remove it from this property.\n\nAlso delete the file from storage permanently?\n\nOK = delete the file too.  Cancel = keep the file.");
+  imgs.splice(i, 1);
+  vRenderImages();
+  if (alsoDelete) {
+    const { error } = await sb.storage.from(VAULT_PUBLIC_BUCKET).remove([path]);
+    toast(error ? error.message : "Removed and deleted");
+  } else {
+    toast("Removed from this property");
+  }
+};
+
+window.vPickImages = async (input) => {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const folder = VLCUR.id || "unfiled";
+  toast(`Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`);
+  try {
+    for (const f of files) {
+      if (!/^image\//.test(f.type)) throw new Error(`${f.name} is not an image`);
+      if (f.size > 12 * 1024 * 1024) throw new Error(`${f.name} is larger than 12 MB`);
+      const url = await vUploadPublic(f, folder);
+      VLCUR.images = [...(VLCUR.images || []), url];
+    }
+    vRenderImages();
+    toast("Uploaded. Save the property to keep it.");
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    input.value = "";
+  }
+};
+
+/**
+ * Copy photographs out of the owner's private submission into the public
+ * bucket, so the website can render them.
+ *
+ * ⚠️ Signed URL in, public URL out. There is no server-side copy available from
+ * the browser, so each file is fetched through a one-hour signed URL and
+ * re-uploaded. That is why it is one click per photograph rather than one click
+ * for all of them: each is a separate decision to make a private file public.
+ */
+window.vPullOwnerPhotos = async (offerId) => {
+  const { data: o } = await sb
+    .from("vault_offers")
+    .select("reference, owner_name, photos, off_market")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (!o) return toast("Owner submission not found");
+  const photos = o.photos || [];
+  if (!photos.length) return toast("That submission has no photographs");
+
+  const box = $("#v-ownerphotos");
+  box.innerHTML =
+    `<p class="muted" style="font-size:12px;margin:0 0 8px">${photos.length} photograph${photos.length === 1 ? "" : "s"} from ${esc(o.owner_name)} (${esc(o.reference)}).` +
+    (o.off_market
+      ? ` <b style="color:var(--brand)">This owner asked to be kept off-market.</b>`
+      : "") +
+    ` Copying one into the public bucket makes that file readable by anyone with its URL, permanently.</p>` +
+    photos
+      .map(
+        (p, i) => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--hair)">
+        <span style="flex:1;font-size:12.5px;word-break:break-all">${esc(p.split("/").pop())}</span>
+        <button class="btn sm" onclick="vCopyOwnerPhoto('${esc(p)}',${o.off_market},${i})">Make public</button>
+      </div>`,
+      )
+      .join("");
+};
+
+window.vCopyOwnerPhoto = async (path, offMarket, i) => {
+  const warn = offMarket
+    ? "This owner asked to be kept OFF-MARKET.\n\n"
+    : "";
+  if (!confirm(`${warn}Copy this photograph into the public bucket?\n\nOnce copied it is readable by anyone who has the URL, and staying private is no longer something this system can guarantee for that file.`))
+    return;
+  try {
+    const { data, error } = await sb.storage.from("vault").createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) throw new Error(error?.message || "Could not read that file");
+    const res = await fetch(data.signedUrl);
+    if (!res.ok) throw new Error("Could not download that file");
+    const blob = await res.blob();
+    const name = path.split("/").pop() || `photo-${i}.jpg`;
+    const url = await vUploadPublic(new File([blob], name, { type: blob.type }), VLCUR.id || "unfiled");
+    VLCUR.images = [...(VLCUR.images || []), url];
+    vRenderImages();
+    toast("Copied. Save the property to keep it.");
+  } catch (e) {
+    toast(e.message);
+  }
+};
+
+// ───────── deleting records ─────────
+// ⚠️ Every one of these is a hard delete and every one asks first, because none
+// of them is recoverable from this console. `vault_matches` cascades from both
+// sides, so deleting a request or a listing takes its matches with it — that is
+// the schema's doing, not this function's, and it is correct.
+window.vDeleteRow = async (table, id, what, after) => {
+  if (!confirm(`Delete this ${what} permanently?\n\nThis cannot be undone from here.`)) return;
+  const { error } = await sb.from(table).delete().eq("id", id);
+  if (error) return toast(error.message);
+  toast(`${what.charAt(0).toUpperCase() + what.slice(1)} deleted`);
+  closeDrawer();
+  if (after) ({ requests: vRequests, offers: vOffers, listings: vListings, matches: vMatches }[after])();
+};
+
+
+
+// ───────── gallery (0083) — the picture rail at the foot of /vault ─────────
+//
+// ⚠️ UPLOADS GO TO THE PUBLIC BUCKET. The website renders these directly and
+// next.config.ts only lets next/image optimise .../object/public/**, so a file
+// in the private `vault` bucket would render as a broken image. That is the
+// whole reason this does not reuse VaultUpload's bucket.
+//
+// ⚠️ THE SECTION EXISTS ON THE SITE EVEN WHEN THIS IS EMPTY — it draws four
+// engraved plates and says the photographs are still to come. So an empty
+// gallery is a designed state, not a broken one, and there is no hurry.
+let VGAL = [];
+
+async function vGallery(){
+  const {data} = await sb.from("vault_settings").select("value").eq("key","gallery").maybeSingle();
+  VGAL = ((data && data.value && data.value.items) || []).filter(i=>i && i.url);
+  $("#v-body").innerHTML = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;"><p class="muted" style="font-size:13px;margin:0;">
+      The picture rail at the foot of <b>/vault</b>. Order is the order they scroll in. A caption is optional —
+      leave it blank and the picture carries no claim, which is usually right for brand imagery.
+      Changes go live on the page's next revalidation.</p></div>
+    <div class="toolbar" style="gap:10px;flex-wrap:wrap">
+      <input type="file" accept="image/*" multiple onchange="vGalleryUpload(this)"/>
+      <span class="grow"></span>
+      <button class="btn" onclick="vGallerySave()">Save gallery</button>
+    </div>
+    <div id="v-gal" class="card" style="padding:8px 18px 18px"></div>`;
+  vGalleryRender();
+}
+
+function vGalleryRender(){
+  const box = $("#v-gal");
+  box.innerHTML = VGAL.length ? VGAL.map((it,i)=>`
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--hair)">
+      <img src="${esc(it.url)}" alt="" loading="lazy" style="width:96px;height:68px;object-fit:cover;border-radius:10px;background:var(--sunken);flex:none"/>
+      <div style="flex:1;min-width:0">
+        <input value="${esc(it.caption||"")}" placeholder="Caption (optional)" oninput="VGAL[${i}].caption=this.value"/>
+        <div class="muted" style="font-size:11px;word-break:break-all;margin-top:4px">${esc(it.url.split("/").pop())}</div>
+      </div>
+      <button class="btn ghost sm" onclick="vGalMove(${i},-1)" ${i===0?"disabled":""}>↑</button>
+      <button class="btn ghost sm" onclick="vGalMove(${i},1)" ${i===VGAL.length-1?"disabled":""}>↓</button>
+      <button class="btn ghost sm" onclick="vGalRemove(${i})">✕</button>
+    </div>`).join("")
+    : `<p class="muted" style="font-size:13px;padding:14px 0 4px">No photographs yet. The site is holding the space — it draws four engraved plates until you upload something.</p>`;
+}
+
+window.vGalMove = (i,d)=>{ const j=i+d; if(j<0||j>=VGAL.length) return; [VGAL[i],VGAL[j]]=[VGAL[j],VGAL[i]]; vGalleryRender(); };
+
+window.vGalRemove = async (i)=>{
+  const it = VGAL[i];
+  const path = vPublicPathFromUrl(it.url);
+  const alsoDelete = path && confirm("Remove it from the gallery.\n\nAlso delete the file from storage permanently?\n\nOK = delete the file too.  Cancel = keep the file.");
+  VGAL.splice(i,1); vGalleryRender();
+  if(alsoDelete){ const {error}=await sb.storage.from(VAULT_PUBLIC_BUCKET).remove([path]); toast(error?error.message:"Removed and deleted"); }
+  else toast("Removed — remember to save");
+};
+
+window.vGalleryUpload = async (input)=>{
+  const files = Array.from(input.files||[]); if(!files.length) return;
+  toast(`Uploading ${files.length} file${files.length===1?"":"s"}…`);
+  try{
+    for(const f of files){
+      if(!/^image\//.test(f.type)) throw new Error(`${f.name} is not an image`);
+      if(f.size > 12*1024*1024) throw new Error(`${f.name} is larger than 12 MB`);
+      VGAL.push({ url: await vUploadPublic(f,"gallery"), caption: "" });
+    }
+    vGalleryRender(); toast("Uploaded — now press Save gallery");
+  }catch(e){ toast(e.message); }
+  finally{ input.value=""; }
+};
+
+window.vGallerySave = async ()=>{
+  const items = VGAL.filter(i=>i && i.url).map(i=>({ url:i.url, caption:(i.caption||"").trim() || undefined }));
+  const {error} = await sb.from("vault_settings")
+    .upsert({key:"gallery", value:{items}, is_public:true, updated_at:new Date().toISOString()},{onConflict:"key"});
+  if(error) return toast(error.message);
+  toast("Gallery saved — live on the next revalidation");
 };
 
 </script>
