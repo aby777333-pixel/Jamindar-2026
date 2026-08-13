@@ -33,6 +33,38 @@ function shrinkOgImages(html) {
   );
 }
 
+/**
+ * 🚨 THE INVITE HERO IS PINNED TO THE BRAND BANNER (owner, 2026-08-13).
+ *
+ * The durable version of this lives in `supabase/functions/share/index.ts`,
+ * which now builds the invite page with `${siteBase}/invite-card.jpg` instead of
+ * "the first of this promoter's projects that happens to have a photo". That
+ * file is committed. It is NOT yet deployed, because deploying a Supabase Edge
+ * Function needs an access token this machine does not hold.
+ *
+ * So the swap is done here, in the proxy that already exists to fix up this
+ * exact HTML (see `shrinkOgImages` above), and it is written to be IDEMPOTENT:
+ * once the function is deployed it will already emit this URL, the replace will
+ * find nothing to change, and the two agree rather than fight. There is no
+ * drift to clean up — but the honest end state is the function owning it, and
+ * this block can be deleted the day after that deploy.
+ *
+ * ⚠️ INVITE PAGES ONLY. A /s/ project page's hero SHOULD be that project's own
+ * photograph; only the invite is a brand page. The caller passes `mode`.
+ *
+ * ⚠️ It rewrites the `<img>` inside `.hero` AND the two social meta tags, which
+ * on the invite page are the same URL — so a WhatsApp preview and the page
+ * itself cannot end up showing different pictures.
+ */
+const INVITE_HERO = "https://merry-begonia-4c3cd1.netlify.app/invite-card.jpg";
+
+function pinInviteHero(html) {
+  const heroTag = html.match(/<div class="hero">[\s\S]*?<img src="([^"]+)"/);
+  const current = heroTag?.[1];
+  if (!current || current === INVITE_HERO) return html;
+  return html.split(current).join(INVITE_HERO);
+}
+
 export default async (req) => {
   const url = new URL(req.url);
   let segs = url.pathname.split("/").filter(Boolean);
@@ -67,7 +99,13 @@ export default async (req) => {
   // Only rewrite HTML we are actually serving as a page; never touch a POST
   // response or a binary body.
   if (req.method === "GET" && /text\/(html|plain)/.test(upstreamCt)) {
-    body = shrinkOgImages(new TextDecoder().decode(body));
+    let html = new TextDecoder().decode(body);
+    /* Order matters: pin the invite hero FIRST, then let `shrinkOgImages` do
+       its pass. The banner is served from this site rather than from Supabase
+       storage, so that pass correctly leaves it alone — it is already sized for
+       a link preview. */
+    if (mode === "i") html = pinInviteHero(html);
+    body = shrinkOgImages(html);
   }
   return new Response(body, { status: resp.status, headers });
 };
