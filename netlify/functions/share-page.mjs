@@ -58,10 +58,26 @@ function shrinkOgImages(html) {
  */
 const INVITE_HERO = "https://merry-begonia-4c3cd1.netlify.app/invite-card.jpg";
 
+/**
+ * 🚨 IT MATCHES PAST THE BRANDBAR, AND THAT IS THE WHOLE CORRECTNESS ARGUMENT.
+ *
+ * The hero block is `<div class="hero"><div class="brandbar"><img …logo.png…>
+ * …</div><img …HERO…></div>`, so the FIRST `<img>` after `<div class="hero">`
+ * is the 34px brand logo, not the picture. The first cut of this used a lazy
+ * `[\s\S]*?<img src="([^"]+)"` and duly replaced the LOGO — which shipped, and
+ * put a 1200px banner in the corner badge while the hero stayed on the old
+ * project photo. It got through because the smoke test's sample had no logo
+ * inside the brandbar; the fixture was simpler than the page.
+ *
+ * So the pattern is anchored on the brandbar's own closing tag and requires the
+ * `</div>` that ends the hero. Any test for this must include the brandbar.
+ */
 function pinInviteHero(html) {
-  const heroTag = html.match(/<div class="hero">[\s\S]*?<img src="([^"]+)"/);
-  const current = heroTag?.[1];
+  const hero = html.match(/<div class="brandbar">[\s\S]*?<\/div>\s*<img src="([^"]+)"[^>]*>\s*<\/div>/);
+  const current = hero?.[1];
   if (!current || current === INVITE_HERO) return html;
+  /* Replace every occurrence, not just this one: og:image and twitter:image
+     carry the same URL, and they have to move with the picture. */
   return html.split(current).join(INVITE_HERO);
 }
 
