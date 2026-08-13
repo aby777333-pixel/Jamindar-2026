@@ -34,6 +34,12 @@
   .muted{color:var(--ink-faint);} .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;}
   .pill.ok{background:var(--success-soft);color:var(--success);} .pill.warn{background:var(--gold-soft);color:var(--gold-dark);}
   .pill.red{background:var(--brand-soft);color:var(--brand);} .pill.grey{background:var(--sunken);color:var(--ink-faint);}
+  /* ⚠️ `.pill.gold` HAD NO RULE and was already in use: the website chip on
+     the visits table has been rendering as bare text on no ground since 0079,
+     because an undefined modifier fails silently rather than falling back to
+     `.pill.grey`. Same ink as `.warn`, which is what a gold pill has always
+     looked like everywhere it was spelled correctly. */
+  .pill.gold{background:var(--gold-soft);color:var(--gold-dark);}
   .pill.blue{background:#E8F1FE;color:#2B6FE1;}
   .card{background:#fff;border:1px solid var(--hair);border-radius:16px;box-shadow:0 1px 2px rgba(20,26,46,.04),0 12px 26px -18px rgba(20,26,46,.14);transition:box-shadow .2s ease,transform .2s ease;}
 
@@ -1748,17 +1754,68 @@ window.setVisit=async(id,status)=>{
   if(error) return toast(error.message); toast('Visit '+status); refreshBadges(); renderVisits();};
 
 // ───────── leads ─────────
+/**
+ * ⚠️ NOT EVERY LEAD HAS A BUYER, and this screen used to assume one. A row
+ * written by the app carries `buyer_id` and reads its name off the profile; a
+ * row written by the PUBLIC WEBSITE carries no profile at all — the visitor has
+ * not signed up, and is not going to before somebody rings them back. Their
+ * name and number sit in `leads.name` / `leads.phone`, which this table simply
+ * did not read, so an anonymous website caller appeared as a dash with a note
+ * underneath and no way to contact them. Fixed 2026-08-13, when the callback
+ * band on the marketing site started producing them in volume.
+ *
+ * ⚠️ THE SOURCE IS THE ONLY THING SEPARATING THESE PEOPLE, so it gets its own
+ * filter row rather than a column you have to squint at. The owner asked for
+ * website callers and Vault callers to read apart:
+ *
+ *   website_callback — asked for a call from the band on a marketing page
+ *   website_enquiry  — the enquiry form on a property page
+ *   website_visit    — booked a site visit from the website
+ *   vcard / app      — everything the app itself writes
+ *
+ * The Vault's own clients are NOT here at all, and that is the separation that
+ * matters most: a private requirement is a `vault_requests` row with a
+ * reference, a stage and a matching engine behind it, and flattening one into a
+ * lead would lose all three. The Vault tab is where those are read.
+ *
+ * ⚠️ The source chips are DERIVED from what is present, not typed out. A new
+ * RPC that writes a new source appears here the day it ships, and one that
+ * falls out of use stops taking up room.
+ */
+const LEAD_SOURCE_LABEL = {
+  website_callback: "🌐 Asked for a call",
+  website_enquiry:  "🌐 Website enquiry",
+  website_visit:    "🌐 Website visit",
+  website:          "🌐 Website",
+  vcard:            "V-Card",
+};
+const leadSourceLabel = (v)=> LEAD_SOURCE_LABEL[v] || String(v||"—").replace(/_/g," ");
+/* Indian mobiles are stored bare on some rows and country-coded on others.
+   `tel:` and wa.me both need the code, and prefixing one that already has it
+   produces a number that rings nobody. */
+const leadTel = (v)=>{ const d=String(v||"").replace(/[^0-9]/g,""); return d ? (d.length>10 ? d : "91"+d) : ""; };
+
 async function renderLeads(){
   const status=window.__leadFilter||'';
+  const source=window.__leadSource||'';
   let q=sb.from('leads').select('*, buyer:profiles!leads_buyer_id_fkey(member_code,full_name,mobile), promoter:profiles!leads_promoter_id_fkey(member_code), property:properties!leads_property_id_fkey(title,city)').order('created_at',{ascending:false}).limit(300);
   if(status) q=q.eq('status',status);
-  const {data}=await q; const rows=data||[];
+  if(source) q=q.eq('source',source);
+  const [{data},{data:allSrc}]=await Promise.all([q, sb.from('leads').select('source').limit(2000)]);
+  const rows=data||[];
+  const counts={}; (allSrc||[]).forEach(r=>{ const k=r.source||''; counts[k]=(counts[k]||0)+1; });
+  const sources=Object.keys(counts).filter(Boolean).sort((a,b)=>counts[b]-counts[a]);
   const chip=(v,l)=>`<button class="btn ${((window.__leadFilter||'')===v)?'':'grey'} sm" onclick="leadFilter('${v}')">${l}</button>`;
+  const schip=(v,l)=>`<button class="btn ${((window.__leadSource||'')===v)?'':'grey'} sm" onclick="leadSource('${v}')">${l}</button>`;
   $("#view").innerHTML=`<div class="toolbar" style="gap:6px;flex-wrap:wrap">${chip('','All')}${chip('new','New')}${chip('contacted','Contacted')}${chip('qualified','Qualified')}${chip('converted','Converted')}${chip('lost','Lost')}</div>
-    ${rows.length? `<table><thead><tr><th>Buyer</th><th>Source</th><th>Property</th><th>Promoter</th><th>Status</th><th>Set</th></tr></thead><tbody>
+    <div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-top:6px">${schip('','Every source')}${sources.map(v=>schip(v,`${esc(leadSourceLabel(v))} · ${counts[v]}`)).join('')}</div>
+    ${rows.length? `<table><thead><tr><th>Who</th><th>Source</th><th>Property</th><th>Promoter</th><th>Status</th><th>Set</th></tr></thead><tbody>
       ${rows.map(l=>{const st={new:'warn',contacted:'',qualified:'',converted:'ok',lost:'red'}[l.status]||'grey';
-      return `<tr><td><b>${esc(l.buyer?.full_name||(l.source==='vcard'?'V-Card visitor':'—'))}</b><div class="muted" style="font-size:12px">${esc(l.buyer?.member_code||'')}${l.buyer?.mobile?' · +'+esc(l.buyer.mobile):''}</div>${l.notes?`<div class="muted" style="font-size:11px;max-width:280px;white-space:pre-wrap">${esc(l.notes)}</div>`:''}</td>
-      <td class="muted">${esc((l.source||'').replace(/_/g,' '))}</td>
+      const who=l.buyer?.full_name||l.name||(l.source==='vcard'?'V-Card visitor':'Website visitor');
+      const tel=leadTel(l.buyer?.mobile||l.phone);
+      const web=String(l.source||'').startsWith('website');
+      return `<tr><td><b>${esc(who)}</b>${web?` <span class="pill gold" style="font-size:10px">website</span>`:''}<div class="muted" style="font-size:12px">${esc(l.buyer?.member_code||'')}${tel?' · +'+esc(tel):''}${l.email?' · '+esc(l.email):''}</div>${l.notes?`<div class="muted" style="font-size:11px;max-width:280px;white-space:pre-wrap">${esc(l.notes)}</div>`:''}${tel?`<div style="margin-top:5px;display:flex;gap:6px"><a class="btn sm" href="tel:+${esc(tel)}">Call</a><a class="btn grey sm" target="_blank" rel="noopener" href="https://wa.me/${esc(tel)}">WhatsApp</a></div>`:''}</td>
+      <td class="muted">${esc(leadSourceLabel(l.source))}${l.source_url?`<div class="muted" style="font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.source_url)}</div>`:''}</td>
       <td class="muted">${esc(l.property?.title||'—')}</td>
       <td class="muted">${esc(l.promoter?.member_code||'—')}</td>
       <td><span class="pill ${st}">${esc(l.status)}</span></td>
@@ -1766,6 +1823,7 @@ async function renderLeads(){
       : `<div class="empty card">No leads.</div>`}`;
 }
 window.leadFilter=(v)=>{window.__leadFilter=v;renderLeads();};
+window.leadSource=(v)=>{window.__leadSource=v;renderLeads();};
 window.setLead=async(id,status)=>{if(!status)return; const {error}=await sb.from('leads').update({status}).eq('id',id); if(error) return toast(error.message); toast('Lead '+status); renderLeads();};
 
 // ───────── WhatsApp invites (referral download-link requests from /welcome) ─────────
@@ -3244,6 +3302,17 @@ const V_TABS   = [
 
 const vWhen = (t)=>{ try{ return new Date(t).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return t||"—"; } };
 const vWords = (s)=>esc(String(s||"").replace(/_/g," "));
+/* ⚠️ `codevelop` IS ONE WORD TO THE DATABASE AND TWO TO A READER. vWords only
+   swaps underscores for spaces, so the enum would have surfaced as "codevelop"
+   in every pill on this screen. The map is an exception list; anything not in
+   it still falls through to vWords, so a new intent needs no edit here — it
+   just reads a little plainer once it gets a line. */
+const V_INTENT_LABEL = { buy:"Buy", rent:"Rent", sell:"Sell", lease:"Lease", codevelop:"Co-develop" };
+const vIntent = (v)=> V_INTENT_LABEL[v] || vWords(v);
+/* Which side of a partnership walked in. Read straight off `codev_role`,
+   which the website refuses to leave blank (migration 0090) — a partnership
+   row that does not say who is bringing what cannot be acted on. */
+const V_CODEV_ROLE = { land:"has the land", capital:"has the capital" };
 const vVisPill = (v)=>({public:"ok",private:"warn",off_market:"red"}[v]||"grey");
 
 async function renderVault(){
@@ -3258,11 +3327,12 @@ window.vaultTab = (v)=>{ window.__vaultTab=v; renderVault(); };
 // ───────── overview (§9's dashboard) ─────────
 async function vOverview(){
   const c = (t,f)=>{ let q=sb.from(t).select("id",{count:"exact",head:true}); if(f) q=f(q); return q.then(r=>r.count||0); };
-  const [reqNew,reqActive,buy,rent,sell,lease,offOff,offAll,pub,priv,off,matches,due,recentR,recentO] = await Promise.all([
+  const [reqNew,reqActive,buy,rent,codev,sell,lease,offOff,offAll,pub,priv,off,matches,due,recentR,recentO] = await Promise.all([
     c("vault_requests",q=>q.eq("status","new")),
     c("vault_requests",q=>q.in("status",["qualified","search_active","presented","visit","negotiation","documentation"])),
     c("vault_requests",q=>q.eq("intent","buy")),
     c("vault_requests",q=>q.eq("intent","rent")),
+    c("vault_requests",q=>q.eq("intent","codevelop")),
     c("vault_offers",q=>q.eq("intent","sell")),
     c("vault_offers",q=>q.eq("intent","lease")),
     c("vault_offers",q=>q.eq("off_market",true)),
@@ -3272,7 +3342,7 @@ async function vOverview(){
     c("vault_listings",q=>q.eq("visibility","off_market")),
     c("vault_matches",q=>q.eq("status","suggested")),
     c("vault_requests",q=>q.not("follow_up_on","is",null).lte("follow_up_on",new Date().toISOString().slice(0,10))),
-    sb.from("vault_requests").select("id,reference,name,intent,status,asset_sought,preferred_location,created_at").order("created_at",{ascending:false}).limit(6).then(r=>r.data||[]),
+    sb.from("vault_requests").select("id,reference,name,intent,codev_role,status,asset_sought,preferred_location,created_at").order("created_at",{ascending:false}).limit(6).then(r=>r.data||[]),
     sb.from("vault_offers").select("id,reference,owner_name,intent,stage,property_type,off_market,created_at").order("created_at",{ascending:false}).limit(6).then(r=>r.data||[]),
   ]);
 
@@ -3289,7 +3359,7 @@ async function vOverview(){
       ${stat(matches,"Matches to review",matches?"var(--gold-dark)":null,"vaultTab('matches')")}
     </div>
     <div class="stats" style="margin-top:12px">
-      ${stat(buy,"Buy mandates")}${stat(rent,"Rental mandates")}${stat(sell,"Sell mandates")}${stat(lease,"Lease mandates")}
+      ${stat(buy,"Buy mandates")}${stat(rent,"Rental mandates")}${stat(codev,"Co-development",codev?"var(--gold-dark)":null,"vReqIntent('codevelop')")}${stat(sell,"Sell mandates")}${stat(lease,"Lease mandates")}
     </div>
     <div class="stats" style="margin-top:12px">
       ${stat(pub,"Public Vault","var(--success)","vaultTab('listings')")}
@@ -3302,7 +3372,7 @@ async function vOverview(){
       <div class="card" style="padding:16px 18px">
         <h3 style="margin:0 0 10px;font-size:14px">Latest client requests</h3>
         ${recentR.length?recentR.map(r=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--hair);cursor:pointer" onclick="vOpenRequest('${r.id}')">
-            <span class="pill grey">${vWords(r.intent)}</span>
+            <span class="pill ${r.intent==="codevelop"?"gold":"grey"}">${vIntent(r.intent)}</span>
             <span style="flex:1;font-size:13px"><b>${esc(r.name)}</b> <span class="muted">${esc(r.asset_sought||r.preferred_location||"")}</span></span>
             <span class="muted" style="font-size:11.5px">${vWhen(r.created_at)}</span></div>`).join(""):`<p class="muted" style="font-size:13px">Nothing yet.</p>`}
       </div>
@@ -3329,21 +3399,25 @@ async function vRequests(){
 
   $("#v-body").innerHTML = `
     <div class="toolbar" style="gap:6px;flex-wrap:wrap">
-      ${chip("intent","","All")}${chip("intent","buy","Buy mandates")}${chip("intent","rent","Rental mandates")}
+      ${chip("intent","","All")}${chip("intent","buy","Buy mandates")}${chip("intent","rent","Rental mandates")}${chip("intent","codevelop","Co-development")}
       <span style="width:14px"></span>
       ${chip("status","","Any stage")}${chip("status","new","New")}${chip("status","search_active","Searching")}${chip("status","negotiation","Negotiation")}${chip("status","closed","Closed")}
     </div>
     ${rows.length?`<table><thead><tr><th>Ref</th><th>Client</th><th>Wants</th><th>Budget</th><th>Stage</th><th>When</th></tr></thead><tbody>
       ${rows.map(r=>`<tr style="cursor:pointer" onclick="vOpenRequest('${r.id}')">
-        <td><b>${esc(r.reference)}</b><div class="muted" style="font-size:11.5px">${vWords(r.intent)}</div></td>
+        <td><b>${esc(r.reference)}</b><div class="muted" style="font-size:11.5px">${vIntent(r.intent)}${r.intent==="codevelop"&&r.codev_role?` · ${V_CODEV_ROLE[r.codev_role]}`:""}</div></td>
         <td><b>${esc(r.name)}</b><div class="muted" style="font-size:12px">+91 ${esc(r.mobile)}${r.email?" · "+esc(r.email):""}</div></td>
-        <td style="max-width:300px"><div style="font-size:13px">${esc(r.asset_sought||"—")}</div><div class="muted" style="font-size:11.5px">${esc(r.preferred_location||"")}</div></td>
+        <td style="max-width:300px"><div style="font-size:13px">${esc(r.asset_sought||(r.intent==="codevelop"?(r.codev_extent||r.codev_capital||"a partnership"):"")||"—")}</div><div class="muted" style="font-size:11.5px">${esc(r.preferred_location||"")}</div></td>
         <td class="muted">${esc(r.budget_range||"—")}</td>
         <td><span class="pill ${r.status==="new"?"warn":r.status==="closed"?"ok":r.status==="lost"||r.status==="do_not_contact"?"red":"grey"}">${vWords(r.status)}</span></td>
         <td class="muted" style="font-size:12px">${vWhen(r.created_at)}${r.follow_up_on?`<div class="pill warn" style="margin-top:4px">follow up ${esc(r.follow_up_on)}</div>`:""}</td></tr>`).join("")}
     </tbody></table>`:`<div class="empty card">No client requests yet.</div>`}`;
 }
 window.vReqFilter = (k,v)=>{ window.__vReqFilter = {...(window.__vReqFilter||{}), [k]:v}; vRequests(); };
+/* From the OVERVIEW, where `vRequests()` on its own would paint the table into
+   the dashboard's body and leave the tab chips still pointing at Overview.
+   This switches tab and filter together. */
+window.vReqIntent = (v)=>{ window.__vReqFilter = { intent:v }; vaultTab("requests"); };
 
 window.vOpenRequest = async (id)=>{
   const {data:r} = await sb.from("vault_requests").select("*").eq("id",id).maybeSingle();
@@ -3351,7 +3425,7 @@ window.vOpenRequest = async (id)=>{
   const line=(l,v)=>v?`<div style="padding:8px 0;border-top:1px solid var(--hair)"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">${esc(l)}</div><div style="font-size:13.5px;white-space:pre-wrap">${esc(v)}</div></div>`:"";
   $("#drawer").innerHTML = `
     <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${esc(r.reference)} · ${esc(r.name)}</h3>
-      <span class="pill grey">${vWords(r.intent)}</span></div>
+      <span class="pill ${r.intent==="codevelop"?"gold":"grey"}">${vIntent(r.intent)}${r.intent==="codevelop"&&r.codev_role?` · ${V_CODEV_ROLE[r.codev_role]}`:""}</span></div>
     <div class="body">
       <div class="card" style="padding:14px 16px;margin-bottom:14px">
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -3372,6 +3446,16 @@ window.vOpenRequest = async (id)=>{
 
       <label style="margin-top:12px">Internal notes</label>
       <textarea rows="3" onchange="vSetRequest('${r.id}',{internal_notes:this.value})">${esc(r.internal_notes||"")}</textarea>
+
+      ${r.intent==="codevelop"?`<div class="card" style="padding:14px 16px;margin-top:18px;border-color:var(--gold)">
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark)">Co-development</div>
+        <div style="font-size:15px;font-weight:700;margin-top:3px">${r.codev_role==="land"?"They bring the land.":r.codev_role==="capital"?"They bring the capital.":"Side not stated."}</div>
+        ${line("Extent", r.codev_extent)}
+        ${line("Could start", r.codev_horizon)}
+        ${line("Title and approvals, as they stated them", r.codev_title)}
+        ${line("Capital they would put in", r.codev_capital)}
+        <div class="muted" style="font-size:11.5px;margin-top:8px">Their words, not a verified position — and nothing here is an offer or an agreement on either side.</div>
+      </div>`:""}
 
       <h3 style="margin:20px 0 4px;font-size:14px">The requirement</h3>
       ${line("Brief", r.brief)}
