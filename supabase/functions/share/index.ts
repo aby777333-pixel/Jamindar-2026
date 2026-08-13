@@ -194,7 +194,28 @@ async function renderInvite(code: string, lang: string, siteBase0: string): Prom
 
   const refCode = pr.referral_code ?? code;
   const canonical = `${siteBase}/i/${encodeURIComponent(refCode)}`;
-  const heroImg = (Array.isArray(pr.projects) && pr.projects.find((x: any) => x.image)?.image) || `${siteBase}/jamindar.jpg`;
+  /**
+   * 🚨 THE INVITE CARD CARRIES A FIXED BRAND BANNER, not a project photo.
+   *
+   * Owner's instruction 2026-08-13: "change the card image", with the banner
+   * supplied. It used to be `the first of this promoter's projects that has a
+   * photo`, falling back to `/jamindar.jpg` — which meant an invitation from
+   * Abraham looked different from one from Priya, and both changed the day an
+   * admin edited a property cover. An invite is a BRAND page: the subject is
+   * the person and the company, not a development, and nothing on it names the
+   * project whose picture it was borrowing.
+   *
+   * ⚠️ IT IS ALSO THE og:image (passed to `pageHead` below), so this is the
+   * picture that appears when the link is pasted into WhatsApp. Kept to 220 KB
+   * at 1200x750 for exactly that reason — `shrinkOgImages` in the Netlify proxy
+   * only rewrites Supabase *storage* URLs through the render CDN, so a file
+   * served from the site's own origin has to arrive already small. See the note
+   * on that function before enlarging this.
+   *
+   * ⚠️ 16:10 to match `.hero { aspect-ratio: 16/10 }` — cropped at build time
+   * rather than by `object-fit`, so the banner's own type is never cut.
+   */
+  const heroImg = `${siteBase}/invite-card.jpg`;
   const title = `${pr.name} ${T.en.inviteTitle}`;
   const descTxt = `Verified plots & land with clear titles. Join with invite code ${refCode} for personal assistance from ${pr.name}.`;
   const qrSvg = await QRCode.toString(canonical, { type: 'svg', margin: 1, width: 132, color: { dark: '#1c1c20', light: '#ffffff' } });
