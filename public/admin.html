@@ -2698,7 +2698,16 @@ function htmlToMarkdown(html){
   const inline = (node)=>{
     let out="";
     node.childNodes.forEach(c=>{
-      if(c.nodeType===3){ out += c.nodeValue.replace(/\s+/g," "); return; }
+      if(c.nodeType===3){
+        /* ⚠️ COLLAPSING WHITESPACE IS RIGHT FOR PROSE AND FATAL FOR A DIAGRAM.
+           A pasted ASCII box is held together entirely by its spaces, so this
+           rule turned "|      SETBACK      |" into "| SETBACK |" and the
+           website then had nothing left to align. Box-drawing characters never
+           occur in prose, so they are a safe signal to keep the run verbatim. */
+        const v=c.nodeValue;
+        out += /[\u2500-\u257f]/.test(v) ? v : v.replace(/\s+/g," ");
+        return;
+      }
       if(c.nodeType!==1) return;
       const t=c.tagName.toLowerCase();
       const inner=inline(c);
@@ -2721,12 +2730,34 @@ function htmlToMarkdown(html){
   const out=[];
   const walk=(node)=>{
     node.childNodes.forEach(c=>{
-      if(c.nodeType===3){ const t=c.nodeValue.trim(); if(t) out.push(t); return; }
+      if(c.nodeType===3){
+        /* Same rule as `inline` above: a bare diagram pasted outside any element
+           must not be trimmed into a single line. */
+        const v=c.nodeValue;
+        if(/[\u2500-\u257f]/.test(v)){ const d=v.replace(/\s+$/,""); if(d.trim()) out.push("```\n"+d+"\n```"); return; }
+        const t=v.trim(); if(t) out.push(t); return;
+      }
       if(c.nodeType!==1) return;
       const tag=c.tagName.toLowerCase();
       if(/^h[1-6]$/.test(tag)){
         const lvl = tag==="h1"||tag==="h2" ? "##" : "###";
         const t=inline(c).trim(); if(t) out.push(`${lvl} ${t}`);
+        return;
+      }
+      /* 🚨 THE THIRD TIME THIS CONVERTER HAS SILENTLY DESTROYED A FORMAT.
+         First Markdown markers, then pasted tables (see the note further down,
+         which documents exactly this), now preformatted blocks: there was no
+         `pre` case at all, so an ASCII diagram fell through to the generic path,
+         had its whitespace collapsed, and reached the database as unalignable
+         text. Reported 2026-08-15 on the building-envelope figure.
+
+         Emitted inside a fence so the reader can recognise it without having to
+         infer anything, and `textContent` rather than `inline()` because the
+         content of a <pre> is its own text - running the emphasis pass over it
+         would eat a `*` in a drawing. */
+      if(tag==="pre"){
+        const t=(c.textContent||"").replace(/\r\n/g,"\n").replace(/\s+$/,"");
+        if(t.trim()) out.push("```\n"+t+"\n```");
         return;
       }
       if(tag==="p"){ const t=inline(c).trim(); if(t) out.push(t); return; }
