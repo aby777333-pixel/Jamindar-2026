@@ -2499,12 +2499,14 @@ async function renderJournal(){
      one of them led, which is how a 10 Aug piece kept the slot from an 11 Aug
      one without anything in the console saying so.
 
-     This is the website's rule, computed here: newest first, pin wins if there
-     is one. `jSave` now unpins the others, so the two agree — but this stays
-     defensive because a pin can also be set by SQL. */
+     🚨 UPDATED 2026-08-15 — THE NEWEST ARTICLE NOW ALWAYS LEADS. The owner asked
+     for it and the website changed to match: the pin no longer takes the slot.
+     This must track that rule exactly or the console goes back to lying about
+     which article a reader sees first, which is the whole reason this comment
+     exists. */
   const jPub = all.filter(p=>p.status==="published")
     .sort((a,b)=> new Date(b.published_at||0) - new Date(a.published_at||0));
-  const leadId = ((jPub.find(p=>p.is_featured) || jPub[0]) || {}).id;
+  const leadId = (jPub[0] || {}).id;
 
   $("#view").innerHTML = `
   <div class="stats">
@@ -2528,7 +2530,7 @@ async function renderJournal(){
   <div class="card" style="padding:0;overflow:hidden">
     ${rows.length?`<table><thead><tr><th>Article</th><th>Status</th><th>Category</th><th>Author</th><th>Published</th><th>Health</th><th></th></tr></thead><tbody>
     ${rows.map(p=>{const h=jHealth(p);return `<tr>
-      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.id===leadId?` <span class="pill" style="background:var(--gold-soft,#FDF7E8);color:#8a6410;border:1px solid rgba(234,163,23,.4)" title="${p.is_featured?"Pinned to the lead slot":"Leads because it is the most recently published"}">LEAD</span>`:""}${p.is_featured&&p.id!==leadId?` <span class="pill" style="background:#FDECEC;color:#9b1c1c;border:1px solid rgba(155,28,28,.3)" title="Pinned, but another article is in the lead slot — open it and untick the pin">PINNED</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
+      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.id===leadId?` <span class="pill" style="background:var(--gold-soft,#FDF7E8);color:#8a6410;border:1px solid rgba(234,163,23,.4)" title="Leads because it is the most recently published">LEAD</span>`:""}${p.is_featured&&p.id!==leadId?` <span class="pill" style="background:#FDECEC;color:#9b1c1c;border:1px solid rgba(155,28,28,.3)" title="Pinned, but the pin no longer controls the lead — the most recently published article always leads">PINNED</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
       <td><span class="pill ${J_TONE[p.status]||""}">${esc(String(p.status).replace("_"," "))}</span></td>
       <td class="muted">${esc(catName(p.category_id))}</td>
       <td class="muted">${esc(authName(p.author_id))}</td>
