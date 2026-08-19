@@ -21,6 +21,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
 import { supabase } from "@/lib/supabase";
+import {
+  DOC_LABEL, documentUrl, fetchMyDocumentRequests, fetchProjectDocuments,
+  markDownloaded, requestDocument,
+  type DocumentRequest, type ProjectDocument,
+} from "@/lib/documents";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { useCompare } from "@/lib/compare";
 import { encodeFilters } from "@/lib/property-search";
@@ -388,6 +393,16 @@ export default function PropertyDetail() {
   const phase = PHASE_META[property.project_phase] ?? PHASE_META.current;
 
   // ── which tabs to show (data-driven, honouring admin tab_config) ──
+  // A project can carry an approval plan or a legal opinion in
+  // `project_documents` while having nothing in any of the four fields the
+  // Legal tab used to be gated on, so its visibility needs this one extra
+  // fact. A count only — the tab fetches the documents themselves.
+  const { data: managedDocCount } = useQuery({
+    queryKey: ["project-docs-count", id],
+    queryFn: async () => (await fetchProjectDocuments(String(id))).length,
+  });
+  const hasManagedDocs = (managedDocCount ?? 0) > 0;
+
   const has: Record<TabKey, boolean> = {
     overview: true,
     photos: images.length > 0,
@@ -395,7 +410,9 @@ export default function PropertyDetail() {
     master_plan: !!property.master_plan_url || (property.plot_layout?.length ?? 0) > 0,
     amenities: (property.amenities?.length ?? 0) > 0,
     location: !!(property.gmaps_url || (property.lat && property.lng) || property.street_view_url || property.google_earth_url || (property.nearby_places?.length ?? 0) > 0 || (property.nearby_landmarks?.length ?? 0) > 0 || Object.values(property.nearby_defaults ?? {}).some(Boolean)),
-    legal: !!property.rera_number || Object.values(property.approvals ?? {}).some(Boolean) || Object.keys(property.legal ?? {}).length > 0 || (property.documents?.length ?? 0) > 0,
+    // `hasManagedDocs` is why this is no longer a pure function of the
+    // property row — see the query above.
+    legal: !!property.rera_number || Object.values(property.approvals ?? {}).some(Boolean) || Object.keys(property.legal ?? {}).length > 0 || (property.documents?.length ?? 0) > 0 || hasManagedDocs,
     // Sold-out projects hide Investment — appreciation/EMI pitches make no
     // sense once nothing is left to buy (owner directive 29-07, Udumalaipet).
     investment: property.status !== "sold" && Object.keys(property.investment ?? {}).length > 0,
@@ -1145,6 +1162,149 @@ function LocationTab({ property, onMap }: { property: Property; onMap: () => voi
   );
 }
 
+
+/**
+ * §8 — project documents, and the request workflow for the gated ones.
+ *
+ * A document is in one of five states from this member's point of view, and the
+ * control says exactly which:
+ *   open            -> Download
+ *   gated, unasked  -> Request
+ *   gated, pending  -> Requested (no control)
+ *   gated, approved -> Download, and the request is marked Downloaded
+ *   gated, declined -> the desk's reason, and Request again
+ *
+ * 🚨 ENTITLEMENT IS NEVER DECIDED HERE. The signed URL is minted by storage,
+ * which refuses outright unless a policy admits this member, so the worst a bug
+ * in this component can do is show the wrong label — it can never hand over a
+ * file. That is also why there is no second copy of the rule in this file: a
+ * second copy is a second chance to get it wrong.
+ */
+function ProjectDocuments({ propertyId }: { propertyId: string }) {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data: docs } = useQuery({
+    queryKey: ["project-docs", propertyId],
+    queryFn: () => fetchProjectDocuments(propertyId),
+  });
+  const { data: reqs } = useQuery({
+    queryKey: ["doc-requests", profile?.id],
+    enabled: !!profile?.id,
+    queryFn: () => fetchMyDocumentRequests(profile!.id),
+  });
+
+  if (!docs || docs.length === 0) return null;
+
+  async function onOpen(doc: ProjectDocument, req?: DocumentRequest) {
+    setBusy(doc.id);
+    try {
+      const url = await documentUrl(doc);
+      if (!url) {
+        Alert.alert("Not available yet", "This document has not been released to you. Please request it.");
+        return;
+      }
+      if (req && req.status === "approved") {
+        await markDownloaded(req.id);
+        qc.invalidateQueries({ queryKey: ["doc-requests", profile?.id] });
+      }
+      openExternal(url);
+    } catch (e: any) {
+      Alert.alert("Could not open", e?.message ?? "Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function onRequest(doc: ProjectDocument) {
+    if (!profile?.id) {
+      Alert.alert("Sign in required", "Please sign in to request project documents.");
+      return;
+    }
+    Alert.alert(
+      DOC_LABEL[doc.doc_type] ?? "Document",
+      "This document is released on request. We will review your request and let you know.",
+      [
+        { text: "Back", style: "cancel" },
+        {
+          text: "Request",
+          onPress: async () => {
+            setBusy(doc.id);
+            try {
+              const r = await requestDocument(profile.id, doc);
+              Alert.alert(r.ok ? "Requested" : "Could not request", r.message);
+              if (r.ok) qc.invalidateQueries({ queryKey: ["doc-requests", profile.id] });
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <Card>
+      <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 8 }}>Project documents</Text>
+      {docs.map((d, i) => {
+        const req = reqs?.[d.id];
+        const open = !d.on_request || req?.status === "approved" || req?.status === "downloaded";
+        const pending = req?.status === "pending";
+        const declined = req?.status === "rejected";
+        const working = busy === d.id;
+        return (
+          <View
+            key={d.id}
+            style={{ paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Ionicons
+                name={open ? "document-text" : "lock-closed"}
+                size={18}
+                color={open ? colors.brand : colors.inkFaint}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.ink, fontSize: 13, fontWeight: "600" }}>
+                  {DOC_LABEL[d.doc_type] ?? d.name}
+                </Text>
+                <Text style={{ color: colors.inkFaint, fontSize: 11 }}>
+                  {d.file_size ? `${Math.round(d.file_size / 1024)} KB` : d.name}
+                  {d.version > 1 ? ` · v${d.version}` : ""}
+                </Text>
+              </View>
+              {open ? (
+                <Button
+                  compact
+                  variant="outline"
+                  label={working ? "Opening…" : "Download"}
+                  disabled={working}
+                  onPress={() => onOpen(d, req)}
+                />
+              ) : pending ? (
+                <Text style={{ color: colors.inkFaint, fontSize: 12, fontWeight: "600" }}>Requested</Text>
+              ) : (
+                <Button
+                  compact
+                  variant="ghost"
+                  label={declined ? "Request again" : "Request"}
+                  disabled={working}
+                  onPress={() => onRequest(d)}
+                />
+              )}
+            </View>
+            {declined && req?.review_reason ? (
+              <Text style={{ color: colors.inkSoft, fontSize: 11.5, marginTop: 6, marginLeft: 28 }}>
+                Declined: {req.review_reason}
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </Card>
+  );
+}
+
 function LegalTab({ property }: { property: Property }) {
   const { profile } = useAuth();
   // ref for personalized brochure downloads from the Documents list
@@ -1152,10 +1312,19 @@ function LegalTab({ property }: { property: Property }) {
   const approvals = Object.entries(property.approvals ?? {}).filter(([, v]) => v).map(([k]) => k.toUpperCase());
   const legal = property.legal ?? {};
   const docs = property.documents ?? [];
-  const nothing = approvals.length === 0 && !property.rera_number && Object.keys(legal).length === 0 && docs.length === 0;
+  // The managed documents load on their own, so "nothing" can no longer be
+  // decided from the property row alone.
+  const { data: managed } = useQuery({
+    queryKey: ["project-docs", property.id],
+    queryFn: () => fetchProjectDocuments(property.id),
+  });
+  const nothing =
+    approvals.length === 0 && !property.rera_number && Object.keys(legal).length === 0 &&
+    docs.length === 0 && (managed?.length ?? 0) === 0;
   if (nothing) return <EmptyNote label="Legal information not available for this property." />;
   return (
     <View style={{ gap: 12 }}>
+      <ProjectDocuments propertyId={property.id} />
       {(property.rera_number || approvals.length > 0) ? (
         <Card>
           <Text style={{ fontWeight: "600", color: colors.ink, marginBottom: 8 }}>Approvals</Text>
