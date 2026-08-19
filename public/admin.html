@@ -157,6 +157,13 @@
   .lvlbox h5{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
   .rowerr{color:var(--brand);font-size:11.5px;}
   .danger{background:linear-gradient(135deg,#F0474E,#8E1216);}
+  /* The green wash a field wears for a moment after a spreadsheet fills it.
+     On a form this long, the difference between "it worked" and "did
+     anything happen?" is being able to see where the values landed. */
+  .just-filled{animation:filled 2.6s ease-out;}
+  @keyframes filled{0%{background:#CDEFDD;box-shadow:0 0 0 4px rgba(12,128,70,.18);}70%{background:#E7F5EE;box-shadow:0 0 0 4px rgba(12,128,70,.08);}100%{background:transparent;box-shadow:none;}}
+  .chip.just-filled{animation:filledchip 2.6s ease-out;}
+  @keyframes filledchip{0%,70%{box-shadow:0 0 0 4px rgba(12,128,70,.28);}100%{box-shadow:none;}}
   @media (max-width:820px){ .kv{grid-template-columns:1fr;gap:2px 0;} .kv dd{margin-bottom:8px;} .modal{width:100%;} }
 </style>
 </head>
@@ -715,10 +722,16 @@ function renderEditor(){
   const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${CUR.id?"Edit property":"New property"}</h3>
+     <button class="btn gold sm" onclick="fillFormFromExcel()" title="Read one project out of a filled sheet and put it into this form">⬆ Fill from Excel</button>
      ${CUR.id?`<button class="btn ink sm" onclick="scrollMedia()">Photos & docs</button>`:""}
      <button class="btn" onclick="saveProperty()">${CUR.id?"Save":"Create"}</button></div>
    <div class="body">
     <div class="sec"><h4>Basics</h4>
+      <div class="muted" style="font-size:11.5px;margin:-2px 0 10px">
+        Have the project on a spreadsheet? <b>⬆ Fill from Excel</b> above reads one row into
+        this form. Anything the sheet does not carry stays blank and editable, and nothing is
+        saved until you press ${CUR.id?"Save":"Create"}.
+      </div>
       ${fld("Title","title","Prestige Meadows — Plot 24")}
       ${chips("Listing","listing_type",["sale","rent"])}
       ${chips("Type","property_type",TYPES)}
@@ -5985,6 +5998,229 @@ window.exportUsers = ()=>{
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Users");
   XLSX.writeFile(wb, "jamin-users.xlsx");
 };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   §1.1 – §1.4  FILL THE FORM FROM A SPREADSHEET
+   ══════════════════════════════════════════════════════════════════════════
+   The bulk importer next to "+ New property" writes rows straight to the
+   database. This is the other half the spec asks for, and it is a different
+   job: the admin is adding ONE project, has the sheet in front of them, and
+   wants the form filled in so they can complete what the sheet has no column
+   for — location, approvals, photographs — before anything is saved.
+
+     §1.1  every value present in the sheet lands in its field
+     §1.2  fields that received a value show it
+     §1.3  fields the sheet left empty are untouched and still editable
+     §1.4  nothing is written until the admin presses Create
+
+   It reuses the importer's own parser (XL_MAP, xlNum, xlDate, xlCommission,
+   xlOfferType), so the two can never disagree about what a column means.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Read a workbook and return its rows mapped through the shared column map. */
+async function readSheetRows(file){
+  const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type:"array", cellDates:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if(!ws) throw new Error("That workbook has no sheets.");
+  const raw = XLSX.utils.sheet_to_json(ws, { defval:null, raw:true });
+
+  return raw.map((r, i)=>{
+    const v = {};
+    Object.keys(r).forEach(h=>{
+      const key = XL_MAP[xlNorm(h)];
+      if(key && r[h] !== null && r[h] !== "") v[key] = r[h];
+    });
+    return {
+      line: i + 2,
+      project_id: v.project_id == null ? null : String(v.project_id).trim(),
+      project_name: v.project_name == null ? null : String(v.project_name).trim(),
+      total_sqft: xlNum(v.total_sqft),
+      total_project_value: xlNum(v.total_project_value),
+      price_per_sqft: xlNum(v.price_per_sqft),
+      offer_price_per_sqft: xlNum(v.offer_price_per_sqft),
+      description: v.description == null ? null : String(v.description).trim(),
+      referral_direct_per_sqft: xlNum(v.referral_direct_per_sqft),
+      referral_indirect_per_sqft: xlNum(v.referral_indirect_per_sqft),
+      referral_indirect_levels: v.referral_indirect_levels == null ? null
+        : Math.round(xlNum(v.referral_indirect_levels) ?? 0) || null,
+      commission_type: xlCommission(v.commission_type),
+      _near: v._near == null ? null : String(v._near).trim(),
+      _km: v._km == null ? null : String(v._km).trim(),
+      _offer_title: v._offer_title == null ? null : String(v._offer_title).trim(),
+      _offer_min: xlNum(v._offer_min),
+      _offer_type: xlOfferType(v._offer_type),
+      _offer_valid: xlDate(v._offer_valid),
+    };
+  })
+  // A template sheet carries rows that only list the allowed values for a
+  // column (the owner's own file has three). A row with neither an ID nor a
+  // name is not a project, and offering it as one to fill a form from would be
+  // the single most confusing thing this button could do.
+  .filter(r => r.project_id || r.project_name);
+}
+
+window.fillFormFromExcel = ()=>{
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".xlsx,.xls";
+  inp.onchange = async ()=>{
+    const f = inp.files && inp.files[0]; if(!f) return;
+    if(!/\.xlsx?$/i.test(f.name)) return toast("Only .xlsx or .xls files can be read");
+    if(f.size > 8 * 1024 * 1024) return toast("That file is larger than 8 MB");
+    try{
+      const rows = await readSheetRows(f);
+      if(!rows.length) return toast("No project rows found in that sheet");
+      if(rows.length === 1) return applyExcelRowToForm(rows[0], f.name);
+      pickExcelRow(rows, f.name);          // several projects — let them choose
+    }catch(e){ toast(e.message || "Could not read that file"); }
+  };
+  inp.click();
+};
+
+/** More than one project in the file: show them and fill from the one chosen. */
+function pickExcelRow(rows, fileName){
+  window.__xlRows = rows;
+  modal(`Which project? · ${esc(fileName)}`, `
+    <div class="sec">
+      <div class="muted" style="font-size:12.5px;margin-bottom:10px">
+        That sheet holds ${rows.length} projects. Pick the one to fill this form with —
+        nothing is saved until you press Create.</div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Row</th><th>Project ID</th><th>Name</th><th>₹/sq ft</th><th>Levels</th><th></th></tr></thead>
+        <tbody>${rows.map((r,i)=>`<tr class="click" onclick="useExcelRow(${i})">
+          <td class="muted">${r.line}</td>
+          <td><b>${esc(r.project_id||"—")}</b></td>
+          <td>${esc(r.project_name||"—")}</td>
+          <td>${r.price_per_sqft==null?'<span class="muted">—</span>':inr(r.price_per_sqft)}</td>
+          <td>${r.referral_indirect_levels??'<span class="muted">—</span>'}</td>
+          <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();useExcelRow(${i})">Use this</button></td>
+        </tr>`).join("")}</tbody></table></div>
+    </div>`);
+  window.__xlFile = fileName;
+}
+window.useExcelRow = (i)=>{
+  const r = (window.__xlRows||[])[i]; if(!r) return;
+  closeModal();
+  applyExcelRowToForm(r, window.__xlFile || "the sheet");
+};
+
+/**
+ * Put one row into the open drawer.
+ *
+ * ⚠️ AN EMPTY CELL NEVER CLEARS A FIELD (§1.3). Every write below is guarded on
+ * the value being present, so filling from a partial sheet on top of a form the
+ * admin has already started adds to their work rather than undoing it.
+ */
+function applyExcelRowToForm(row, fileName){
+  const filled = [], blank = [];
+  const flash = [];
+
+  const setField = (key, val, label)=>{
+    const el = document.querySelector(`#drawer [data-k="${key}"]`);
+    if(!el) return;
+    if(val === null || val === undefined || val === ""){ blank.push(label); return; }
+    el.value = val;
+    filled.push(label); flash.push(el);
+  };
+
+  setField("project_id", row.project_id, "Project ID");
+  setField("project_name", row.project_name, "Project name");
+  // The sheet has no Title column, but a project with no title cannot be saved.
+  // The name is the honest default and stays editable.
+  const titleEl = document.querySelector('#drawer [data-k="title"]');
+  if(titleEl && !titleEl.value.trim() && row.project_name){
+    titleEl.value = row.project_name; filled.push("Title (from Project name)"); flash.push(titleEl);
+  }
+  setField("total_sqft", row.total_sqft, "Total sq ft");
+  setField("total_project_value", row.total_project_value, "Total project value");
+  setField("price_per_sqft", row.price_per_sqft, "Price ₹/sq ft");
+  setField("offer_price_per_sqft", row.offer_price_per_sqft, "Offer price ₹/sq ft");
+  setField("description", row.description, "Description");
+  setField("referral_direct_per_sqft", row.referral_direct_per_sqft, "Direct ₹/sqft");
+  setField("referral_indirect_per_sqft", row.referral_indirect_per_sqft, "Indirect ₹/sqft");
+  setField("referral_indirect_levels", row.referral_indirect_levels, "Indirect levels up to");
+
+  // Commission type is a chip row, not an input.
+  if(row.commission_type){
+    const chip = document.querySelector(`#drawer [data-chips="commission_type"] .chip[data-v="${row.commission_type}"]`);
+    if(chip){
+      document.querySelectorAll('#drawer [data-chips="commission_type"] .chip')
+        .forEach(c=>c.classList.remove("on"));
+      chip.classList.add("on");
+      filled.push("Commission type"); flash.push(chip);
+    }
+  } else blank.push("Commission type");
+
+  // "Near by" + "Kms" are one line of the nearby-places textarea.
+  if(row._near){
+    const ta = document.querySelector('#drawer [data-k="_nearby"]');
+    if(ta){
+      const line = [row._near, row._km || ""].join("|").replace(/\|+$/,"");
+      ta.value = ta.value.trim() ? ta.value.trim() + "\n" + line : line;
+      filled.push("Nearby"); flash.push(ta);
+    }
+  } else blank.push("Nearby");
+
+  // The launch offer lives in its own section, which only exists once rendered.
+  const setOffer = (k, val, label)=>{
+    const el = document.querySelector(`#drawer [data-of="${k}"]`);
+    if(!el) return;
+    if(val === null || val === undefined || val === ""){ blank.push(label); return; }
+    el.value = val; filled.push(label); flash.push(el);
+  };
+  setOffer("title", row._offer_title, "Launch offer");
+  setOffer("required_direct_sales", row._offer_min, "Min direct sales");
+  setOffer("ends_at", row._offer_valid ? String(row._offer_valid).slice(0,10) : null, "Offer valid until");
+  if(row._offer_type){
+    const c = document.querySelector(`#drawer [data-oftype] .chip[data-v="${row._offer_type}"]`);
+    if(c){
+      document.querySelectorAll("#drawer [data-oftype] .chip").forEach(x=>x.classList.remove("on"));
+      c.classList.add("on"); filled.push("Offer type"); flash.push(c);
+    }
+  } else blank.push("Offer type");
+
+  // The referral ladder is generated from the level count, so it has to be
+  // redrawn now that the count has changed.
+  if(typeof renderReferralLevels === "function") renderReferralLevels();
+
+  // §1.2 — show what landed. A green wash that fades is the difference between
+  // "it worked" and "did anything happen?" on a form this long.
+  flash.forEach(el=>{
+    el.classList.add("just-filled");
+    setTimeout(()=>el.classList.remove("just-filled"), 2600);
+  });
+
+  const first = flash[0];
+  if(first) first.scrollIntoView({ behavior:"smooth", block:"center" });
+
+  showFillReceipt(filled, blank, fileName, row);
+}
+
+/** A short, dismissable account of what the sheet did and did not carry. */
+function showFillReceipt(filled, blank, fileName, row){
+  const host = document.querySelector("#drawer .body");
+  if(!host) return;
+  const old = document.getElementById("fill-receipt"); if(old) old.remove();
+  const box = document.createElement("div");
+  box.id = "fill-receipt";
+  box.className = "sec";
+  box.style.cssText = "border-color:var(--success);background:var(--success-soft)";
+  box.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="flex:1">
+        <b style="font-size:13.5px;color:var(--success)">Filled ${filled.length} field${filled.length===1?"":"s"} from ${esc(fileName)}${row.line?` · row ${row.line}`:""}</b>
+        <div class="muted" style="font-size:12px;margin-top:6px">${filled.map(esc).join(" · ")||"—"}</div>
+        ${blank.length?`<div class="muted" style="font-size:11.5px;margin-top:8px">
+          The sheet had nothing for ${blank.length} field${blank.length===1?"":"s"} — they are left blank and editable:
+          <b>${blank.map(esc).join(", ")}</b></div>`:""}
+        <div class="muted" style="font-size:11.5px;margin-top:8px">
+          Location, approvals and photographs have no column in this sheet and still need you.
+          Nothing is saved until you press ${CUR && CUR.id ? "Save" : "Create"}.</div>
+      </div>
+      <button class="btn grey sm" onclick="this.closest('#fill-receipt').remove()">Dismiss</button>
+    </div>`;
+  host.prepend(box);
+  box.scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
 
 </script>
 </body>
