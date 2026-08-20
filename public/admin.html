@@ -165,6 +165,158 @@
   .chip.just-filled{animation:filledchip 2.6s ease-out;}
   @keyframes filledchip{0%,70%{box-shadow:0 0 0 4px rgba(12,128,70,.28);}100%{box-shadow:none;}}
   @media (max-width:820px){ .kv{grid-template-columns:1fr;gap:2px 0;} .kv dd{margin-bottom:8px;} .modal{width:100%;} }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE FROSTED REGISTER (owner, 2026-08-20) — colorized tabs, per-page card
+     hues, and a restrained frosted-grainy-glass card material. Everything
+     above is untouched; this block only re-clothes surfaces that already
+     exist, and the palette / typography / layout / branding stay exactly what
+     they were. Ordering matters: these rules win over the base `.card` and
+     `nav a` declarations because they come LAST in the same sheet.
+
+     Contrast note: every glass ground below bottoms out at ≥55% white over a
+     hue that never exceeds 22% of a pastel, so the effective ground stays
+     lighter than the old flat #fff-on-#F4F5F8 by construction and no ink
+     re-measure is needed. Text-bearing solids (tables, inputs, drawer
+     sections) stay solid on purpose — readability outranks material. */
+
+  /* ── COLORIZED TABS ─────────────────────────────────────────────────────
+     `--tc` arrives inline on each link. The chip carries the accent at rest,
+     hover tints the row with the same accent, and the ACTIVE tab wears its
+     own colour — a tinted glass ground with a solid accent bar — instead of
+     the one-red-for-everything gradient. White labels stay white: the tint
+     is capped at 30% over the navy, so the ground never gets light enough
+     to lose them. */
+  nav a .ic{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:13px;
+    background:color-mix(in srgb, var(--tc,#8FA3BF) 26%, transparent);
+    color:var(--tc,#8FA3BF);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tc,#8FA3BF) 34%, transparent);}
+  nav a:hover{background:color-mix(in srgb, var(--tc,#8FA3BF) 14%, rgba(255,255,255,.04));color:#fff;}
+  nav a.on{background:linear-gradient(135deg,
+      color-mix(in srgb, var(--tc,#F0474E) 30%, rgba(255,255,255,.05)),
+      color-mix(in srgb, var(--tc,#F0474E) 18%, transparent));
+    color:#fff;
+    box-shadow:inset 3px 0 0 var(--tc,#F0474E), inset 0 0 0 1px color-mix(in srgb, var(--tc,#F0474E) 30%, transparent),
+      0 8px 20px -10px color-mix(in srgb, var(--tc,#F0474E) 60%, transparent);}
+  nav a.on .ic{background:var(--tc,#F0474E);color:#10152A;box-shadow:none;}
+
+  /* ── PAGE HUES ──────────────────────────────────────────────────────────
+     One hue pair per view, stamped by the router as `data-view` on #app.
+     `--pv` is the page's own stone (the SAME accent its tab wears) and
+     `--pv2` a companion for the second ambient haze; every card on the page
+     mixes a whisper of `--pv` into its glass, which is what makes the pages
+     read as different rooms ("different colors in the home page, and in all
+     other pages"). The dashboard takes the warm peach of the owner's
+     reference card, with lavender behind it. */
+  main{--pv:#C9CFE2;--pv2:#E7C9B8;}
+  #app[data-view="dashboard"] main{--pv:#F5B08C;--pv2:#B4A7F5;}
+  #app[data-view="properties"] main{--pv:#34C98E;--pv2:#9ADCC2;}
+  #app[data-view="docs"] main{--pv:#4FA8FF;--pv2:#A8CFF5;}
+  #app[data-view="kyc"] main{--pv:#A78BFA;--pv2:#D6C9F5;}
+  #app[data-view="partners"] main{--pv:#FF7BAC;--pv2:#F5C9DA;}
+  #app[data-view="tree"] main{--pv:#58C25A;--pv2:#B5E3B6;}
+  #app[data-view="users"] main{--pv:#38BDF8;--pv2:#B0E0F5;}
+  #app[data-view="registrations"] main{--pv:#38BDF8;--pv2:#B0E0F5;}
+  #app[data-view="earnings"] main{--pv:#E8B93E;--pv2:#F1DCA6;}
+  #app[data-view="bazaar"] main{--pv:#FF9A4D;--pv2:#F5CFA8;}
+  #app[data-view="wallet"] main{--pv:#2DD4BF;--pv2:#A8E8DF;}
+  #app[data-view="subs"] main{--pv:#FFB35C;--pv2:#F5DCB8;}
+  #app[data-view="visits"] main{--pv:#5B8DEF;--pv2:#B8CCF5;}
+  #app[data-view="leads"] main{--pv:#F0474E;--pv2:#F5B8BB;}
+  #app[data-view="invites"] main{--pv:#25D366;--pv2:#A8E8C0;}
+  #app[data-view="vault"] main{--pv:#E8C15A;--pv2:#F1DFAC;}
+  #app[data-view="community"] main{--pv:#FF8A70;--pv2:#F5C6BA;}
+  #app[data-view="journal"] main{--pv:#B4A7F5;--pv2:#DCD5F5;}
+  #app[data-view="share"] main{--pv:#F472B6;--pv2:#F5C0DC;}
+  #app[data-view="quiz"] main{--pv:#22C8B7;--pv2:#A6E5DE;}
+  #app[data-view="audit"] main{--pv:#8FA3BF;--pv2:#CBD5E3;}
+
+  /* ── AMBIENT LIGHT ──────────────────────────────────────────────────────
+     Two soft hazes hung behind the content, in the page's own pair. They are
+     what the cards' backdrop blur actually frosts — glass over a flat grey
+     has nothing to diffuse — and they diffuse through the surfaces rather
+     than reading as gradient blobs: 22% and 15% of a pastel, feathered to
+     nothing well before the content column ends. */
+  main{background:
+    radial-gradient(1100px 540px at 88% -8%, color-mix(in srgb, var(--pv) 22%, transparent), transparent 62%),
+    radial-gradient(900px 560px at -14% 36%, color-mix(in srgb, var(--pv2) 15%, transparent), transparent 60%);}
+
+  /* ── FROSTED GRAINY GLASS CARDS ─────────────────────────────────────────
+     The material itself. Three layers of ground (a diagonal specular off the
+     top-left, a broad white body, a whisper of the page hue pooling at the
+     lower-right as though light passes through the slab), real backdrop
+     blur, a hairline part-hue border, and an edge model: bright top inner
+     highlight, faint inner second line for thickness, soft lower fall-off,
+     diffused ambient drop + a tighter contact shadow. Restrained on
+     purpose — the white body never drops below ~55%, so this reads as
+     frosted architectural glass, not "glassmorphism". */
+  .card{
+    position:relative;
+    background:
+      linear-gradient(155deg, rgba(255,255,255,.78) 0%, rgba(255,255,255,.55) 46%,
+        color-mix(in srgb, var(--pv,#C9CFE2) 12%, rgba(255,255,255,.60)) 100%);
+    -webkit-backdrop-filter:blur(14px) saturate(1.35);
+    backdrop-filter:blur(14px) saturate(1.35);
+    border:1px solid color-mix(in srgb, var(--pv,#C9CFE2) 30%, rgba(255,255,255,.75));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.85),
+      inset 0 0 0 1px rgba(255,255,255,.28),
+      inset 0 -1px 0 rgba(20,26,46,.05),
+      0 1px 2px rgba(20,26,46,.06),
+      0 18px 38px -24px rgba(20,26,46,.30),
+      0 3px 8px -3px color-mix(in srgb, var(--pv,#C9CFE2) 26%, transparent);
+  }
+  /* Slight opacity variation between neighbouring panels — identical slabs
+     read as printed, offset ones read as material. Even stat cards sit a
+     step clearer than odd ones; nobody should consciously notice. */
+  .stats .card:nth-child(2n){
+    background:
+      linear-gradient(155deg, rgba(255,255,255,.70) 0%, rgba(255,255,255,.48) 46%,
+        color-mix(in srgb, var(--pv,#C9CFE2) 15%, rgba(255,255,255,.55)) 100%);
+  }
+  /* The microscopic film grain: SVG turbulence, desaturated, multiplied at
+     5% — visible only up close, which is the point. `pointer-events:none`
+     and it inherits the card's own radius; the welcome card's decorative
+     glow sits inside its own relative wrapper, so nothing re-anchors. */
+  .card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    opacity:.05;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");}
+  /* Delicate hover elevation for the cards that are actually interactive —
+     a few pixels of rise, a touch more edge light, never a scale. The
+     `.stat:hover` above already lifts; this brings its shadow into the new
+     model instead of the old flat one. */
+  .stat:hover{transform:translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.9),
+      inset 0 0 0 1px rgba(255,255,255,.34),
+      inset 0 -1px 0 rgba(20,26,46,.05),
+      0 2px 4px rgba(20,26,46,.06),
+      0 24px 44px -24px rgba(20,26,46,.34),
+      0 4px 10px -3px color-mix(in srgb, var(--pv,#C9CFE2) 34%, transparent);}
+  /* Drawer sections carry forms, so they stay near-solid — a whisper of the
+     page hue in the lower stop and the same finished edges, nothing more.
+     (The drawer has an opaque ground behind them; backdrop blur would have
+     nothing to frost and only cost paint time.) */
+  .sec{background:linear-gradient(160deg,#fff 0%,#FDFDFE 55%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 7%, #fff) 100%);
+    border-color:color-mix(in srgb, var(--pv,#C9CFE2) 22%, var(--hair));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(20,26,46,.04);}
+  /* Tab strips (the in-page ones) pick up the page accent on their active
+     tab — the underline was brand-red on every page; it now agrees with the
+     room it is in. */
+  .tabs button.on{color:color-mix(in srgb, var(--pv,#E11B22) 60%, var(--ink));border-bottom-color:var(--pv,var(--brand));}
+  .tabs button.on .count{background:color-mix(in srgb, var(--pv,#E11B22) 18%, #fff);color:color-mix(in srgb, var(--pv,#E11B22) 60%, var(--ink));}
+  /* Blur unavailable → a slightly more opaque body carries the same design.
+     Reduced-transparency readers get the flat surface back entirely. */
+  @supports not (backdrop-filter: blur(1px)){
+    .card{background:linear-gradient(155deg, rgba(255,255,255,.94), rgba(255,255,255,.88) 46%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 10%, rgba(255,255,255,.9)) 100%);}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .card,.stats .card:nth-child(2n){background:#fff;-webkit-backdrop-filter:none;backdrop-filter:none;}
+    .card::after{display:none;}
+    main{background:none;}
+  }
 </style>
 </head>
 <body>
@@ -192,33 +344,39 @@
 <div id="app">
   <aside>
     <div class="brand"><div class="l"><img src="logo-mark.png" alt="Jamin Bazaar" /></div><div><b>Jamin Bazaar</b><span>Admin console</span></div></div>
+    <!-- Every tab carries its own accent (owner, 2026-08-20: "colorize the
+         tabs, all of them") — `--tc` feeds the icon chip, the hover tint and
+         the active state, so the colour system lives in ONE set of CSS rules
+         rather than per-link styles. The same accents drive each page's card
+         hue in the PAGE HUES block at the end of the stylesheet: the tab you
+         came in on and the page you land in agree. -->
     <nav id="nav">
-      <a data-view="dashboard" class="on">◱ Dashboard</a>
-      <a data-view="properties">▤ Properties</a>
-      <a data-view="docs">📄 Documents <span class="badge" id="b-docs" style="display:none"></span></a>
+      <a data-view="dashboard" class="on" style="--tc:#7C8CFF"><span class="ic">◱</span> Dashboard</a>
+      <a data-view="properties" style="--tc:#34C98E"><span class="ic">▤</span> Properties</a>
+      <a data-view="docs" style="--tc:#4FA8FF"><span class="ic">📄</span> Documents <span class="badge" id="b-docs" style="display:none"></span></a>
       <div class="navlab">People</div>
-      <a data-view="kyc">🛡 KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
-      <a data-view="partners">🎗 Partners <span class="badge" id="b-partner" style="display:none"></span></a>
-      <a data-view="tree">🌳 Promoter Tree</a>
-      <a data-view="users">👥 Users</a>
+      <a data-view="kyc" style="--tc:#A78BFA"><span class="ic">🛡</span> KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
+      <a data-view="partners" style="--tc:#FF7BAC"><span class="ic">🎗</span> Partners <span class="badge" id="b-partner" style="display:none"></span></a>
+      <a data-view="tree" style="--tc:#58C25A"><span class="ic">🌳</span> Promoter Tree</a>
+      <a data-view="users" style="--tc:#38BDF8"><span class="ic">👥</span> Users</a>
       <div class="navlab">Money</div>
-      <a data-view="earnings">💰 Earnings</a>
-      <a data-view="bazaar">💼 Sales Income</a>
-      <a data-view="wallet">👛 Wallet <span class="badge" id="b-wallet" style="display:none"></span></a>
+      <a data-view="earnings" style="--tc:#E8B93E"><span class="ic">💰</span> Earnings</a>
+      <a data-view="bazaar" style="--tc:#FF9A4D"><span class="ic">💼</span> Sales Income</a>
+      <a data-view="wallet" style="--tc:#2DD4BF"><span class="ic">👛</span> Wallet <span class="badge" id="b-wallet" style="display:none"></span></a>
       <div class="navlab">Pipeline</div>
-      <a data-view="subs">📥 Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
-      <a data-view="visits">🗓 Visits <span class="badge" id="b-visits" style="display:none"></span></a>
-      <a data-view="leads">📇 Leads <span class="badge" id="b-leads" style="display:none"></span></a>
-      <a data-view="invites">💬 Invites <span class="badge" id="b-inv" style="display:none"></span></a>
+      <a data-view="subs" style="--tc:#FFB35C"><span class="ic">📥</span> Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
+      <a data-view="visits" style="--tc:#5B8DEF"><span class="ic">🗓</span> Visits <span class="badge" id="b-visits" style="display:none"></span></a>
+      <a data-view="leads" style="--tc:#F0474E"><span class="ic">📇</span> Leads <span class="badge" id="b-leads" style="display:none"></span></a>
+      <a data-view="invites" style="--tc:#25D366"><span class="ic">💬</span> Invites <span class="badge" id="b-inv" style="display:none"></span></a>
       <div class="navlab">The Vault</div>
-      <a data-view="vault">🔐 The Vault <span class="badge" id="b-vault" style="display:none"></span></a>
+      <a data-view="vault" style="--tc:#E8C15A"><span class="ic">🔐</span> The Vault <span class="badge" id="b-vault" style="display:none"></span></a>
       <div class="navlab">Growth</div>
-      <a data-view="community">🗣 Community <span class="badge" id="b-comm" style="display:none"></span></a>
-      <a data-view="journal">📰 Jamin Journal <span class="badge" id="b-journal" style="display:none"></span></a>
-      <a data-view="share">📣 Share & Brochures</a>
-      <a data-view="quiz">🧭 Questionnaire</a>
+      <a data-view="community" style="--tc:#FF8A70"><span class="ic">🗣</span> Community <span class="badge" id="b-comm" style="display:none"></span></a>
+      <a data-view="journal" style="--tc:#B4A7F5"><span class="ic">📰</span> Jamin Journal <span class="badge" id="b-journal" style="display:none"></span></a>
+      <a data-view="share" style="--tc:#F472B6"><span class="ic">📣</span> Share & Brochures</a>
+      <a data-view="quiz" style="--tc:#22C8B7"><span class="ic">🧭</span> Questionnaire</a>
       <div class="navlab">System</div>
-      <a data-view="audit">🧾 Audit log</a>
+      <a data-view="audit" style="--tc:#8FA3BF"><span class="ic">🧾</span> Audit log</a>
     </nav>
   </aside>
   <main>
@@ -335,6 +493,9 @@ const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verificatio
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
+  // The page-hue hook (2026-08-20): the FROSTED REGISTER block at the end of
+  // the stylesheet keys every card tint and ambient haze off this attribute.
+  document.getElementById("app").dataset.view = v;
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
   ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,audit:renderAudit}[v])();
 }
@@ -365,9 +526,14 @@ async function renderDashboard(){
   const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
   const today = new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"});
 
-  const stat=(icon,n,l,col,click)=>`<div class="stat card"${click?` style="cursor:pointer" onclick="${click}" title="Open ${l}"`:''}>
+  /* `--pv` per card (2026-08-20): each dashboard statistic tints its OWN
+     glass with the colour its figure already wore, so the home page carries
+     the varied hues the owner asked for while every other page stays on its
+     single page hue. The old `${col}1A` hex-alpha trick only worked for hex
+     values; color-mix in the chip background works for `var()` colours too. */
+  const stat=(icon,n,l,col,click)=>`<div class="stat card" style="--pv:${col||'var(--brand)'}${click?';cursor:pointer':''}"${click?` onclick="${click}" title="Open ${l}"`:''}>
     <div style="display:flex;align-items:center;gap:12px;">
-      <div style="width:38px;height:38px;border-radius:12px;background:${col||'var(--brand)'}1A;display:grid;place-items:center;font-size:17px;flex:none;">${icon}</div>
+      <div style="width:38px;height:38px;border-radius:12px;background:color-mix(in srgb, ${col||'var(--brand)'} 12%, transparent);display:grid;place-items:center;font-size:17px;flex:none;">${icon}</div>
       <div><div class="n" style="color:${col||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>
     </div></div>`;
 
@@ -5436,21 +5602,31 @@ async function renderDashboardPlus(){
   try{
     const { data, error } = await sb.rpc("admin_dashboard_stats");
     if(error || !data) return;                       // the panel simply does not appear
-    const g = (title, cells)=>`
+    /* Per-group glass hues (2026-08-20) — each §20 band tints its cards with
+       its own pastel, the dashboard's share of "different colors in the home
+       page". The hues are the sidebar accents of the views the figures
+       belong to: projects=dashboard indigo, plots=properties emerald,
+       users=KYC violet, sales=earnings gold. */
+    const g = (title, cells, hue)=>`
       <div style="margin-bottom:18px">
         <div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 8px 2px">${title}</div>
         <div class="stats" style="grid-template-columns:repeat(${cells.length},minmax(0,1fr));margin-bottom:0">
-          ${cells.map(([n,l,c])=>`<div class="card stat"><div class="n"${c?` style="color:${c}"`:""}>${n}</div><div class="l">${l}</div></div>`).join("")}
+          ${cells.map(([n,l,c])=>`<div class="card stat" style="--pv:${hue}"><div class="n"${c?` style="color:${c}"`:""}>${n}</div><div class="l">${l}</div></div>`).join("")}
         </div></div>`;
     const p = data.projects, pl = data.plots, u = data.users, s = data.sales, r = data.referral;
     const box = document.createElement("div");
     box.id = "dash-stats";
     box.innerHTML =
-      g("Projects", [[p.total,"Total projects"],[p.active,"Active","var(--success)"],[p.completed,"Completed"],[p.draft,"Drafts","var(--ink-faint)"]]) +
-      g("Plots",    [[pl.total,"Total plots"],[pl.available,"Available","var(--success)"],[pl.reserved,"Reserved","var(--gold-dark)"],[pl.sold,"Sold","var(--brand)"]]) +
-      g("Users",    [[u.total,"Total users"],[u.new_30d,"New (30 days)"],[u.kyc_pending,"KYC pending","var(--gold-dark)"],[u.kyc_approved,"KYC approved","var(--success)"]]) +
-      g("Sales & referral", [[s.completed,"Sales completed"],[inr(s.value),"Sales value"],[r.total,"Referred members"],[inr(r.commission),"Commission"]]);
-    $("#view").prepend(box);
+      g("Projects", [[p.total,"Total projects"],[p.active,"Active","var(--success)"],[p.completed,"Completed"],[p.draft,"Drafts","var(--ink-faint)"]], "#7C8CFF") +
+      g("Plots",    [[pl.total,"Total plots"],[pl.available,"Available","var(--success)"],[pl.reserved,"Reserved","var(--gold-dark)"],[pl.sold,"Sold","var(--brand)"]], "#34C98E") +
+      g("Users",    [[u.total,"Total users"],[u.new_30d,"New (30 days)"],[u.kyc_pending,"KYC pending","var(--gold-dark)"],[u.kyc_approved,"KYC approved","var(--success)"]], "#A78BFA") +
+      g("Sales & referral", [[s.completed,"Sales completed"],[inr(s.value),"Sales value"],[r.total,"Referred members"],[inr(r.commission),"Commission"]], "#E8B93E");
+    /* 🚨 AFTER the welcome card, not prepended (owner, 2026-08-20: "pull up
+       the welcome card to the top"). `renderDashboard` writes the welcome
+       card as #view's first child; the §20 figures slot in directly under
+       it, so the greeting leads the page and the statistics follow. */
+    const welcome = $("#view").firstElementChild;
+    if (welcome) welcome.after(box); else $("#view").prepend(box);
   }catch(e){ /* the rest of the dashboard is unaffected */ }
 }
 
