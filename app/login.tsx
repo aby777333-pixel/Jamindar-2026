@@ -7,7 +7,10 @@ import { Screen, Button } from "@/components/ui";
 import { JamindarFace } from "@/components/Brand";
 import { Field } from "@/components/Field";
 import { sendOtp } from "@/lib/store";
+import { openExternal } from "@/lib/browser";
 import { colors, space, type as T } from "@/lib/theme";
+
+const SITE = "https://merry-begonia-4c3cd1.netlify.app";
 
 /** Small reassurance row shown under the form — reinforces the value prop
  *  and gives the screen a finished, premium base instead of empty space. */
@@ -128,8 +131,19 @@ export default function Login() {
           </Text>
         </View>
 
+        {/* Play checklist: the privacy policy must be REACHABLE from the app,
+            and an agreement line that names documents nobody can open is the
+            kind of thing reviewers screenshot. Each name opens its page. */}
         <Text style={{ color: colors.inkFaint, fontSize: T.small.fontSize, lineHeight: T.small.lineHeight, textAlign: "center", marginTop: space.sm }}>
-          By continuing you agree to Jamin's Terms & Privacy Policy.
+          By continuing you agree to Jamin's{" "}
+          <Text style={{ color: colors.brand, fontWeight: "600" }} onPress={() => openExternal(`${SITE}/terms`)}>
+            Terms
+          </Text>
+          {" "}&{" "}
+          <Text style={{ color: colors.brand, fontWeight: "600" }} onPress={() => openExternal(`${SITE}/privacy`)}>
+            Privacy Policy
+          </Text>
+          .
         </Text>
 
         {/* Trust row — fills the lower space with a finished, premium base. */}

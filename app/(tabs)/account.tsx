@@ -11,7 +11,13 @@ import { useUnreadMessages, useRealtimeInbox } from "@/lib/messaging";
 import { colors, space, type as T } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
 import { initials } from "@/lib/format";
+import { openExternal } from "@/lib/browser";
 import { ROLE_LABELS, KYC_STATUS_META } from "@/lib/types";
+
+// Play policy requires the privacy policy to be reachable from inside the
+// app, not only from the store listing — these are the same pages the
+// listing points at.
+const SITE = "https://merry-begonia-4c3cd1.netlify.app";
 
 const KYC_TONE: Record<"neutral" | "warning" | "success" | "danger", { bg: string; fg: string }> = {
   neutral: { bg: colors.surfaceSunken, fg: colors.inkSoft },
@@ -105,6 +111,8 @@ export default function Account() {
     { icon: "git-compare", label: "Compare properties", onPress: () => router.push("/tools/compare") },
     { icon: "document-text", label: "Legal guide", onPress: () => router.push("/tools/legal") },
     { icon: "help-buoy", label: "Support", onPress: () => router.push("/support" as Href) },
+    { icon: "shield-half", label: "Privacy policy", onPress: () => openExternal(`${SITE}/privacy`) },
+    { icon: "reader", label: "Terms of use", onPress: () => openExternal(`${SITE}/terms`) },
   );
 
   // Admin console is always reachable for real super admins, even while previewing another role.
@@ -259,6 +267,15 @@ export default function Account() {
         >
           <Ionicons name="log-out-outline" size={20} color={colors.danger} />
           <Text style={{ color: colors.danger, fontWeight: "700" }}>Sign out</Text>
+        </Pressable>
+
+        {/* Google Play requires in-app account deletion for any app with
+            accounts, and the published policy has promised this button since
+            it went up. Quiet on purpose — discoverable, not inviting. */}
+        <Pressable onPress={() => router.push("/delete-account" as Href)} style={{ marginTop: 14, alignItems: "center", paddingVertical: 10 }} hitSlop={8}>
+          <Text style={{ color: colors.inkFaint, fontSize: 13, textDecorationLine: "underline" }}>
+            Delete account
+          </Text>
         </Pressable>
 
         <Text style={{ textAlign: "center", color: colors.inkFaint, fontSize: 12, marginTop: 24 }}>
