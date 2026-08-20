@@ -12,6 +12,7 @@
 /privacy         /privacy.html         200
 /delete-account  /delete-account.html  200
 /terms           /terms.html           200
+/booking-refund  /booking-refund.html  200
 # Branded share (/s/*) and invite (/i/*) pages are served by the Netlify
 # Function netlify/functions/share-page.mjs (routes declared in its config) —
 # it restores the text/html content type that Supabase's domain strips.

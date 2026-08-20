@@ -28,8 +28,9 @@ h1{font-size:clamp(26px,4.6vw,34px);line-height:1.15;letter-spacing:-.028em;marg
 h2{font-size:19px;letter-spacing:-.015em;margin:34px 0 8px;text-wrap:balance}
 h3{font-size:15.5px;margin:22px 0 6px}
 p,li{color:var(--ink-soft)}
+ol li{margin-bottom:8px}
 p{margin:0 0 12px}
-ul{margin:0 0 14px;padding-left:20px}
+ul,ol{margin:0 0 14px;padding-left:20px}
 li{margin-bottom:6px}
 strong{color:var(--ink)}
 a{color:var(--brand)}
