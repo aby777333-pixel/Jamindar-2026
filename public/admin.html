@@ -357,6 +357,13 @@
       <div class="navlab">People</div>
       <a data-view="kyc" style="--tc:#A78BFA"><span class="ic">🛡</span> KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
       <a data-view="partners" style="--tc:#FF7BAC"><span class="ic">🎗</span> Partners <span class="badge" id="b-partner" style="display:none"></span></a>
+      <!-- Promoter applications (owner spec 2026-08-21 §3). Deliberately its
+           own tab rather than a filter inside Partners: those two lists are at
+           different stages of the same journey and mean opposite things. A row
+           in Partners is ALREADY a promoter awaiting the Verified badge; a row
+           here is a BUYER who is not a promoter at all until this desk says so.
+           Merging them is how somebody ends up verifying an application. -->
+      <a data-view="promoapps" style="--tc:#C084FC"><span class="ic">📝</span> Promoter Applications <span class="badge" id="b-promoapps" style="display:none"></span></a>
       <a data-view="tree" style="--tc:#58C25A"><span class="ic">🌳</span> Promoter Tree</a>
       <a data-view="users" style="--tc:#38BDF8"><span class="ic">👥</span> Users</a>
       <div class="navlab">Money</div>
@@ -485,11 +492,19 @@ async function refreshBadges(){
     const { count } = await sb.from("blog_posts").select("id",{count:"exact",head:true}).eq("status","in_review");
     if(count > 0){ jb.style.display="inline-flex"; jb.textContent=count; } else jb.style.display="none";
   }
+  // Promoter applications, counted here for the same reason as the two above:
+  // adding a tab must not mean editing admin_pending_counts, which sits on the
+  // money path and is shared with the app.
+  const pb = document.getElementById("b-promoapps");
+  if(pb){
+    const { count } = await sb.from("promoter_applications").select("id",{count:"exact",head:true}).eq("status","pending");
+    if(count > 0){ pb.style.display="inline-flex"; pb.textContent=count; } else pb.style.display="none";
+  }
 }
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",audit:"Audit Log"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",audit:"Audit Log"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
@@ -497,7 +512,7 @@ function go(v){
   // the stylesheet keys every card tint and ambient haze off this attribute.
   document.getElementById("app").dataset.view = v;
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,audit:renderAudit}[v])();
+  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,audit:renderAudit}[v])();
 }
 window.go = go;
 
@@ -1286,6 +1301,93 @@ window.reviewPartner = async(id,decision)=>{
   if(decision==="pending" && !confirm("Move this partner back to Pending? They lose the Verified badge but keep their promoter tools.")) return;
   const { error } = await sb.rpc("admin_review_partner",{p_user:id,p_decision:decision,p_reason:reason});
   if(error) return toast(error.message); toast(decision==="pending"?"Moved to pending":"Partner "+decision); refreshBadges(); renderPartners();
+};
+
+// ───────── promoter applications ─────────
+// Owner spec 2026-08-21 §3. A buyer applies from the website; nothing changes
+// on their account until somebody here approves it.
+//
+// 🚨 APPROVING GRANTS THE ROLE ONLY. `admin_review_promoter_application` sets
+// `role = 'promoter'` and does NOT touch `partner_status` — the Verified badge
+// stays where it has always been earned, in KYC and the Partners tab. That is
+// 0073's rule ("a promoter is a promoter") and the reason this is a separate
+// desk: approve here, verify there.
+//
+// ⚠️ The decision goes through the RPC, never through a direct update. The
+// table has no member-facing UPDATE policy at all, so the RPC is the only way a
+// status moves, and it re-checks is_super_admin() server-side. A stray
+// `sb.from(...).update(...)` here would look like it worked and silently do
+// nothing under RLS.
+async function renderPromoterApps(){
+  const status = window.__promoAppFilter || "pending";
+  const { data, error } = await sb.from("promoter_applications")
+    .select("id,user_id,full_name,mobile,email,city,occupation,experience,motivation,status,review_reason,created_at,reviewed_at")
+    .eq("status",status).order("created_at",{ascending:false});
+  if(error){ $("#view").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+
+  // The applicant's CURRENT role, read separately: an application says what
+  // somebody asked for, the profile says what they are now. Showing both stops
+  // a second approval being attempted on an account that already has the role.
+  let roles = {};
+  if(rows.length){
+    const { data: profs } = await sb.from("profiles").select("id,role,member_code,kyc_status")
+      .in("id", rows.map(r=>r.user_id));
+    (profs||[]).forEach(p=>roles[p.id]=p);
+  }
+
+  const chip=(v,l)=>`<button class="btn ${status===v?'':'grey'} sm" onclick="promoAppFilter('${v}')">${l}</button>`;
+  const when=(iso)=>iso? new Date(iso).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}) : "—";
+
+  const card=(r)=>{
+    const p = roles[r.user_id]||{};
+    const already = p.role==="promoter" || p.role==="super_admin";
+    return `<div class="card" style="margin-bottom:12px;padding:16px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;justify-content:space-between">
+        <div style="min-width:200px">
+          <div style="font-size:16px;font-weight:700">${esc(r.full_name||"—")}</div>
+          <div class="muted" style="margin-top:2px">
+            ${esc(p.member_code||"")}${p.member_code?" · ":""}+${esc(r.mobile||"—")}${r.email?" · "+esc(r.email):""}${r.city?" · "+esc(r.city):""}
+          </div>
+          <div class="muted" style="margin-top:2px">Applied ${when(r.created_at)}${r.reviewed_at?" · reviewed "+when(r.reviewed_at):""}</div>
+        </div>
+        <div style="text-align:right">
+          ${already?`<div style="color:#0F8A4D;font-weight:700;margin-bottom:6px">Already a ${esc(p.role)}</div>`:""}
+          ${status==="pending"
+            ? `<button class="btn ghost sm" onclick='reviewPromoApp("${r.id}","rejected")'>Decline</button>
+               <button class="btn gold sm" onclick='reviewPromoApp("${r.id}","approved")'>Approve</button>`
+            : `<span class="muted">${status==="approved"?"Approved":"Declined"}</span>`}
+        </div>
+      </div>
+      ${r.occupation?`<div style="margin-top:10px"><span class="muted">Occupation:</span> ${esc(r.occupation)}</div>`:""}
+      ${r.experience?`<div style="margin-top:6px"><span class="muted">Experience:</span> ${esc(r.experience)}</div>`:""}
+      ${r.motivation?`<div style="margin-top:6px"><span class="muted">Why:</span> ${esc(r.motivation)}</div>`:""}
+      ${r.review_reason?`<div style="margin-top:8px;color:#B7791F"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
+    </div>`;
+  };
+
+  $("#view").innerHTML =
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">${chip('pending','Pending')}${chip('approved','Approved')}${chip('rejected','Declined')}</div>`
+    + (status==='pending' ? `<div class="muted" style="margin-bottom:10px">Buyers asking for promoter access. Approving grants the promoter role and its tools — the Verified Jamin Partner badge is separate and still comes from KYC in the <a onclick="go('partners')">Partners</a> tab.</div>` : ``)
+    + (rows.length ? rows.map(card).join("") : `<div class="empty card">No ${status==='rejected'?'declined':esc(status)} applications.</div>`);
+}
+window.promoAppFilter=(v)=>{ window.__promoAppFilter=v; renderPromoterApps(); };
+window.reviewPromoApp = async(id,decision)=>{
+  let reason=null;
+  if(decision==="rejected"){
+    if(!confirm("Decline this application? The applicant stays a buyer and is notified.")) return;
+    reason=prompt("Reason shown to the applicant (optional):");
+  } else {
+    if(!confirm("Approve? This grants the promoter role and its tools straight away. The Verified badge still comes from KYC.")) return;
+  }
+  const { data, error } = await sb.rpc("admin_review_promoter_application",{p_id:id,p_decision:decision,p_reason:reason});
+  if(error) return toast(error.message);
+  // ⚠️ The RPC returns {ok:false,error} rather than throwing for a business
+  // refusal — "already reviewed", "not authorised". Without this branch those
+  // land as a cheerful success toast on a decision that never happened.
+  if(data && data.ok===false) return toast(data.error||"Could not complete that.");
+  toast(decision==="approved"?"Promoter approved":"Application declined");
+  refreshBadges(); renderPromoterApps();
 };
 
 // ───────── users ─────────
@@ -2125,15 +2227,43 @@ window.reviewInvite=async(id,decision)=>{
 
 // ───────── share & brochures (0053: branded share pages + personalized PDFs) ─────────
 async function renderShareSettings(){
-  const [{data:cfgRow},{data:props},{data:dls}] = await Promise.all([
+  const [{data:cfgRow},{data:appRow},{data:props},{data:dls}] = await Promise.all([
     sb.from('site_config').select('value').eq('key','share').maybeSingle(),
+    sb.from('site_config').select('value').eq('key','app_download').maybeSingle(),
     sb.from('properties').select('id,title,project_phase,brochure_url').neq('status','archived').order('created_at',{ascending:false}),
     sb.from('brochure_downloads').select('created_at,channel,ref_code,promoter:profiles!brochure_downloads_promoter_id_fkey(full_name,partner_code),property:properties(title)').order('created_at',{ascending:false}).limit(25),
   ]);
   const cfg=(cfgRow&&cfgRow.value)||{};
+  const app=(appRow&&appRow.value)||{};
   const base=cfg.site_base||'https://merry-begonia-4c3cd1.netlify.app';
   const f=(id,label,val,ph)=>`<label style="display:block;font-size:12px;color:var(--muted);margin:10px 0 4px">${label}</label><input id="${id}" value="${esc(val||'')}" placeholder="${ph||''}" style="width:100%">`;
   $("#view").innerHTML=`
+  <!-- Download our app (owner spec 2026-08-21 §6).
+       🚨 THESE TWO FIELDS ARE WHAT THE PUBLIC WEBSITE'S FOOTER RENDERS, and
+       they are the reason the URLs are not hard-coded over there: the spec says
+       the direct download "must always point to the current approved version",
+       and the person who ships a version is here, not in the website repo. Fill
+       a field and the footer picks it up within its one-hour revalidation
+       window — no deploy.
+       ⚠️ AN EMPTY FIELD HIDES THAT BUTTON ON THE WEBSITE. That is deliberate,
+       not a gap: the footer is on every page, so a link to a Play listing that
+       does not exist yet would be one dead control repeated site-wide. Leave it
+       blank until the listing is live. -->
+  <div class="card" style="padding:18px;margin-bottom:14px;">
+    <b>Download our app</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 0;">Where the website footer sends people to get the Android app, and where staff can grab the current build to share. <b>Leave a field empty and that button does not appear on the website</b> — better nothing than a link that 404s on every page.</p>
+    ${f('ad-apk','Direct APK URL',app.apk_url,'https://…/jamin-bazaar-v1.4.0.apk')}
+    ${f('ad-play','Google Play listing URL',app.play_url,'https://play.google.com/store/apps/details?id=…')}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">${f('ad-ver','Version shown to the reader',app.version,'1.4.0')}</div>
+      <div style="flex:1;min-width:160px">${f('ad-size','Download size',app.size_label,'62 MB')}</div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="saveAppDownload()">Save app links</button>
+      ${app.apk_url?`<button class="btn ghost" onclick="copyTxt('${esc(app.apk_url)}')">Copy APK link</button><a class="btn grey" href="${esc(app.apk_url)}" target="_blank" rel="noopener">Open APK</a>`:''}
+      ${app.play_url?`<button class="btn ghost" onclick="copyTxt('${esc(app.play_url)}')">Copy Play link</button>`:''}
+    </div>
+  </div>
   <div class="card" style="padding:18px;margin-bottom:14px;">
     <b>Share settings</b>
     <p class="muted" style="font-size:13px;margin:6px 0 0;">These texts appear on every branded share page (/s/…) and on each promoter-personalized brochure (/b/…). Change them here — no code deploy needed.</p>
@@ -2684,6 +2814,27 @@ window.saveShareCfg=async()=>{
   const {error}=await sb.from('site_config').upsert({key:'share',value,updated_at:new Date().toISOString()});
   if(error) return toast(error.message);
   toast('Share settings saved — live immediately');
+};
+
+// Owner spec 2026-08-21 §6. Writes the row the public website's footer reads.
+//
+// ⚠️ VALIDATED BEFORE IT IS SAVED, because a typo here goes onto every page of
+// the website. An empty field stores null — which is how a button is REMOVED
+// from the footer, so clearing one has to be allowed rather than treated as a
+// mistake. The website checks the scheme again on the way out; this check is so
+// the person typing finds out now instead of wondering why nothing appeared.
+window.saveAppDownload=async()=>{
+  const url=(v)=>{ v=(v||'').trim(); if(!v) return null;
+    try{ const u=new URL(v); return (u.protocol==='https:'||u.protocol==='http:') ? u.toString() : false; }catch(e){ return false; } };
+  const apk=url($("#ad-apk").value), play=url($("#ad-play").value);
+  if(apk===false) return toast('The APK URL is not a valid http(s) link.');
+  if(play===false) return toast('The Play Store URL is not a valid http(s) link.');
+  const value={ apk_url:apk, play_url:play,
+    version:$("#ad-ver").value.trim()||null, size_label:$("#ad-size").value.trim()||null };
+  const {error}=await sb.from('site_config').upsert({key:'app_download',value,updated_at:new Date().toISOString()});
+  if(error) return toast(error.message);
+  toast('App links saved — the website picks them up within the hour');
+  renderShareSettings();
 };
 
 /* ═════════════ JAMIN JOURNAL — editorial console (migration 0076) ═════════════
