@@ -229,6 +229,7 @@
   #app[data-view="journal"] main{--pv:#B4A7F5;--pv2:#DCD5F5;}
   #app[data-view="share"] main{--pv:#F472B6;--pv2:#F5C0DC;}
   #app[data-view="quiz"] main{--pv:#22C8B7;--pv2:#A6E5DE;}
+  #app[data-view="careers"] main{--pv:#C9A227;--pv2:#EDDBA0;}
   #app[data-view="audit"] main{--pv:#8FA3BF;--pv2:#CBD5E3;}
 
   /* ── AMBIENT LIGHT ──────────────────────────────────────────────────────
@@ -375,6 +376,12 @@
       <a data-view="visits" style="--tc:#5B8DEF"><span class="ic">🗓</span> Visits <span class="badge" id="b-visits" style="display:none"></span></a>
       <a data-view="leads" style="--tc:#F0474E"><span class="ic">📇</span> Leads <span class="badge" id="b-leads" style="display:none"></span></a>
       <a data-view="invites" style="--tc:#25D366"><span class="ic">💬</span> Invites <span class="badge" id="b-inv" style="display:none"></span></a>
+      <!-- Careers (owner 2026-08-23, with the website's /careers page). Under
+           Pipeline rather than People because a row here is a STRANGER who
+           applied through the website — People is for accounts that exist.
+           ⚠️ It is deliberately NOT merged into Leads: migration 0093's header
+           records why a jobseeker must never enter the sales pipeline. -->
+      <a data-view="careers" style="--tc:#C9A227"><span class="ic">💼</span> Careers <span class="badge" id="b-careers" style="display:none"></span></a>
       <div class="navlab">The Vault</div>
       <a data-view="vault" style="--tc:#E8C15A"><span class="ic">🔐</span> The Vault <span class="badge" id="b-vault" style="display:none"></span></a>
       <div class="navlab">Growth</div>
@@ -500,11 +507,18 @@ async function refreshBadges(){
     const { count } = await sb.from("promoter_applications").select("id",{count:"exact",head:true}).eq("status","pending");
     if(count > 0){ pb.style.display="inline-flex"; pb.textContent=count; } else pb.style.display="none";
   }
+  // Careers, same reasoning: a new tab must not mean editing
+  // admin_pending_counts, which sits on the money path and is shared with app.
+  const cb = document.getElementById("b-careers");
+  if(cb){
+    const { count } = await sb.from("career_applications").select("id",{count:"exact",head:true}).eq("status","new");
+    if(count > 0){ cb.style.display="inline-flex"; cb.textContent=count; } else cb.style.display="none";
+  }
 }
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",audit:"Audit Log"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",careers:"Career Applications",audit:"Audit Log"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
@@ -512,7 +526,7 @@ function go(v){
   // the stylesheet keys every card tint and ambient haze off this attribute.
   document.getElementById("app").dataset.view = v;
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,audit:renderAudit}[v])();
+  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,careers:renderCareerApps,audit:renderAudit}[v])();
 }
 window.go = go;
 
@@ -1388,6 +1402,106 @@ window.reviewPromoApp = async(id,decision)=>{
   if(data && data.ok===false) return toast(data.error||"Could not complete that.");
   toast(decision==="approved"?"Promoter approved":"Application declined");
   refreshBadges(); renderPromoterApps();
+};
+
+// ───────── careers ─────────
+// The website's /careers page writes here through `website_career_apply`
+// (migration 0093). This desk reads that table and moves a row along its
+// pipeline.
+//
+// 🚨 THIS IS A PIPELINE, NOT A VERDICT — the one way it differs from the
+// promoter-applications desk above. That RPC refuses a second decision because
+// approving GRANTS a role and must happen once. Here a row can go back and
+// forth (contacted, then shortlisted again after a second conversation), so
+// `admin_review_career_application` carries no "already reviewed" guard and
+// every button is live in every state.
+//
+// ⚠️ THE DECISION GOES THROUGH THE RPC, NEVER A DIRECT UPDATE. `career_applications`
+// has exactly one policy — super-admin only — and no anon or member write path
+// at all, because the SECURITY DEFINER RPC is the only thing that may insert.
+// A stray `sb.from("career_applications").update(...)` would look like it
+// worked and silently do nothing under RLS.
+const CAREER_ROLE_LABELS = {
+  promoter:"Jamin Promoters", broker:"Brokers & Channel Partners",
+  bizdev:"Business Development", crm:"Customer Relationships",
+  sales:"Property Sales", site:"Site & Project Coordination",
+  security:"Security Personnel", marketing:"Digital Marketing",
+  design:"Graphic & Creative", tech:"Technology & Product", open:"Open Application"
+};
+async function renderCareerApps(){
+  const status = window.__careerFilter || "new";
+  const role   = window.__careerRole   || "";
+  let q = sb.from("career_applications")
+    .select("id,role_key,role_label,full_name,mobile,email,city,experience,message,status,review_reason,referral_code,source_url,created_at,reviewed_at")
+    .order("created_at",{ascending:false});
+  // ⚠️ `status` is always filtered, `role` only when one is chosen — an empty
+  // string is "all roles", not a role whose key happens to be blank.
+  q = q.eq("status", status);
+  if(role) q = q.eq("role_key", role);
+  const { data, error } = await q;
+  if(error){ $("#view").innerHTML = `<div class="empty card">${esc(error.message)}</div>`; return; }
+  const rows = data||[];
+
+  const chip=(v,l)=>`<button class="btn ${status===v?'':'grey'} sm" onclick="careerFilter('${v}')">${l}</button>`;
+  const when=(iso)=>iso? new Date(iso).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}) : "—";
+  const roleOpts = ['<option value="">All roles</option>']
+    .concat(Object.keys(CAREER_ROLE_LABELS).map(k=>`<option value="${k}"${role===k?" selected":""}>${esc(CAREER_ROLE_LABELS[k])}</option>`))
+    .join("");
+
+  const card=(r)=>{
+    // The label as the applicant saw it, falling back to the key's current
+    // wording — that is the whole reason both are stored.
+    const roleName = r.role_label || CAREER_ROLE_LABELS[r.role_key] || r.role_key;
+    const tel = (r.mobile||"").replace(/\D/g,"");
+    const move=(v,l)=> r.status===v ? "" :
+      `<button class="btn ${v==='declined'?'ghost':'gold'} sm" onclick='moveCareerApp("${r.id}","${v}")'>${l}</button>`;
+    return `<div class="card" style="margin-bottom:12px;padding:16px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;justify-content:space-between">
+        <div style="min-width:220px">
+          <div style="font-size:16px;font-weight:700">${esc(r.full_name||"—")}</div>
+          <div class="muted" style="margin-top:2px">
+            ${esc(roleName)}${r.city?" · "+esc(r.city):""}
+          </div>
+          <div class="muted" style="margin-top:2px">
+            ${tel?`<a href="tel:+91${esc(tel)}">+91 ${esc(tel)}</a>`:"—"}${r.email?` · <a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:""}
+          </div>
+          <div class="muted" style="margin-top:2px">Applied ${when(r.created_at)}${r.reviewed_at?" · last moved "+when(r.reviewed_at):""}${r.referral_code?" · ref "+esc(r.referral_code):""}</div>
+        </div>
+        <div style="text-align:right;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          ${move('shortlisted','Shortlist')}${move('contacted','Contacted')}${move('declined','Decline')}${move('new','Reopen')}
+        </div>
+      </div>
+      ${r.experience?`<div style="margin-top:10px"><span class="muted">Experience:</span> ${esc(r.experience)}</div>`:""}
+      ${r.message?`<div style="margin-top:6px"><span class="muted">Says:</span> ${esc(r.message)}</div>`:""}
+      ${r.review_reason?`<div style="margin-top:8px;color:#B7791F"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
+    </div>`;
+  };
+
+  $("#view").innerHTML =
+    `<div class="toolbar" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">
+       ${chip('new','New')}${chip('shortlisted','Shortlisted')}${chip('contacted','Contacted')}${chip('declined','Declined')}
+       <select id="career-role" onchange="careerRole(this.value)" style="margin-left:auto">${roleOpts}</select>
+     </div>`
+    + `<div class="muted" style="margin-bottom:10px">Applications from the website's <a href="https://jamin-properties-web.netlify.app/careers" target="_blank" rel="noopener">Careers</a> page. These are NOT leads and are kept out of the sales pipeline on purpose.</div>`
+    + (rows.length ? rows.map(card).join("") : `<div class="empty card">No ${esc(status)} applications${role?" for "+esc(CAREER_ROLE_LABELS[role]||role):""}.</div>`);
+}
+window.careerFilter=(v)=>{ window.__careerFilter=v; renderCareerApps(); };
+window.careerRole=(v)=>{ window.__careerRole=v; renderCareerApps(); };
+window.moveCareerApp = async(id,status)=>{
+  let reason=null;
+  if(status==="declined"){
+    if(!confirm("Decline this application?")) return;
+    reason=prompt("Desk note (optional, internal only):");
+  }
+  const { data, error } = await sb.rpc("admin_review_career_application",{p_id:id,p_status:status,p_reason:reason});
+  if(error) return toast(error.message);
+  // ⚠️ The RPC returns {ok:false,error} rather than throwing for a business
+  // refusal - "not authorised", "unknown status". Without this branch those
+  // land as a cheerful success toast on a move that never happened. Same trap
+  // the promoter desk above already records.
+  if(data && data.ok===false) return toast(data.error||"Could not complete that.");
+  toast("Moved to "+status);
+  refreshBadges(); renderCareerApps();
 };
 
 // ───────── users ─────────
