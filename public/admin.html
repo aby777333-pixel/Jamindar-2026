@@ -2941,8 +2941,34 @@ window.quizSave=async(id)=>{
   toast("Saved — live in the app immediately"); closeDrawer(); renderQuiz();
 };
 
+// 🚨 IT MERGES. IT USED TO REPLACE, AND THAT DESTROYED FIVE FIELDS.
+//
+// `site_config.share` holds more than this form edits. Alongside the five
+// inputs below it carries a `corporate` block — the registered company name,
+// the Chennai office address, the sales email, two landlines and the website —
+// which the brochure function deliberately keeps ("cfg.corporate stays in
+// site_config should the official page ever be wanted again"). Nothing renders
+// it today, so nothing would have gone visibly wrong: pressing "Save settings"
+// on Share & Brochures simply deleted the company's own address, silently, and
+// the toast said "saved".
+//
+// The old body built `value` from the five inputs and upserted THAT as the
+// whole row. An upsert on a jsonb column is a REPLACE, not a patch — the same
+// trap as `mergePlotLayout`, which exists for exactly this reason one table
+// over.
+//
+// ⚠️ SO IT READS FIRST. Spread whatever is stored, then overwrite only the keys
+// this form owns. A key added to `share` by anything else — now or later —
+// survives a save it had nothing to do with.
+//
+// ⚠️ AND IT REFUSES TO SAVE IF THE READ FAILS. Falling back to `{}` on an error
+// would turn a transient network blip into the very data loss this fixes.
 window.saveShareCfg=async()=>{
+  const {data:current,error:readErr}=await sb.from('site_config')
+    .select('value').eq('key','share').maybeSingle();
+  if(readErr) return toast('Could not read the current settings — nothing was saved. '+readErr.message);
   const value={
+    ...(current && typeof current.value==='object' && current.value ? current.value : {}),
     badge_label:$("#sc-badge").value.trim()||'Verified Jamin Bazaar Partner',
     brand_name:$("#sc-brand").value.trim()||'Jamin Bazaar',
     tagline:$("#sc-tag").value.trim()||'Signature for Fortune',
