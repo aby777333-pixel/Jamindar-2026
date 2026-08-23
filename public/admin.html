@@ -1432,7 +1432,7 @@ async function renderCareerApps(){
   const status = window.__careerFilter || "new";
   const role   = window.__careerRole   || "";
   let q = sb.from("career_applications")
-    .select("id,role_key,role_label,full_name,mobile,email,city,experience,message,status,review_reason,referral_code,source_url,created_at,reviewed_at")
+    .select("id,role_key,role_label,full_name,mobile,email,city,experience,message,status,review_reason,referral_code,source_url,created_at,reviewed_at,attachment_path,attachment_name,attachment_type,attachment_size")
     .order("created_at",{ascending:false});
   // ⚠️ `status` is always filtered, `role` only when one is chosen — an empty
   // string is "all roles", not a role whose key happens to be blank.
@@ -1473,6 +1473,12 @@ async function renderCareerApps(){
       </div>
       ${r.experience?`<div style="margin-top:10px"><span class="muted">Experience:</span> ${esc(r.experience)}</div>`:""}
       ${r.message?`<div style="margin-top:6px"><span class="muted">Says:</span> ${esc(r.message)}</div>`:""}
+      ${r.attachment_path?`<div style="margin-top:8px">
+          <span class="muted">Attachment:</span>
+          <button class="btn grey sm" style="margin-left:6px" onclick='openCareerFile("${r.id}")'>
+            ⤓ ${esc(r.attachment_name||"file")}${r.attachment_size?` · ${Math.max(1,Math.round(r.attachment_size/1024))} KB`:""}
+          </button>
+        </div>`:""}
       ${r.review_reason?`<div style="margin-top:8px;color:#B7791F"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
     </div>`;
   };
@@ -1485,6 +1491,24 @@ async function renderCareerApps(){
     + `<div class="muted" style="margin-bottom:10px">Applications from the website's <a href="https://jamin-properties-web.netlify.app/careers" target="_blank" rel="noopener">Careers</a> page. These are NOT leads and are kept out of the sales pipeline on purpose.</div>`
     + (rows.length ? rows.map(card).join("") : `<div class="empty card">No ${esc(status)} applications${role?" for "+esc(CAREER_ROLE_LABELS[role]||role):""}.</div>`);
 }
+// 🚨 THE BUCKET IS PRIVATE AND STAYS PRIVATE. There is no public URL to link
+// to: `career-uploads` has no anon SELECT policy at all, so the only way to see
+// a CV is a signed URL minted here, valid for five minutes.
+//
+// ⚠️ THE PATH COMES FROM THE RPC, NOT FROM THE ROW ALREADY IN MEMORY. Reading
+// `r.attachment_path` directly would work — the desk is a super admin and RLS
+// would allow the sign — but going through `admin_career_attachment` is what
+// writes the audit row. Opening somebody's CV is an act worth having a record
+// of, which is the same argument that put the status change behind an RPC.
+window.openCareerFile = async(id)=>{
+  const { data, error } = await sb.rpc("admin_career_attachment",{p_id:id});
+  if(error) return toast(error.message);
+  if(!data || data.ok===false) return toast((data&&data.error)||"Could not open that file.");
+  const { data: signed, error: sErr } = await sb.storage
+    .from("career-uploads").createSignedUrl(data.path, 300, { download: data.name || true });
+  if(sErr) return toast(sErr.message);
+  window.open(signed.signedUrl, "_blank", "noopener");
+};
 window.careerFilter=(v)=>{ window.__careerFilter=v; renderCareerApps(); };
 window.careerRole=(v)=>{ window.__careerRole=v; renderCareerApps(); };
 window.moveCareerApp = async(id,status)=>{
