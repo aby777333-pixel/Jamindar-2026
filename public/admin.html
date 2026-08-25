@@ -14,12 +14,18 @@
     --navy:#141A2E; --navy2:#1E2740; --success:#0C8046; --success-soft:#E7F5EE;
     --ink:#14151A; --ink-soft:#565863; --ink-faint:#8E9099;
     --surface:#fff; --canvas:#F4F5F8; --sunken:#ECEDF1; --hair:#E7E8EE;
+    /* dark-mode plumbing: every ground the sheet used to spell as a literal
+       now rides a token, so the [data-mode="dark"] re-scope at the END of
+       this sheet can flip the whole console in one block. */
+    --zebra:#FBFBFD; --row-hover:#FBFAFC; --skel-hi:#F3F2F6;
+    --blue-soft:#E8F1FE; --blue-ink:#2B6FE1;
+    color-scheme:light;
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:"Inter",system-ui,sans-serif;background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;letter-spacing:-.01em;}
   a{color:var(--brand);text-decoration:none;}
   button{font-family:inherit;cursor:pointer;border:none;}
-  input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;outline:none;transition:border-color .15s ease,box-shadow .15s ease;}
+  input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);width:100%;background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:10px 12px;outline:none;transition:border-color .15s ease,box-shadow .15s ease;}
   input:focus,select,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(225,27,34,.1);}
   textarea{min-height:80px;resize:vertical;}
   label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:12px 0 6px;}
@@ -27,7 +33,7 @@
   .btn:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 12px 24px -10px rgba(225,27,34,.55);}
   .btn:active{transform:translateY(0) scale(.98);}
   .btn.gold{background:linear-gradient(135deg,#EBC152,var(--gold));color:var(--navy);box-shadow:0 8px 18px -10px rgba(224,164,35,.6);} .btn.gold:hover{filter:brightness(1.04);}
-  .btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand);box-shadow:none;}
+  .btn.ghost{background:var(--surface);color:var(--brand);border:1.5px solid var(--brand);box-shadow:none;}
   .btn.ink{background:linear-gradient(135deg,#273252,var(--navy));box-shadow:0 8px 18px -10px rgba(20,26,46,.5);} .btn.sm{padding:7px 12px;font-size:12.5px;border-radius:9px;}
   .btn.grey{background:var(--sunken);color:var(--ink-soft);box-shadow:none;}
   .btn.green{background:linear-gradient(135deg,#2BBE74,#0E8A4B);box-shadow:0 8px 18px -10px rgba(20,160,90,.55);}
@@ -40,8 +46,8 @@
      `.pill.grey`. Same ink as `.warn`, which is what a gold pill has always
      looked like everywhere it was spelled correctly. */
   .pill.gold{background:var(--gold-soft);color:var(--gold-dark);}
-  .pill.blue{background:#E8F1FE;color:#2B6FE1;}
-  .card{background:#fff;border:1px solid var(--hair);border-radius:16px;box-shadow:0 1px 2px rgba(20,26,46,.04),0 12px 26px -18px rgba(20,26,46,.14);transition:box-shadow .2s ease,transform .2s ease;}
+  .pill.blue{background:var(--blue-soft);color:var(--blue-ink);}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:16px;box-shadow:0 1px 2px rgba(20,26,46,.04),0 12px 26px -18px rgba(20,26,46,.14);transition:box-shadow .2s ease,transform .2s ease;}
 
   /* login */
   #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -76,12 +82,12 @@
   .stat:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(20,26,46,.06),0 18px 34px -18px rgba(20,26,46,.2);}
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
   .toolbar input,.toolbar select{width:auto;} .toolbar .grow{flex:1;min-width:180px;}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--hair);}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:14px;overflow:hidden;border:1px solid var(--hair);}
   th{background:var(--sunken);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);padding:11px 14px;position:sticky;top:0;z-index:1;}
   td{padding:12px 14px;border-top:1px solid var(--hair);font-size:13.5px;vertical-align:middle;}
-  tbody tr:nth-child(even){background:#FBFBFD;}
-  tr.click:hover{background:#faf9fb;cursor:pointer;}
-  tbody tr{transition:background .15s ease;} tbody tr:hover{background:#FBFAFC;}
+  tbody tr:nth-child(even){background:var(--zebra);}
+  tr.click:hover{background:var(--row-hover);cursor:pointer;}
+  tbody tr{transition:background .15s ease;} tbody tr:hover{background:var(--row-hover);}
   .thumb{width:48px;height:40px;border-radius:8px;object-fit:cover;background:var(--sunken);}
 
   /* drawer */
@@ -90,10 +96,10 @@
   .drawer.open{transform:translateX(0);} .drawer-bg.open{display:block;}
   .drawer .dh{position:sticky;top:0;background:var(--canvas);display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--hair);z-index:2;}
   .drawer .dh h3{margin:0;font-size:18px;font-weight:700;flex:1;} .drawer .body{padding:20px 22px 40px;}
-  .sec{background:#fff;border:1px solid var(--hair);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .sec{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px;margin-bottom:14px;}
   .sec h4{margin:0 0 10px;font-size:14px;font-weight:700;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;} .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px;}
-  .chips{display:flex;flex-wrap:wrap;gap:7px;} .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--hair);background:#fff;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;} .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);font-size:12.5px;font-weight:600;color:var(--ink-soft);}
   .chip{transition:transform .15s ease,box-shadow .15s ease;} .chip:hover{transform:translateY(-1px);}
   .chip.on{background:linear-gradient(135deg,#F0474E,var(--brand-dark));border-color:var(--brand);color:#fff;box-shadow:0 6px 14px -6px rgba(225,27,34,.5);} .chip.g.on{background:linear-gradient(135deg,#2BBE74,#0E8A4B);border-color:var(--success);}
   .switch{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:14px;font-weight:500;}
@@ -101,7 +107,7 @@
   .tgl.on{background:linear-gradient(135deg,#F0474E,var(--brand-dark));box-shadow:0 4px 10px -4px rgba(225,27,34,.5);}
   .tgl b{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);} .tgl.on b{left:21px;}
   .media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-  .mtile{border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fff;}
+  .mtile{border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:var(--surface);}
   .mtile img{width:100%;height:96px;object-fit:cover;display:block;background:var(--sunken);}
   .mtile .mt-b{padding:8px;display:flex;gap:6px;align-items:center;justify-content:space-between;}
   .mtile .star{color:var(--gold);font-weight:800;font-size:12px;}
@@ -111,7 +117,7 @@
   .toast.show{opacity:1;}
   .empty{padding:40px;text-align:center;color:var(--ink-faint);font-size:13px;}
   /* skeleton loading (owner spec: animated loading skeletons) */
-  .skel{border-radius:14px;background:linear-gradient(90deg,var(--sunken) 25%,#F3F2F6 45%,var(--sunken) 65%);background-size:200% 100%;animation:shimmer 1.3s ease-in-out infinite;}
+  .skel{border-radius:14px;background:linear-gradient(90deg,var(--sunken) 25%,var(--skel-hi) 45%,var(--sunken) 65%);background-size:200% 100%;animation:shimmer 1.3s ease-in-out infinite;}
   @keyframes shimmer{0%{background-position:180% 0;}100%{background-position:-40% 0;}}
   /* accessibility: visible keyboard focus + reduced-motion support */
   a:focus-visible,button:focus-visible,.btn:focus-visible,.chip:focus-visible,.tgl:focus-visible{outline:3px solid rgba(225,27,34,.4);outline-offset:2px;border-radius:10px;}
@@ -137,10 +143,10 @@
   .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--hair);margin-bottom:16px;}
   .tabs button{background:none;color:var(--ink-soft);font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px 10px 0 0;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s ease,border-color .15s ease;}
   .tabs button:hover{color:var(--ink);}
-  .tabs button.on{color:var(--brand);border-bottom-color:var(--brand);background:#fff;}
+  .tabs button.on{color:var(--brand);border-bottom-color:var(--brand);background:var(--surface);}
   .tabs .count{font-size:11px;font-weight:800;background:var(--sunken);color:var(--ink-faint);border-radius:999px;padding:1px 7px;margin-left:6px;}
   .tabs button.on .count{background:var(--brand-soft);color:var(--brand);}
-  .dz{border:2px dashed var(--hair);border-radius:14px;padding:28px 20px;text-align:center;background:#fff;transition:border-color .18s ease,background .18s ease;}
+  .dz{border:2px dashed var(--hair);border-radius:14px;padding:28px 20px;text-align:center;background:var(--surface);transition:border-color .18s ease,background .18s ease;}
   .dz.hot{border-color:var(--brand);background:var(--brand-soft);}
   .dz b{display:block;font-size:14px;margin-bottom:4px;}
   .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:12.5px;color:var(--ink-soft);}
@@ -314,11 +320,103 @@
       color-mix(in srgb, var(--pv,#C9CFE2) 10%, rgba(255,255,255,.9)) 100%);}
   }
   @media (prefers-reduced-transparency: reduce){
-    .card,.stats .card:nth-child(2n){background:#fff;-webkit-backdrop-filter:none;backdrop-filter:none;}
+    .card,.stats .card:nth-child(2n){background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none;}
     .card::after{display:none;}
     main{background:none;}
   }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     DARK MODE (owner, 2026-08-25) — `data-mode="dark"` on <html>, persisted in
+     localStorage `jb-admin-mode`, applied pre-paint by the boot script in
+     <head>. The whole flip rides the token re-scope below; the handful of
+     rules after it re-clothe the frosted-glass register, whose grounds are
+     hand-mixed whites that no token reaches. Ordering matters: this block is
+     LAST in the sheet so it wins over the base and frosted declarations.
+     The sidebar is already navy and deliberately keeps its one look. */
+  html[data-mode="dark"]{
+    --canvas:#12141D; --surface:#1A1E2A; --sunken:#242938; --hair:#2E3345;
+    --ink:#EDEEF4; --ink-soft:#A9ADBC; --ink-faint:#7B8090;
+    --brand:#F2555B;            /* links + pill ink need the brighter cut on dark */
+    --brand-soft:#3B1A1E; --gold-soft:#33290F; --gold-dark:#E4C36A;
+    --success:#3ECF8E; --success-soft:#123322;
+    --zebra:#1E222F; --row-hover:#242A3A; --skel-hi:#2B3040;
+    --blue-soft:#1A2A44; --blue-ink:#7EB3FF;
+    color-scheme:dark;          /* native selects, date pickers, scrollbars */
+  }
+  /* The frosted register, re-mixed for a dark room: same three-layer model
+     (specular, body, page-hue pool) built from dark glass instead of white. */
+  html[data-mode="dark"] .card{
+    background:linear-gradient(155deg, rgba(34,39,56,.88) 0%, rgba(26,30,44,.74) 46%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 13%, rgba(26,30,44,.78)) 100%);
+    border:1px solid color-mix(in srgb, var(--pv,#C9CFE2) 26%, rgba(255,255,255,.09));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.07),
+      inset 0 0 0 1px rgba(255,255,255,.03),
+      inset 0 -1px 0 rgba(0,0,0,.28),
+      0 1px 2px rgba(0,0,0,.35),
+      0 18px 38px -24px rgba(0,0,0,.6),
+      0 3px 8px -3px color-mix(in srgb, var(--pv,#C9CFE2) 16%, transparent);
+  }
+  html[data-mode="dark"] .stats .card:nth-child(2n){
+    background:linear-gradient(155deg, rgba(30,35,50,.84) 0%, rgba(24,28,41,.70) 46%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 16%, rgba(24,28,41,.74)) 100%);
+  }
+  /* Film grain multiplied over dark reads as dirt — screened it glows faintly
+     instead, which is the same "up close only" effect the light mode has. */
+  html[data-mode="dark"] .card::after{mix-blend-mode:screen;opacity:.04;}
+  html[data-mode="dark"] .stat:hover{
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.09),
+      inset 0 0 0 1px rgba(255,255,255,.04),
+      inset 0 -1px 0 rgba(0,0,0,.28),
+      0 2px 4px rgba(0,0,0,.4),
+      0 24px 44px -24px rgba(0,0,0,.65),
+      0 4px 10px -3px color-mix(in srgb, var(--pv,#C9CFE2) 22%, transparent);}
+  html[data-mode="dark"] .sec{
+    background:linear-gradient(160deg, var(--surface) 0%, #1C2130 55%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 8%, var(--surface)) 100%);
+    border-color:color-mix(in srgb, var(--pv,#C9CFE2) 22%, var(--hair));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.3);}
+  /* The active in-page tab mixed its accent with INK for its label — on dark
+     that mix goes muddy; mix toward white instead. Same for its count chip. */
+  html[data-mode="dark"] .tabs button.on{color:color-mix(in srgb, var(--pv,#E11B22) 55%, #fff);}
+  html[data-mode="dark"] .tabs button.on .count{
+    background:color-mix(in srgb, var(--pv,#E11B22) 24%, var(--surface));
+    color:color-mix(in srgb, var(--pv,#E11B22) 55%, #fff);}
+  /* Ambient hazes at half strength — pastels at 22% over near-black wash the
+     ink contrast the cards were measured for. */
+  html[data-mode="dark"] main{background:
+    radial-gradient(1100px 540px at 88% -8%, color-mix(in srgb, var(--pv) 12%, transparent), transparent 62%),
+    radial-gradient(900px 560px at -14% 36%, color-mix(in srgb, var(--pv2) 8%, transparent), transparent 60%);}
+  html[data-mode="dark"] .drawer{box-shadow:-20px 0 50px -20px rgba(0,0,0,.75);}
+  html[data-mode="dark"] .drawer-bg{background:rgba(0,0,0,.55);}
+  html[data-mode="dark"] .modal-bg{background:rgba(0,0,0,.6);}
+  @supports not (backdrop-filter: blur(1px)){
+    html[data-mode="dark"] .card{background:linear-gradient(155deg, rgba(31,36,52,.96), rgba(26,30,44,.92) 46%,
+      color-mix(in srgb, var(--pv,#C9CFE2) 10%, rgba(26,30,44,.94)) 100%);}
+  }
 </style>
+<script>
+/* Dark-mode boot + toggle. Plain script (not the module below) so the saved
+   mode lands on <html> BEFORE first paint — no white flash — and so the
+   button's inline onclick can see a global. */
+(function(){
+  try{ if(localStorage.getItem("jb-admin-mode")==="dark") document.documentElement.setAttribute("data-mode","dark"); }catch(e){}
+  window.toggleMode=function(){
+    var el=document.documentElement, toDark=el.getAttribute("data-mode")!=="dark";
+    if(toDark) el.setAttribute("data-mode","dark"); else el.removeAttribute("data-mode");
+    try{ localStorage.setItem("jb-admin-mode", toDark?"dark":"light"); }catch(e){}
+    var b=document.getElementById("mode-btn");
+    if(b){ b.textContent=toDark?"☀️":"🌙"; b.title=toDark?"Switch to light mode":"Switch to dark mode"; b.setAttribute("aria-pressed",String(toDark)); }
+  };
+  document.addEventListener("DOMContentLoaded",function(){
+    var b=document.getElementById("mode-btn");
+    if(b&&document.documentElement.getAttribute("data-mode")==="dark"){
+      b.textContent="☀️"; b.title="Switch to light mode"; b.setAttribute("aria-pressed","true");
+    }
+  });
+})();
+</script>
 </head>
 <body>
 
@@ -396,7 +494,7 @@
   <main>
     <header class="top">
       <h2 id="view-title">Dashboard</h2>
-      <div class="who"><span id="who-name" class="muted"></span><button class="btn grey sm" onclick="signOut()">Sign out</button></div>
+      <div class="who"><span id="who-name" class="muted"></span><button id="mode-btn" class="btn grey sm" onclick="toggleMode()" title="Switch to dark mode" aria-pressed="false">🌙</button><button class="btn grey sm" onclick="signOut()">Sign out</button></div>
     </header>
     <div id="view"></div>
   </main>
@@ -746,7 +844,7 @@ function brochureCoverField(){
       <button class="btn sm" id="gen_cover" type="button" style="flex:none">✦ From brochure</button>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-      <img id="cover_prev" src="${esc(cover)}" alt="" style="${cover?"":"display:none;"}height:92px;border:1px solid var(--line,#e7e8ee);border-radius:8px;background:#fff"/>
+      <img id="cover_prev" src="${esc(cover)}" alt="" style="${cover?"":"display:none;"}height:92px;border:1px solid var(--hair);border-radius:8px;background:var(--surface)"/>
       <span class="muted" style="font-size:11px">Without a cover the app falls back to the first property photo, so the brochure is never unreachable.</span>
     </div></div>`;
 }
@@ -1050,7 +1148,7 @@ async function loadPlotHolds(){
       <td>${esc(r.status)}</td>
       <td class="muted">${r.expires_at?new Date(r.expires_at).toLocaleString("en-IN"):"—"}</td>
       <td style="white-space:nowrap">${r.status==="held"
-        ? '<button class="btn btn-sm hold_ok">Payment received</button> <button class="btn btn-sm hold_no" style="background:#fee;color:#c00">Release</button>'
+        ? '<button class="btn btn-sm hold_ok">Payment received</button> <button class="btn btn-sm hold_no" style="background:var(--brand-soft);color:var(--brand)">Release</button>'
         : '<span class="muted">—</span>'}</td></tr>`).join("")}
     </tbody></table>
     <div class="muted" style="font-size:11px;margin-top:6px">Confirming marks the plot Booked for every buyer immediately. Recording the sale for commission stays in Earnings.</div>
@@ -1366,7 +1464,7 @@ async function renderPromoterApps(){
           <div class="muted" style="margin-top:2px">Applied ${when(r.created_at)}${r.reviewed_at?" · reviewed "+when(r.reviewed_at):""}</div>
         </div>
         <div style="text-align:right">
-          ${already?`<div style="color:#0F8A4D;font-weight:700;margin-bottom:6px">Already a ${esc(p.role)}</div>`:""}
+          ${already?`<div style="color:var(--success);font-weight:700;margin-bottom:6px">Already a ${esc(p.role)}</div>`:""}
           ${status==="pending"
             ? `<button class="btn ghost sm" onclick='reviewPromoApp("${r.id}","rejected")'>Decline</button>
                <button class="btn gold sm" onclick='reviewPromoApp("${r.id}","approved")'>Approve</button>`
@@ -1376,7 +1474,7 @@ async function renderPromoterApps(){
       ${r.occupation?`<div style="margin-top:10px"><span class="muted">Occupation:</span> ${esc(r.occupation)}</div>`:""}
       ${r.experience?`<div style="margin-top:6px"><span class="muted">Experience:</span> ${esc(r.experience)}</div>`:""}
       ${r.motivation?`<div style="margin-top:6px"><span class="muted">Why:</span> ${esc(r.motivation)}</div>`:""}
-      ${r.review_reason?`<div style="margin-top:8px;color:#B7791F"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
+      ${r.review_reason?`<div style="margin-top:8px;color:var(--gold-dark)"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
     </div>`;
   };
 
@@ -1479,7 +1577,7 @@ async function renderCareerApps(){
             ⤓ ${esc(r.attachment_name||"file")}${r.attachment_size?` · ${Math.max(1,Math.round(r.attachment_size/1024))} KB`:""}
           </button>
         </div>`:""}
-      ${r.review_reason?`<div style="margin-top:8px;color:#B7791F"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
+      ${r.review_reason?`<div style="margin-top:8px;color:var(--gold-dark)"><span class="muted">Desk note:</span> ${esc(r.review_reason)}</div>`:""}
     </div>`;
   };
 
@@ -1826,7 +1924,7 @@ function subCard(s){
     ${(s.description||s.notes)?`<div style="font-size:13px;margin-top:8px">${esc(s.description||s.notes)}</div>`:""}
     ${(s.videos&&s.videos.length)?`<div style="font-size:12px;margin-top:8px">🎬 ${s.videos.map((v,i)=>`<a href="${esc(v)}" target="_blank" rel="noopener">Video ${i+1}</a>`).join(" · ")}</div>`:""}
     ${(s.documents&&s.documents.length)?`<div style="font-size:12px;margin-top:6px">📄 ${s.documents.map(d=>`<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.label||"Document")}</a>`).join(" · ")}</div>`:""}
-    ${s.comments?`<div style="font-size:12px;margin-top:8px;background:var(--surface-sunken,#f4f4f2);border-radius:8px;padding:8px 10px">💬 <b>Promoter comments:</b> ${esc(s.comments)}</div>`:""}
+    ${s.comments?`<div style="font-size:12px;margin-top:8px;background:var(--sunken);border-radius:8px;padding:8px 10px">💬 <b>Promoter comments:</b> ${esc(s.comments)}</div>`:""}
     <div class="muted" style="font-size:12px;margin-top:8px">
       ${s.seller_name?`Seller: ${esc(s.seller_name)} `:""}${s.seller_phone?`· ${esc(s.seller_phone)} `:""}${s.seller_notes?`· ${esc(s.seller_notes)} `:""}${geo}
       ${s.gmaps_url?`· <a href="${esc(s.gmaps_url)}" target="_blank" rel="noopener">Map</a> `:""}${s.street_view_url?`· <a href="${esc(s.street_view_url)}" target="_blank" rel="noopener">Street View</a> `:""}</div>
@@ -2765,7 +2863,7 @@ async function renderWallet(){
   <div class="stats">
     <div class="stat card"><div class="n" style="color:var(--gold-dark)">${pending.length}</div><div class="l">Requests awaiting review</div></div>
     <div class="stat card"><div class="n" style="color:var(--gold-dark)">${inr(sum("pending"))}</div><div class="l">Amount pending</div></div>
-    <div class="stat card"><div class="n" style="color:#2B6FE1">${inr(sum("approved"))}</div><div class="l">Approved, to be paid</div></div>
+    <div class="stat card"><div class="n" style="color:var(--blue-ink)">${inr(sum("approved"))}</div><div class="l">Approved, to be paid</div></div>
     <div class="stat card"><div class="n" style="color:var(--success)">${inr(sum("paid"))}</div><div class="l">Paid out (listed)</div></div>
   </div>
   <div class="toolbar"><div class="chips">${chips}</div></div>
@@ -3111,7 +3209,7 @@ async function renderJournal(){
   <div class="card" style="padding:0;overflow:hidden">
     ${rows.length?`<table><thead><tr><th>Article</th><th>Status</th><th>Category</th><th>Author</th><th>Published</th><th>Health</th><th></th></tr></thead><tbody>
     ${rows.map(p=>{const h=jHealth(p);return `<tr>
-      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.id===leadId?` <span class="pill" style="background:var(--gold-soft,#FDF7E8);color:#8a6410;border:1px solid rgba(234,163,23,.4)" title="Leads because it is the most recently published">LEAD</span>`:""}${p.is_featured&&p.id!==leadId?` <span class="pill" style="background:#FDECEC;color:#9b1c1c;border:1px solid rgba(155,28,28,.3)" title="Pinned, but the pin no longer controls the lead — the most recently published article always leads">PINNED</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
+      <td><b style="font-size:13.5px">${esc(p.title)}</b>${p.id===leadId?` <span class="pill" style="background:var(--gold-soft);color:var(--gold-dark);border:1px solid rgba(234,163,23,.4)" title="Leads because it is the most recently published">LEAD</span>`:""}${p.is_featured&&p.id!==leadId?` <span class="pill" style="background:var(--brand-soft);color:var(--brand);border:1px solid rgba(155,28,28,.3)" title="Pinned, but the pin no longer controls the lead — the most recently published article always leads">PINNED</span>`:""}<div class="muted" style="font-size:11px">/journal/${esc(p.slug)}</div></td>
       <td><span class="pill ${J_TONE[p.status]||""}">${esc(String(p.status).replace("_"," "))}</span></td>
       <td class="muted">${esc(catName(p.category_id))}</td>
       <td class="muted">${esc(authName(p.author_id))}</td>
@@ -3594,7 +3692,7 @@ function jRenderEditor(){
 
   <div class="card" style="padding:14px;margin-bottom:12px">
     <label>Body <span class="muted" style="font-weight:400">Paste from Word or Docs and the formatting is kept</span></label>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin:6px 0 6px;padding:6px;border:1px solid var(--hair);border-radius:8px;background:#fafafa">
+    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin:6px 0 6px;padding:6px;border:1px solid var(--hair);border-radius:8px;background:var(--canvas)">
       <button class="btn grey sm" type="button" title="Heading (##)" onclick="jFmt('h2')" style="font-weight:700">H2</button>
       <button class="btn grey sm" type="button" title="Sub-heading (###)" onclick="jFmt('h3')" style="font-weight:700">H3</button>
       <span style="width:1px;height:18px;background:var(--hair);margin:0 3px"></span>
@@ -3648,6 +3746,8 @@ function jRenderEditor(){
   <div class="card" style="padding:14px;margin-bottom:12px">
     <b style="font-size:13.5px">Search appearance</b>
     <p class="muted" style="font-size:12px;margin:4px 0 10px">A guide to how the result may look. Google composes the final snippet itself.</p>
+    <!-- Deliberately WHITE in both modes: this box imitates a Google result,
+         and Google's ink colours are drawn for Google's white page. -->
     <div style="border:1px solid var(--hair);border-radius:10px;padding:12px;background:#fff">
       <div style="color:#1a0dab;font-size:16px;line-height:1.3" id="j-prev-title">${esc(seo.title||JCUR.title||"Article title")}</div>
       <div style="color:#006621;font-size:12.5px;margin-top:2px">jaminproperties.com/journal/<span id="j-prev-slug">${esc(JCUR.slug||"slug")}</span></div>
