@@ -61,7 +61,7 @@ export interface PlotPlanGeometry {
   authority?: string;
   totalPlots?: number;
   /** Either a plain string, or the sheet's structured area statement rows. */
-  areaStatement?: string | { label?: string; area?: string | number }[];
+  areaStatement?: string | { label?: string; area?: string | number; areaSqm?: number; percent?: number }[];
   notes?: string;
 }
 
@@ -712,8 +712,16 @@ export function PlotTitleBlock({
   if (typeof area === "string" && area.trim()) {
     rows.push(["Area", area]);
   } else if (Array.isArray(area)) {
+    // Two row shapes: the seeded sheet's {label, areaSqm, percent} (what the
+    // admin console edits) and the older {label, area} string form.
     area.forEach((a) => {
-      if (a?.label && a?.area != null) rows.push([String(a.label), String(a.area)]);
+      if (!a?.label) return;
+      if (a.area != null) { rows.push([String(a.label), String(a.area)]); return; }
+      if (a.areaSqm != null) {
+        const sqm = Number(a.areaSqm);
+        const v = `${Number.isFinite(sqm) ? sqm.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : a.areaSqm} m²${a.percent != null ? ` · ${a.percent}%` : ""}`;
+        rows.push([String(a.label), v]);
+      }
     });
   }
   if (!rows.length) return null;

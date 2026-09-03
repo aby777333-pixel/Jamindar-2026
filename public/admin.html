@@ -226,6 +226,7 @@
   #app[data-view="earnings"] main{--pv:#E8B93E;--pv2:#F1DCA6;}
   #app[data-view="bazaar"] main{--pv:#FF9A4D;--pv2:#F5CFA8;}
   #app[data-view="wallet"] main{--pv:#2DD4BF;--pv2:#A8E8DF;}
+  #app[data-view="advances"] main{--pv:#F59E0B;--pv2:#F5DCA8;}
   #app[data-view="subs"] main{--pv:#FFB35C;--pv2:#F5DCB8;}
   #app[data-view="visits"] main{--pv:#5B8DEF;--pv2:#B8CCF5;}
   #app[data-view="leads"] main{--pv:#F0474E;--pv2:#F5B8BB;}
@@ -469,6 +470,12 @@
       <a data-view="earnings" style="--tc:#E8B93E"><span class="ic">💰</span> Earnings</a>
       <a data-view="bazaar" style="--tc:#FF9A4D"><span class="ic">💼</span> Sales Income</a>
       <a data-view="wallet" style="--tc:#2DD4BF"><span class="ic">👛</span> Wallet <span class="badge" id="b-wallet" style="display:none"></span></a>
+      <!-- Advance payments (owner 2026-09-01 docx §3). A buyer reports a
+           transfer with the transaction id and a proof; this desk approves or
+           rejects it. ⚠️ Approving changes ONLY the payment's status — the
+           plot is booked from the property drawer's "Payment received", as
+           before, so a mis-click here never takes a plot off the market. -->
+      <a data-view="advances" style="--tc:#F59E0B"><span class="ic">🧾</span> Advance Payments <span class="badge" id="b-advances" style="display:none"></span></a>
       <div class="navlab">Pipeline</div>
       <a data-view="subs" style="--tc:#FFB35C"><span class="ic">📥</span> Submissions <span class="badge" id="b-subs" style="display:none"></span></a>
       <a data-view="visits" style="--tc:#5B8DEF"><span class="ic">🗓</span> Visits <span class="badge" id="b-visits" style="display:none"></span></a>
@@ -612,11 +619,17 @@ async function refreshBadges(){
     const { count } = await sb.from("career_applications").select("id",{count:"exact",head:true}).eq("status","new");
     if(count > 0){ cb.style.display="inline-flex"; cb.textContent=count; } else cb.style.display="none";
   }
+  // Advance payments (0096), counted here for the same reason as the tabs above.
+  const ab = document.getElementById("b-advances");
+  if(ab){
+    const { count } = await sb.from("advance_payments").select("id",{count:"exact",head:true}).eq("status","pending");
+    if(count > 0){ ab.style.display="inline-flex"; ab.textContent=count; } else ab.style.display="none";
+  }
 }
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",careers:"Career Applications",audit:"Audit Log"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",advances:"Advance Payments",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",careers:"Career Applications",audit:"Audit Log"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
@@ -624,7 +637,7 @@ function go(v){
   // the stylesheet keys every card tint and ambient haze off this attribute.
   document.getElementById("app").dataset.view = v;
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,careers:renderCareerApps,audit:renderAudit}[v])();
+  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,advances:renderAdvancePayments,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,careers:renderCareerApps,audit:renderAudit}[v])();
 }
 window.go = go;
 
@@ -984,6 +997,44 @@ function plotGrid(p){
   </div>`;
 }
 
+/** "label|sq m|percent" lines → the sheet's areaStatement rows (0064 shape). */
+function parseAreaStatement(text){
+  return String(text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const [label,sqm,pct]=l.split("|").map(x=>(x||"").trim());
+    if(!label) return null;
+    const r={label};
+    const n=Number(String(sqm).replace(/,/g,"")); if(sqm!==""&&Number.isFinite(n)) r.areaSqm=n;
+    const p=Number(String(pct).replace(/%/g,"")); if(pct!==""&&Number.isFinite(p)) r.percent=p;
+    return r;
+  }).filter(Boolean);
+}
+
+// ── project bank accounts (0096, owner docx 01-09-2026 §2) ─────────────────
+// Two blocks, five fields each. Stored as properties.bank_accounts (jsonb
+// array); a block left entirely blank is dropped rather than saved empty.
+const BANK_FIELDS=[["bank_name","Bank name","State Bank of India"],["account_name","Account name","Jamin Properties"],
+  ["account_no","Account number","000012345678"],["ifsc","IFSC","SBIN0001234"],["branch","Branch","Edappadi"],["account_type","Account type","Current"]];
+function bankAccountsMarkup(){
+  const acc=Array.isArray(CUR.bank_accounts)?CUR.bank_accounts:[];
+  const block=(i)=>{const a=acc[i]||{};return `<div style="border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:6px">Bank account ${i+1}</div>
+    <div class="grid3">${BANK_FIELDS.map(([k,l,ph])=>`<div><label>${l}</label><input data-bank="${i}" data-bk="${k}" value="${esc(a[k]??"")}" placeholder="${ph}"/></div>`).join("")}</div>
+  </div>`;};
+  return `<div class="sec"><h4>Bank accounts (buyer payments)</h4>
+    <div class="muted" style="font-size:11.5px;margin:-2px 0 10px">Shown to a signed-in buyer on the advance-payment step for this project, so they can transfer without waiting for a call. Leave a block blank to hide it.</div>
+    ${block(0)}${block(1)}
+  </div>`;
+}
+function collectBankAccounts(){
+  const out=[];
+  for(let i=0;i<2;i++){
+    const a={};
+    $("#drawer").querySelectorAll(`[data-bank="${i}"]`).forEach(e=>{const v=e.value.trim(); if(v) a[e.dataset.bk]=v;});
+    if(Object.keys(a).length) out.push(a);
+  }
+  return out;
+}
+
 function mergePlotLayout(existing, text){
   const prev={}; (existing||[]).forEach(r=>{ const k=String(r.plot??r.plot_no??"").trim(); if(k) prev[k]=r; });
   return String(text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
@@ -1012,6 +1063,10 @@ function renderEditor(){
   // the schedule is obvious. Geometry is never edited here — it is regenerated
   // from the approved DTCP drawing.
   const beforeLines=(CUR.before_images||[]).join("\n");
+  // Area statement rows live inside plot_plan (the traced sheet). Only this
+  // one key is edited here; the geometry is never rebuilt from the form.
+  const areaLines=(Array.isArray(CUR.plot_plan?.areaStatement)?CUR.plot_plan.areaStatement:[])
+    .map(a=>[a.label??"",a.areaSqm??a.area??"",a.percent??""].join("|").replace(/\|+$/,"")).join("\n");
   const nearLines=(CUR.nearby_places||[]).map(n=>[n.name,n.distance||"",n.duration||"",n.category||""].join("|").replace(/\|+$/,"")).join("\n");
   $("#drawer").innerHTML = `
    <div class="dh"><button class="btn grey sm" onclick="closeDrawer()">✕</button><h3>${CUR.id?"Edit property":"New property"}</h3>
@@ -1051,12 +1106,16 @@ function renderEditor(){
     ${referralLevelsMarkup()}
     ${launchOfferMarkup()}
     <div class="sec"><h4>Pricing & size</h4><div class="grid2">
-      ${fld("Price (₹)","price","4250000","number")}${fld("Area value","area_value","2400","number")}
-      ${fld("Area unit","area_unit","sqft")}${fld("Property age","property_age","New")}
+      ${fld("Price (₹)","price","4250000","number")}${fld("Total extent (value)","area_value","3.98","number")}
+      ${fld("Total extent unit (acres / sqft / cents)","area_unit","acres")}${fld("Property age","property_age","New")}
       ${fld("Plots total","plots_total","","number")}${fld("Plots available","plots_available","","number")}
       ${fld("Taxes","taxes","")}${fld("Maintenance","maintenance_charges","")}
       ${fld("Plot length (ft)","plot_length","","number")}${fld("Plot breadth (ft)","plot_breadth","","number")}
-    </div><div class="switch">Price negotiable <div class="tgl ${CUR.price_negotiable?'on':''}" data-tgl="price_negotiable"><b></b></div></div></div>
+      ${fld("Minimum advance (₹)","min_advance_amount","","number")}
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:-4px 0 8px">Total extent is the headline figure buyers see (“3.98 acres”). Minimum advance is the least a buyer can pay to reserve a plot in this project — leave blank to not offer advance payment.</div>
+    <div class="switch">Price negotiable <div class="tgl ${CUR.price_negotiable?'on':''}" data-tgl="price_negotiable"><b></b></div></div></div>
+    ${bankAccountsMarkup()}
     <div class="sec"><h4>Location (India)</h4><div class="grid2">
       ${fld("Locality","locality")}${fld("City / Town","city")}${fld("Taluk","taluk")}${fld("District","district")}
       ${fld("Village","village")}${fld("State","state")}${fld("PIN code","pincode")}${fld("Survey number","survey_number","123/4B")}
@@ -1084,6 +1143,8 @@ function renderEditor(){
         ${planPreview(CUR)}
         <div id="plotholds"></div>
         ${plotGrid(CUR)}</div>
+      <div><label>Area statement (label|sq m|percent — one per line; the “Total extent of site” table on the approved-plan sheet)</label><textarea data-k="_area_statement" placeholder="Total extent of site|16106.5|100&#10;Area under roads|5603.585|34.8&#10;Open space reservation|1061.44|10.1">${esc(areaLines)}</textarea>
+        <div class="muted" style="font-size:11px;margin-top:4px">${CUR.plot_plan&&CUR.plot_plan.viewBox?"Edits here repaint the sheet's Area statement on the website and in the app.":"Stored with the property; it is shown once this project has a traced plan."}</div></div>
       <div><label>Nearby places (name|distance|time|category — one per line)</label><textarea data-k="_nearby" placeholder="City Hospital|2.4 km||Healthcare">${esc(nearLines)}</textarea></div>
       <div><label>Before-development photos (completed projects — one image URL per line, powers the app's Before/After toggle)</label><textarea data-k="_before_images" placeholder="https://…/before-1.jpg">${esc(beforeLines)}</textarea></div></div>
     ${plotManagerMarkup()}
@@ -1282,10 +1343,20 @@ window.saveProperty = async ()=>{
     brochure_url:g("brochure_url").trim()||null, brochure_cover_url:g("brochure_cover_url").trim()||null, master_plan_url:g("master_plan_url").trim()||null, virtual_tour_url:g("virtual_tour_url").trim()||null,
     loan_eligible:$(`#drawer [data-tgl="loan_eligible"]`).classList.contains("on"), loan_details:g("loan_details").trim()||null, encumbrance_status:g("encumbrance_status").trim()||null,
     plot_layout:mergePlotLayout(CUR.plot_layout,g("_plot_layout")),
+    min_advance_amount:num("min_advance_amount"),
+    bank_accounts:collectBankAccounts(),
     nearby_places:g("_nearby").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const[name,distance,duration,category]=l.split("|").map(x=>x.trim());const r={name};if(distance)r.distance=distance;if(duration)r.duration=duration;if(category)r.category=category;return r;}).filter(r=>r.name),
     before_images:g("_before_images").split("\n").map(l=>l.trim()).filter(Boolean),
   };
   if(!payload.title){ toast("Title is required"); return; }
+  // Area statement → plot_plan.areaStatement, merged onto the existing plan so
+  // the traced geometry is untouched. A blank textarea on a property that has
+  // no plan writes nothing at all.
+  {
+    const rows=parseAreaStatement(g("_area_statement"));
+    const prev=CUR.plot_plan&&typeof CUR.plot_plan==="object"?CUR.plot_plan:null;
+    if(rows.length||(prev&&prev.areaStatement)) payload.plot_plan=Object.assign({},prev||{},{areaStatement:rows});
+  }
   try{
     const wasNew = !CUR.id;
     if(CUR.id){ const {error}=await sb.from("properties").update(payload).eq("id",CUR.id); if(error)throw error; }
@@ -2893,6 +2964,68 @@ window.wdAct=async(id,action)=>{
   if(data && data.ok===false) return toast(data.error||"Action failed");
   toast(action==="paid"?"Marked paid — wallet updated & promoter notified":action==="approve"?"Approved — promoter notified":"Declined — promoter notified");
   refreshBadges(); renderWallet();
+};
+
+// ───────── advance payments (0096, owner docx 01-09-2026 §3) ─────────
+// The buyer's self-reported transfer: amount, transaction id, proof. This desk
+// verifies against the bank statement and approves or rejects. Approving
+// changes ONLY the payment row — the plot is booked from the property drawer's
+// "Payment received", exactly as before.
+let apStatus = "pending";
+async function renderAdvancePayments(){
+  const {data,error}=await sb.rpc("admin_advance_payments", apStatus?{p_status:apStatus}:{});
+  if(error){ $("#view").innerHTML=`<div class='empty'>${esc(error.message)}</div>`; return; }
+  const rows=data||[];
+  const sum=(st)=>rows.filter(r=>r.status===st).reduce((a,r)=>a+Number(r.amount),0);
+  const pending=rows.filter(r=>r.status==="pending");
+  const pill=(s)=>({pending:'<span class="pill warn">Pending</span>',approved:'<span class="pill ok">Approved</span>',rejected:'<span class="pill red">Rejected</span>'}[s]||esc(s));
+  const chips=[["pending","Pending"],["approved","Approved"],["rejected","Rejected"],["","All (history)"]]
+    .map(([v,l])=>`<button class="chip ${apStatus===v?'on':''}" onclick="apFilter('${v}')">${l}</button>`).join("");
+  const when=(iso)=>iso?new Date(iso).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+  $("#view").innerHTML = `
+  <div class="stats">
+    <div class="stat card"><div class="n" style="color:var(--gold-dark)">${pending.length}</div><div class="l">Awaiting verification</div></div>
+    <div class="stat card"><div class="n" style="color:var(--gold-dark)">${inr(sum("pending"))}</div><div class="l">Amount pending</div></div>
+    <div class="stat card"><div class="n" style="color:var(--success)">${inr(sum("approved"))}</div><div class="l">Approved (listed)</div></div>
+    <div class="stat card"><div class="n" style="color:var(--brand)">${rows.filter(r=>r.status==="rejected").length}</div><div class="l">Rejected (listed)</div></div>
+  </div>
+  <div class="toolbar"><div class="chips">${chips}</div></div>
+  ${rows.length?`<table><thead><tr><th>Ref</th><th>Buyer</th><th>Project / plot</th><th>Amount</th><th>Transaction ID</th><th>Proof</th><th>Status</th><th>Received</th><th style="min-width:180px">Actions</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr>
+      <td class="mono">${esc(r.ref)}</td>
+      <td><b>${esc(r.full_name||"—")}</b><br><span class="muted" style="font-size:11.5px">${esc(r.member_code||"")} · ${esc(r.mobile||"")}</span></td>
+      <td>${esc(r.property_title||"")}${r.project_id?` <span class="muted" style="font-size:11px">${esc(r.project_id)}</span>`:""}<br><span class="muted" style="font-size:11.5px">${r.plot?`Plot ${esc(r.plot)}`:"No plot"}${r.hold_ref?` · hold ${esc(r.hold_ref)}`:""}</span></td>
+      <td><b>${inr(r.amount)}</b><br><span class="muted" style="font-size:11.5px">${r.method==="upi"?"UPI":"Bank transfer"}</span></td>
+      <td class="mono" style="font-size:12px">${esc(r.transaction_id)}</td>
+      <td>${r.proof_path?`<button class="btn sm ghost" onclick="apProof('${r.id}')">View proof</button><br><span class="muted" style="font-size:11px">${esc(r.proof_name||"")}</span>`:'<span class="muted">none</span>'}</td>
+      <td>${pill(r.status)}${r.remarks?`<br><span class="muted" style="font-size:11.5px">${esc(r.remarks)}</span>`:""}</td>
+      <td><span class="muted" style="font-size:12px">${when(r.created_at)}</span>${r.decided_at?`<br><span class="muted" style="font-size:11px">decided ${when(r.decided_at)}</span>`:""}</td>
+      <td>${r.status==="pending"?`<button class="btn sm green" onclick="apAct('${r.id}','approve')">Approve</button>
+            <button class="btn sm grey" onclick="apAct('${r.id}','reject')">Reject</button>`:`<span class="muted" style="font-size:12px">Settled</span>`}</td>
+    </tr>`).join("")}</tbody></table>
+    <div class="muted" style="font-size:11.5px;margin-top:10px">Approving tells the buyer their advance is verified. It does not book the plot — do that from the property drawer’s plot holds (“Payment received”) once the money is confirmed.</div>`
+  :`<div class="empty card" style="padding:48px">No advance payments${apStatus?` with status “${esc(apStatus)}”`:""} yet.<br><span style="font-size:12px">A buyer who pays an advance in the app appears here with the transaction ID and proof.</span></div>`}`;
+}
+window.apFilter=(v)=>{ apStatus=v; renderAdvancePayments(); };
+window.apAct=async(id,action)=>{
+  let remarks=null;
+  if(action==="reject"){ remarks=prompt("Reason for rejecting (shown to the buyer):"); if(remarks===null) return; }
+  if(action==="approve"){ if(!confirm("Approve this advance payment? The buyer is notified and the status shows Approved in the app.")) return; }
+  const {data,error}=await sb.rpc("admin_review_advance_payment",{p_id:id,p_action:action,p_remarks:remarks});
+  if(error) return toast(error.message);
+  if(data && data.ok===false) return toast(data.error||"Action failed");
+  toast(action==="approve"?"Approved — buyer notified":"Rejected — buyer notified");
+  refreshBadges(); renderAdvancePayments();
+};
+// Audited open: the RPC logs the access and returns the path; the console
+// mints the short-lived signed URL (SQL cannot reach the storage API).
+window.apProof=async(id)=>{
+  const {data,error}=await sb.rpc("admin_advance_payment_proof",{p_id:id});
+  if(error) return toast(error.message);
+  if(!data||data.ok===false) return toast((data&&data.error)||"Could not open the proof");
+  const {data:s,error:sErr}=await sb.storage.from("payment-proofs").createSignedUrl(data.path,300);
+  if(sErr||!s?.signedUrl) return toast(sErr?.message||"Could not sign the file");
+  window.open(s.signedUrl,"_blank","noopener");
 };
 
 // ───────── buyer questionnaire management (0063) ─────────

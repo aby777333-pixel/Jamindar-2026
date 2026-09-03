@@ -5,8 +5,55 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { BecomePromoterBanner, InviteFriendsPrompt } from "@/components/promoter-cta";
 import { colors, space, type as T } from "@/lib/theme";
-import { initials } from "@/lib/format";
+import { initials, formatINR } from "@/lib/format";
 import { KYC_STATUS_META } from "@/lib/types";
+import { useQuery } from "@tanstack/react-query";
+import { ADVANCE_STATUS_LABEL, fetchMyAdvances } from "@/lib/advance";
+
+const ADVANCE_TINT: Record<string, string> = { pending: colors.gold, approved: colors.success, rejected: "#D93025" };
+
+/**
+ * Advance payments the buyer has recorded (0096) and where each one stands.
+ * Rendered only when there is at least one — a buyer who has never paid an
+ * advance should not see an empty "payments" box on their dashboard.
+ */
+function AdvancePayments({ userId }: { userId: string }) {
+  const router = useRouter();
+  const { data } = useQuery({
+    queryKey: ["my-advances", userId],
+    queryFn: () => fetchMyAdvances(userId),
+  });
+  if (!data?.length) return null;
+  return (
+    <View style={{ marginBottom: space.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 }}>
+      <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", color: colors.inkFaint, paddingVertical: 8 }}>
+        Your advance payments
+      </Text>
+      {data.slice(0, 5).map((a, i) => {
+        const tint = ADVANCE_TINT[a.status] ?? colors.inkFaint;
+        return (
+          <Pressable
+            key={a.id}
+            onPress={() => router.navigate(`/property/${a.property_id}` as Href)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderColor: colors.border }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13.5, fontWeight: "700", color: colors.ink }} numberOfLines={1}>
+                {formatINR(Number(a.amount))}{a.plot ? ` · Plot ${a.plot}` : ""}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: colors.inkFaint, marginTop: 2 }} numberOfLines={1}>
+                {a.ref} · Txn {a.transaction_id} · {new Date(a.created_at).toLocaleDateString("en-IN")}
+              </Text>
+            </View>
+            <View style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: `${tint}1A` }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: tint }}>{ADVANCE_STATUS_LABEL[a.status] ?? a.status}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 type Item = { label: string; icon: string; href: Href; tint?: string };
 
@@ -65,6 +112,9 @@ export default function BuyerDashboard() {
             </View>
           ) : null}
         </View>
+
+        {/* advance payments and their verification status (0096) */}
+        {profile?.id ? <AdvancePayments userId={profile.id} /> : null}
 
         {/* upgrade to promoter — buyers only */}
         <View style={{ marginBottom: space.md }}>

@@ -212,7 +212,19 @@ export interface Property {
     metresPerUnit?: number;
     approvalNo?: string;
     scale?: string;
+    /** The sheet's area statement (0064 shape); editable from the admin console since 0096. */
+    areaStatement?: string | { label?: string; areaSqm?: number; percent?: number; area?: string | number }[];
   } | null;
+  /**
+   * Company bank accounts a buyer pays this project's advance into (0096).
+   * Up to two; entered on the admin console's property drawer.
+   */
+  bank_accounts?: {
+    bank_name?: string; account_name?: string; account_no?: string;
+    ifsc?: string; branch?: string; account_type?: string;
+  }[] | null;
+  /** Minimum advance to reserve a plot in this project (0096). Null = advance not offered. */
+  min_advance_amount?: number | null;
   documents: { label: string; url: string; size?: string }[];
   drone_videos: string[];
   rera_number: string | null;

@@ -3,9 +3,10 @@ import * as Clipboard from "expo-clipboard";
 import { openExternal } from "../lib/browser";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Alert, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
+import * as ImagePicker from "expo-image-picker";
 
 import { colors } from "../lib/theme";
 import { supabase } from "../lib/supabase";
@@ -13,6 +14,10 @@ import { useAuth } from "../lib/store";
 import { formatINR } from "../lib/format";
 import type { Property } from "../lib/types";
 import type { PlotRow } from "./PlotPlan";
+import {
+  ADVANCE_STATUS_LABEL, fetchMyAdvance, submitAdvancePayment, uploadPaymentProof,
+  type AdvancePayment, type BankAccount, type UploadedProof,
+} from "../lib/advance";
 
 /**
  * Full detail sheet for one plot.
@@ -97,6 +102,82 @@ function Row({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+/**
+ * The company's bank accounts for this project (0096). Shown on the payment
+ * step so a buyer can transfer without waiting for a call. Each value is
+ * copyable — an account number retyped from a phone screen is how transfers
+ * go astray.
+ */
+function BankAccounts({ accounts }: { accounts: BankAccount[] }) {
+  if (!accounts.length) return null;
+  const copy = async (label: string, v?: string) => {
+    if (!v) return;
+    await Clipboard.setStringAsync(v);
+    Alert.alert("Copied", `${label} copied to clipboard.`);
+  };
+  return (
+    <View style={{ gap: 8 }}>
+      {accounts.map((a, i) => (
+        <View key={i} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.ink, paddingVertical: 6 }}>
+            {a.bank_name || `Bank account ${i + 1}`}{a.account_type ? ` · ${a.account_type}` : ""}
+          </Text>
+          {a.account_name ? <Row label="Account name" value={a.account_name} /> : null}
+          {a.account_no ? (
+            <Pressable onPress={() => copy("Account number", a.account_no)}>
+              <Row label="Account number  (tap to copy)" value={a.account_no} />
+            </Pressable>
+          ) : null}
+          {a.ifsc ? (
+            <Pressable onPress={() => copy("IFSC", a.ifsc)}>
+              <Row label="IFSC  (tap to copy)" value={a.ifsc} />
+            </Pressable>
+          ) : null}
+          {a.branch ? <Row label="Branch" value={a.branch} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const ADVANCE_TINT: Record<string, string> = {
+  pending: colors.gold,
+  approved: colors.success,
+  rejected: "#D93025",
+};
+
+/** The buyer's recorded advance and where it stands (0096). */
+function AdvanceCard({ row }: { row: AdvancePayment }) {
+  const tint = ADVANCE_TINT[row.status] ?? colors.inkFaint;
+  return (
+    <View style={{ marginTop: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 13, backgroundColor: colors.surfaceAlt }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <Text style={{ fontSize: 12.5, fontWeight: "800", color: colors.ink }}>Advance payment {row.ref}</Text>
+        <View style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: `${tint}1A` }}>
+          <Text style={{ fontSize: 11, fontWeight: "700", color: tint }}>{ADVANCE_STATUS_LABEL[row.status] ?? row.status}</Text>
+        </View>
+      </View>
+      <Row label="Amount" value={formatINR(Number(row.amount))} />
+      <Row label="Transaction ID" value={row.transaction_id} />
+      <Row label="Proof" value={row.proof_path ? (row.proof_name || "Attached") : "Not attached"} />
+      <Row label="Recorded" value={new Date(row.created_at).toLocaleString("en-IN")} />
+      {row.status === "pending" ? (
+        <Text style={{ fontSize: 11.5, color: colors.inkFaint, lineHeight: 17, marginTop: 8 }}>
+          Our desk checks the transfer against the bank statement. You will be notified the moment it is approved.
+        </Text>
+      ) : row.status === "rejected" ? (
+        <Text style={{ fontSize: 11.5, color: "#D93025", lineHeight: 17, marginTop: 8 }}>
+          {row.remarks ? `Reason: ${row.remarks}. ` : ""}Please contact the sales desk, or record the payment again with the correct details.
+        </Text>
+      ) : (
+        <Text style={{ fontSize: 11.5, color: colors.success, lineHeight: 17, marginTop: 8 }}>
+          Verified{row.decided_at ? ` on ${new Date(row.decided_at).toLocaleDateString("en-IN")}` : ""}. Our team will be in touch about registration.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 function Section({ title }: { title: string }) {
   return (
     <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", color: colors.inkFaint, marginTop: 22, marginBottom: 2 }}>
@@ -174,12 +255,30 @@ export function PlotSheet({
   // Hold flow. Jamin Bazaar takes money by bank transfer and UPI — there is no
   // gateway — so this reserves the plot and hands off to the sales desk rather
   // than pretending to take a payment.
-  const [step, setStep] = useState<"detail" | "confirm" | "done">("detail");
+  const [step, setStep] = useState<"detail" | "confirm" | "done" | "pay" | "paid">("detail");
   const [method, setMethod] = useState<"bank" | "upi">("bank");
   const [busy, setBusy] = useState(false);
   const [held, setHeld] = useState<{ ref: string; holdId?: string; expiresAt: string; amount: number | null } | null>(null);
+  // Advance payment (0096): the buyer pays the project's minimum advance from
+  // their own bank app and records it here with the transaction id + proof.
+  const [payAmount, setPayAmount] = useState("");
+  const [txn, setTxn] = useState("");
+  const [proof, setProof] = useState<(UploadedProof & { uri: string }) | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [paid, setPaid] = useState<{ ref: string } | null>(null);
   const { profile } = useAuth();
   const qc = useQueryClient();
+
+  const bankAccounts: BankAccount[] = Array.isArray(property.bank_accounts) ? property.bank_accounts : [];
+  const minAdvance = num(property.min_advance_amount);
+  // The option exists once the desk has set a minimum OR entered an account.
+  const advanceOffered = minAdvance != null || bankAccounts.length > 0;
+
+  const { data: myAdvance } = useQuery({
+    queryKey: ["advance", property.id, plot?.plot == null ? null : String(plot.plot), profile?.id ?? null],
+    enabled: visible && !!plot && !!profile?.id && advanceOffered,
+    queryFn: () => fetchMyAdvance(profile!.id, property.id, plot?.plot == null ? null : String(plot.plot)),
+  });
 
   /**
    * The live hold on this plot, if there is one (bug report 22: a buyer who put
@@ -213,7 +312,87 @@ export function PlotSheet({
   function close() {
     setStep("detail");
     setHeld(null);
+    setPaid(null);
     onClose();
+  }
+
+  function openPay() {
+    const suggested = minAdvance ?? num(plot?.booking_amount);
+    setPayAmount(suggested ? String(Math.round(suggested)) : "");
+    setTxn("");
+    setProof(null);
+    setStep("pay");
+  }
+
+  /** Photo or screenshot of the transfer → private payment-proofs bucket. */
+  async function attachProof() {
+    if (!profile?.id) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Photo access needed", "Please allow photo access to attach the payment screenshot.");
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      if (!asset.base64) {
+        Alert.alert("Couldn't read image", "Please try a different screenshot.");
+        return;
+      }
+      setUploading(true);
+      const up = await uploadPaymentProof(profile.id, asset.base64, asset.mimeType);
+      setProof({ ...up, uri: asset.uri });
+    } catch (e: any) {
+      Alert.alert("Upload failed", e?.message ?? "Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function submitAdvance() {
+    if (!plot) return;
+    if (!profile?.id) {
+      Alert.alert("Sign in first", "Please sign in so the payment is recorded in your name.");
+      return;
+    }
+    const amount = Number(String(payAmount).replace(/[^\d.]/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      Alert.alert("Amount", "Enter the amount you transferred.");
+      return;
+    }
+    if (minAdvance != null && amount < minAdvance) {
+      Alert.alert("Minimum advance", `The minimum advance for this project is ${formatINR(minAdvance)}.`);
+      return;
+    }
+    if (txn.trim().length < 4) {
+      Alert.alert("Transaction ID", "Enter the transaction ID / UTR shown by your bank or UPI app.");
+      return;
+    }
+    if (!proof) {
+      Alert.alert("Payment proof", "Please attach a screenshot or photo of the payment.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await submitAdvancePayment({
+        propertyId: property.id,
+        amount,
+        transactionId: txn.trim(),
+        plot: String(plot.plot),
+        holdId: held?.holdId ?? (liveHold?.buyer_id === profile.id ? liveHold.id : null),
+        method,
+        proof,
+      });
+      setPaid({ ref: r.ref });
+      setStep("paid");
+      qc.invalidateQueries({ queryKey: ["advance", property.id, String(plot.plot), profile.id] });
+      qc.invalidateQueries({ queryKey: ["my-advances", profile.id] });
+    } catch (e: any) {
+      Alert.alert("Could not record the payment", e?.message ?? "Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function placeHold() {
@@ -339,9 +518,12 @@ export function PlotSheet({
               ))}
 
               <Text style={{ fontSize: 11.5, color: colors.inkFaint, lineHeight: 18, marginTop: 4 }}>
-                We hold plot {plot.plot} for you for 48 hours. No money is taken here — our team
-                contacts you with the account details, and the plot is confirmed once your transfer
-                lands. If it does not, the hold lapses and the plot returns to sale.
+                We hold plot {plot.plot} for you for 48 hours. No money is taken here —{" "}
+                {advanceOffered
+                  ? `after the hold you can pay the advance${minAdvance != null ? ` (minimum ${formatINR(minAdvance)})` : ""} to the company account and record the transaction ID.`
+                  : "our team contacts you with the account details."}{" "}
+                The plot is confirmed once your transfer lands. If it does not, the hold lapses and
+                the plot returns to sale.
               </Text>
 
               <View style={{ flexDirection: "row", gap: 8, marginTop: 18, marginBottom: 8 }}>
@@ -366,14 +548,38 @@ export function PlotSheet({
               <Row label="Booking amount" value={held.amount ? formatINR(held.amount) : "As advised"} />
               <Row label="Method" value={method === "upi" ? "UPI" : "Bank transfer"} />
               <Row label="Held until" value={new Date(held.expiresAt).toLocaleString("en-IN")} />
-              <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19, marginTop: 14 }}>
-                Our team has been notified and will contact you with the account details. Quote
-                reference {held.ref} with your transfer. The plot shows as On hold to everyone else
-                until then.
-              </Text>
-              <Pressable onPress={close} style={{ marginTop: 20, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
-                <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Done</Text>
-              </Pressable>
+              {advanceOffered ? (
+                <>
+                  <Section title="Pay the advance" />
+                  <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19 }}>
+                    Transfer{minAdvance != null ? ` at least ${formatINR(minAdvance)}` : " the advance"} to the
+                    company account below, quoting reference {held.ref}, then record the transaction ID and a
+                    screenshot so our desk can verify it.
+                  </Text>
+                  {bankAccounts.length ? (
+                    <View style={{ marginTop: 10 }}>
+                      <BankAccounts accounts={bankAccounts} />
+                    </View>
+                  ) : null}
+                  <Pressable onPress={openPay} style={{ marginTop: 14, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
+                    <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>I have paid — record the advance</Text>
+                  </Pressable>
+                  <Pressable onPress={close} style={{ marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 13, alignItems: "center" }}>
+                    <Text style={{ color: colors.ink, fontSize: 14, fontWeight: "700" }}>Pay later</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19, marginTop: 14 }}>
+                    Our team has been notified and will contact you with the account details. Quote
+                    reference {held.ref} with your transfer. The plot shows as On hold to everyone else
+                    until then.
+                  </Text>
+                  <Pressable onPress={close} style={{ marginTop: 20, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
+                    <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Done</Text>
+                  </Pressable>
+                </>
+              )}
               {/* Changed your mind on the spot (bug report 22) — no need to wait
                   48 hours or ring the desk. */}
               {held.holdId ? (
@@ -383,6 +589,115 @@ export function PlotSheet({
                   </Text>
                 </Pressable>
               ) : null}
+            </ScrollView>
+          ) : step === "pay" ? (
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={{ fontSize: 21, fontWeight: "800", color: colors.ink, marginTop: 8 }}>Record your advance</Text>
+              <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19, marginTop: 4 }}>
+                Plot {plot.plot} · {property.title}
+                {minAdvance != null ? ` · minimum advance ${formatINR(minAdvance)}` : ""}
+              </Text>
+
+              {bankAccounts.length ? (
+                <>
+                  <Section title="Pay into" />
+                  <BankAccounts accounts={bankAccounts} />
+                </>
+              ) : null}
+
+              <Section title="Paid by" />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {([["bank", "Bank transfer"], ["upi", "UPI"]] as const).map(([k, label]) => (
+                  <Pressable
+                    key={k}
+                    onPress={() => setMethod(k)}
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, padding: 11, borderColor: method === k ? colors.gold : colors.border, backgroundColor: method === k ? colors.goldSoft : colors.surface }}
+                  >
+                    <Ionicons name={method === k ? "radio-button-on" : "radio-button-off"} size={17} color={method === k ? colors.goldDark : colors.inkFaint} />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: colors.ink }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Section title="Amount paid (₹)" />
+              <TextInput
+                value={payAmount}
+                onChangeText={setPayAmount}
+                keyboardType="numeric"
+                placeholder={minAdvance != null ? String(Math.round(minAdvance)) : "Amount"}
+                placeholderTextColor={colors.inkFaint}
+                style={{ backgroundColor: colors.surfaceSunken, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: colors.ink, fontWeight: "700" }}
+              />
+
+              <Section title="Transaction ID / UTR" />
+              <TextInput
+                value={txn}
+                onChangeText={setTxn}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholder="e.g. 425612345678 or UTR from your bank"
+                placeholderTextColor={colors.inkFaint}
+                style={{ backgroundColor: colors.surfaceSunken, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: colors.ink }}
+              />
+
+              <Section title="Payment proof" />
+              <Pressable
+                onPress={attachProof}
+                disabled={uploading}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderStyle: proof ? "solid" : "dashed", borderColor: proof ? colors.success : colors.border, borderRadius: 12, padding: 12, backgroundColor: proof ? colors.successSoft : colors.surface, opacity: uploading ? 0.6 : 1 }}
+              >
+                {proof ? (
+                  <Image source={{ uri: proof.uri }} style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.surfaceAlt }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="image-outline" size={20} color={colors.inkFaint} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.ink }}>
+                    {uploading ? "Uploading…" : proof ? "Screenshot attached" : "Attach a screenshot or photo"}
+                  </Text>
+                  <Text style={{ fontSize: 11.5, color: colors.inkFaint }}>
+                    {proof ? "Tap to replace" : "The confirmation screen from your bank or UPI app"}
+                  </Text>
+                </View>
+                {proof ? <Ionicons name="checkmark-circle" size={20} color={colors.success} /> : null}
+              </Pressable>
+
+              <Text style={{ fontSize: 11, color: colors.inkFaint, lineHeight: 16, marginTop: 12 }}>
+                Recording a payment does not confirm the plot by itself. Our desk verifies the transfer and
+                you are notified when it is approved; the status stays Pending until then.
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 16, marginBottom: 8 }}>
+                <Pressable onPress={() => setStep(held ? "done" : "detail")} disabled={busy} style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 14, alignItems: "center" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.ink }}>Back</Text>
+                </Pressable>
+                <Pressable onPress={submitAdvance} disabled={busy || uploading} style={{ flex: 2, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 14, alignItems: "center", opacity: busy || uploading ? 0.6 : 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#1B1405" }}>{busy ? "Recording…" : "Submit for verification"}</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          ) : step === "paid" && paid ? (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ alignItems: "center", paddingVertical: 18 }}>
+                <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: colors.goldSoft, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="hourglass-outline" size={30} color={colors.goldDark} />
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, marginTop: 12 }}>Advance recorded</Text>
+                <Text style={{ fontSize: 13, color: colors.inkFaint, marginTop: 4 }}>Reference {paid.ref} · Pending verification</Text>
+              </View>
+              <Row label="Plot" value={`${plot.plot}${plot.block ? ` · Block ${plot.block}` : ""}`} />
+              <Row label="Amount" value={formatINR(Number(String(payAmount).replace(/[^\d.]/g, "")) || 0)} />
+              <Row label="Transaction ID" value={txn.trim()} />
+              <Row label="Proof" value={proof ? "Attached" : "Not attached"} />
+              <Text style={{ fontSize: 12.5, color: colors.inkFaint, lineHeight: 19, marginTop: 14 }}>
+                Our desk checks the transfer against the bank statement and approves it, usually within a
+                working day. You will be notified, and the status here changes to Approved.
+              </Text>
+              <Pressable onPress={close} style={{ marginTop: 20, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
+                <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>Done</Text>
+              </Pressable>
             </ScrollView>
           ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -437,6 +752,14 @@ export function PlotSheet({
                 </View>
               </>
             )}
+
+            {/* The buyer's own advance on this plot, whatever its state (0096). */}
+            {myAdvance ? (
+              <>
+                <Section title="Your advance payment" />
+                <AdvanceCard row={myAdvance} />
+              </>
+            ) : null}
 
             {approvalNo || property.rera_number ? (
               <>
@@ -566,6 +889,23 @@ export function PlotSheet({
           {/* An on-hold plot the caller can release themselves (bug report 22).
               `liveHold` is only ever their own hold unless they are an admin, so
               the wording changes to say whose hold is being released. */}
+          {/* My hold, advance offered, nothing recorded yet (or the last one was
+              rejected): the payment step is one tap from the plot itself. */}
+          {step === "detail" && status === "reserved" && liveHold && liveHold.buyer_id === profile?.id
+            && advanceOffered && (!myAdvance || myAdvance.status === "rejected") ? (
+            <Pressable
+              onPress={openPay}
+              style={{ marginTop: 12, backgroundColor: colors.gold, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
+            >
+              <Text style={{ color: "#1B1405", fontSize: 15, fontWeight: "800" }}>
+                {myAdvance?.status === "rejected" ? "Record the advance again" : `Pay the advance for plot ${plot.plot}`}
+              </Text>
+              <Text style={{ color: "#1B1405", fontSize: 11.5, marginTop: 3, opacity: 0.8 }}>
+                {minAdvance != null ? `Minimum ${formatINR(minAdvance)} · ` : ""}hold {liveHold.ref}
+              </Text>
+            </Pressable>
+          ) : null}
+
           {step === "detail" && status === "reserved" && liveHold ? (
             <Pressable
               onPress={() => withdrawHold(liveHold.id)}
