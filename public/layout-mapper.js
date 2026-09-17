@@ -28,6 +28,9 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 const WEBSITE = "https://jaminbazaar.in";
+/* Every host serving the Next.js website — the custom domain runs on its own
+   server and the Netlify site is a separate deploy, so both are refreshed. */
+const WEBSITE_HOSTS = [WEBSITE, "https://jamin-properties-web.netlify.app"];
 const STATUSES = [
   ["available", "Available"],
   ["reserved", "Reserved"],
@@ -409,11 +412,15 @@ async function revalidateWebsite(prop) {
     const { data } = await CTX.sb.auth.getSession();
     const token = data?.session?.access_token;
     if (!token) return;
-    await fetch(`${WEBSITE}/api/revalidate`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ slug: prop.slug || null, id: prop.id }),
-    });
+    await Promise.allSettled(
+      WEBSITE_HOSTS.map((host) =>
+        fetch(`${host}/api/revalidate`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ slug: prop.slug || null, id: prop.id }),
+        }),
+      ),
+    );
   } catch (e) {
     /* The site still refreshes on its own schedule; never fail the save. */
   }

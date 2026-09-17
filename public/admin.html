@@ -651,7 +651,7 @@ window.go = go;
 async function renderLayouts(){
   const view = $("#view");
   try{
-    const m = await import("./layout-mapper.js?v=20260917");
+    const m = await import("./layout-mapper.js?v=20260917b");
     await m.mount(view, { sb, toast, esc, alog, modal, closeModal: window.closeModal });
   }catch(e){
     view.innerHTML = `<div class="card" style="padding:18px"><b>The layout mapper could not load.</b><div class="muted" style="margin-top:6px">${esc(e.message||e)}</div></div>`;
