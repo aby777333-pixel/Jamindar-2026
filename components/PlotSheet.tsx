@@ -37,7 +37,8 @@ const STATUS_LABEL: Record<string, string> = {
   reserved: "On hold",
   booked: "Booked",
   sold: "Sold",
-  blocked: "Not released",
+  blocked: "Blocked",
+  not_released: "Not released",
 };
 const STATUS_TINT: Record<string, string> = {
   available: colors.success,
@@ -45,6 +46,7 @@ const STATUS_TINT: Record<string, string> = {
   booked: "#D93025",
   sold: "#4A4A4A",
   blocked: colors.inkFaint,
+  not_released: colors.inkFaint,
 };
 
 const SQFT_PER_SQM = 10.7639;
@@ -243,12 +245,16 @@ export function PlotSheet({
   property,
   shareUrl,
   onClose,
+  underReview = false,
 }: {
   visible: boolean;
   plot: PlotRow | null;
   property: Property;
   shareUrl?: string;
   onClose: () => void;
+  /** Set when the Layout Mapper flagged this plot's record for re-checking
+   *  against the published layout image (0097). */
+  underReview?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [showQR, setShowQR] = useState(false);
@@ -707,6 +713,11 @@ export function PlotSheet({
               </Text>
               {wasPrice ? <Text style={{ fontSize: 14, color: colors.inkFaint, textDecorationLine: "line-through" }}>{formatINR(wasPrice)}</Text> : null}
             </View>
+            {underReview ? (
+              <Text style={{ fontSize: 12, color: colors.goldDark, backgroundColor: colors.goldSoft, borderRadius: 10, padding: 10, marginTop: 6, lineHeight: 17 }}>
+                This plot's recorded figures are being re-checked against the approved layout. The sales desk will confirm its dimensions and area before booking.
+              </Text>
+            ) : null}
 
             <Section title="Plot record" />
             <Row label="Plot number" value={plot.plot} />

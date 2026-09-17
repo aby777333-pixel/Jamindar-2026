@@ -155,7 +155,7 @@ export function PlotFilters({
           {statuses.length > 1 ? (
             <FilterRow label="Availability">
               {statuses.map((s) => (
-                <Pill key={s} label={s[0].toUpperCase() + s.slice(1)} active={value.status === s} onPress={() => set({ status: value.status === s ? null : s })} />
+                <Pill key={s} label={(s[0].toUpperCase() + s.slice(1)).replace(/_/g, " ")} active={value.status === s} onPress={() => set({ status: value.status === s ? null : s })} />
               ))}
             </FilterRow>
           ) : null}

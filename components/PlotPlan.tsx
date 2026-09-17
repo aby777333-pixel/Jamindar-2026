@@ -73,6 +73,7 @@ const FILL: Record<string, string> = {
   booked: "#D93025",
   sold: "#4A4A4A",
   blocked: "#E6E7E2",
+  not_released: "#DDE3EA",
 };
 // A sanctioned layout sheet draws plots as hairline-ruled cells with near-black
 // numerals — the bright green outline and green numeral we had made the plan
@@ -84,6 +85,7 @@ const STROKE: Record<string, string> = {
   booked: "#A61B10",
   sold: "#2E2E2E",
   blocked: "#9A9A93",
+  not_released: "#5B6B7A",
 };
 const LABEL: Record<string, string> = {
   available: "#17241D",
@@ -91,6 +93,7 @@ const LABEL: Record<string, string> = {
   booked: "#FFFFFF",
   sold: "#FFFFFF",
   blocked: "#6E6E68",
+  not_released: "#34404B",
 };
 /** Ink for the sheet's own annotation layer (roads, dimensions, notes). */
 const DRAFT_INK = "#6B5A48";
@@ -518,7 +521,8 @@ export function PlotLegend() {
     ["reserved", "On hold"],
     ["booked", "Booked"],
     ["sold", "Sold"],
-    ["blocked", "Not released"],
+    ["blocked", "Blocked"],
+    ["not_released", "Not released"],
   ];
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 2 }}>
@@ -557,11 +561,12 @@ export function plotStatusChips(): Record<string, { bg: string; border: string; 
     reserved:  { bg: colors.goldSoft, border: colors.gold, fg: colors.goldDark, label: "On hold" },
     booked:    { bg: colors.brandSoft, border: colors.danger, fg: colors.danger, label: "Booked" },
     sold:      { bg: colors.surfaceSunken, border: colors.inkFaint, fg: colors.inkSoft, label: "Sold" },
-    blocked:   { bg: colors.surfaceAlt, border: colors.border, fg: colors.inkFaint, label: "Not released" },
+    blocked:   { bg: colors.surfaceAlt, border: colors.border, fg: colors.inkFaint, label: "Blocked" },
+    not_released: { bg: colors.surfaceAlt, border: colors.inkFaint, fg: colors.inkSoft, label: "Not released" },
   };
 }
 
-const PLOT_STATUS_ORDER = ["available", "reserved", "booked", "sold", "blocked"];
+const PLOT_STATUS_ORDER = ["available", "reserved", "booked", "sold", "blocked", "not_released"];
 
 const chipFor = (status?: string | null) => {
   const chips = plotStatusChips();
@@ -655,7 +660,8 @@ export function PlotTotals({ plots }: { plots: PlotRow[] }) {
     ["reserved", "On hold"],
     ["booked", "Booked"],
     ["sold", "Sold"],
-    ["blocked", "Not released"],
+    ["blocked", "Blocked"],
+    ["not_released", "Not released"],
   ];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

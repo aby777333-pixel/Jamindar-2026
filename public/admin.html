@@ -453,6 +453,11 @@
     <nav id="nav">
       <a data-view="dashboard" class="on" style="--tc:#7C8CFF"><span class="ic">◱</span> Dashboard</a>
       <a data-view="properties" style="--tc:#34C98E"><span class="ic">▤</span> Properties</a>
+      <!-- Layout Mapper (2026-09-17, migration 0097): the original approved
+           layout image per project, with plot polygons drawn over it and
+           published to the website and the app together. Its code lives in
+           public/layout-mapper.js and loads only when this tab is opened. -->
+      <a data-view="layouts" style="--tc:#0EA5E9"><span class="ic">🗺</span> Layout Mapper</a>
       <a data-view="docs" style="--tc:#4FA8FF"><span class="ic">📄</span> Documents <span class="badge" id="b-docs" style="display:none"></span></a>
       <div class="navlab">People</div>
       <a data-view="kyc" style="--tc:#A78BFA"><span class="ic">🛡</span> KYC <span class="badge" id="b-kyc" style="display:none"></span></a>
@@ -629,7 +634,7 @@ async function refreshBadges(){
 setInterval(refreshBadges, 45000);
 
 // ───────── router ─────────
-const TITLES={dashboard:"Dashboard",properties:"Properties",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",advances:"Advance Payments",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",careers:"Career Applications",audit:"Audit Log"};
+const TITLES={dashboard:"Dashboard",properties:"Properties",layouts:"Layout Mapper",kyc:"KYC Verifications",partners:"Partner Requests",promoapps:"Promoter Applications",tree:"Promoter Tree",earnings:"Earnings & Commissions",wallet:"Wallet & Withdrawals",advances:"Advance Payments",subs:"Property Submissions",visits:"Site Visits",leads:"Leads",invites:"WhatsApp Invites",community:"Community",journal:"Jamin Journal",registrations:"Registration Details",users:"Users",share:"Share & Brochures",bazaar:"Sales Income",quiz:"Buyer Questionnaire",vault:"The Vault",docs:"Project Documents",careers:"Career Applications",audit:"Audit Log"};
 const SKELETON = `<div class="stats">${'<div class="skel" style="height:86px"></div>'.repeat(4)}</div><div class="skel" style="height:52px;margin-bottom:14px"></div><div class="skel" style="height:340px"></div>`;
 function go(v){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.view===v));
@@ -637,9 +642,21 @@ function go(v){
   // the stylesheet keys every card tint and ambient haze off this attribute.
   document.getElementById("app").dataset.view = v;
   $("#view-title").textContent=TITLES[v]; $("#view").innerHTML=SKELETON;
-  ({dashboard:renderDashboardPlus,properties:renderProperties,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,advances:renderAdvancePayments,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,careers:renderCareerApps,audit:renderAudit}[v])();
+  ({dashboard:renderDashboardPlus,properties:renderProperties,layouts:renderLayouts,kyc:renderKyc,partners:renderPartners,promoapps:renderPromoterApps,tree:renderTree,earnings:renderEarnings,wallet:renderWallet,advances:renderAdvancePayments,subs:renderSubmissions,visits:renderVisits,leads:renderLeads,invites:renderInvites,community:renderCommunity,journal:renderJournal,registrations:renderRegistrations,users:renderUsers,share:renderShareSettings,bazaar:renderBazaarIncome,quiz:renderQuiz,vault:renderVault,docs:renderDocuments,careers:renderCareerApps,audit:renderAudit}[v])();
 }
 window.go = go;
+
+/* Layout Mapper — lazily imported so the console never pays for it until the
+   tab is opened. `?v=` busts the CDN copy when the module changes. */
+async function renderLayouts(){
+  const view = $("#view");
+  try{
+    const m = await import("./layout-mapper.js?v=20260917");
+    await m.mount(view, { sb, toast, esc, alog, modal, closeModal: window.closeModal });
+  }catch(e){
+    view.innerHTML = `<div class="card" style="padding:18px"><b>The layout mapper could not load.</b><div class="muted" style="margin-top:6px">${esc(e.message||e)}</div></div>`;
+  }
+}
 
 // ───────── dashboard (command center, 29-07 aesthetic round) ─────────
 // Everything below is read-only: counts, the same admin_pending_counts RPC the
@@ -917,9 +934,9 @@ async function generateBrochureCover(btn){
 function planPreview(p){
   const g=p&&p.plot_plan, rows=(p&&p.plot_layout)||[];
   if(!g||!g.boundary||!rows.some(r=>r.poly)) return "";
-  const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2"};
-  const LINE={available:"#0C8046",reserved:"#8A6E17",booked:"#A61B10",sold:"#2E2E2E",blocked:"#68686F"};
-  const TXT={available:"#0C8046",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#68686F"};
+  const FILL={available:"#fff",reserved:"#E0A423",booked:"#D93025",sold:"#4A4A4A",blocked:"#E6E7E2",not_released:"#DDE3EA"};
+  const LINE={available:"#0C8046",reserved:"#8A6E17",booked:"#A61B10",sold:"#2E2E2E",blocked:"#68686F",not_released:"#5B6B7A"};
+  const TXT={available:"#0C8046",reserved:"#fff",booked:"#fff",sold:"#fff",blocked:"#68686F",not_released:"#34404B"};
   const pts=r=>r.map(q=>q.join(",")).join(" ");
   let s=`<svg viewBox="${g.viewBox.join(" ")}" style="width:100%;max-height:420px" preserveAspectRatio="xMidYMid meet">`;
   s+=`<polygon points="${pts(g.boundary)}" fill="#ececE8"/>`;
@@ -957,7 +974,7 @@ function plotGrid(p){
   const rows=(p&&p.plot_layout)||[];
   if(!rows.length) return "";
   const blocks=[...new Set(rows.map(r=>r.block).filter(Boolean))];
-  const statuses=["available","reserved","booked","sold","blocked"];
+  const statuses=["available","reserved","booked","sold","blocked","not_released"];
   const money=v=>(v===null||v===undefined||v==="")?"":String(v);
   return `<div id="plotgrid" style="margin-top:10px;border:1px solid var(--line,#e7e8ee);border-radius:12px;padding:10px">
     <div style="font-size:12px;font-weight:700;margin-bottom:8px">Plot pricing &amp; status</div>
@@ -5910,7 +5927,9 @@ window.removeProjectDoc = async (id, name)=>{
        every key this manager writes — and every key the traced plan wrote —
        survives a save untouched.
    ══════════════════════════════════════════════════════════════════════════ */
-const PLOT_STATUSES = ["available","reserved","sold","blocked"];
+/* `booked` was missing here, so an Excel import quietly turned booked plots
+   into available ones; `not_released` joins with migration 0097. */
+const PLOT_STATUSES = ["available","reserved","booked","sold","blocked","not_released"];
 let PLOT_FILTER = { q:"", status:"" };
 
 function plotManagerMarkup(){
@@ -5935,7 +5954,7 @@ function renderPlotManager(){
   if(q) rows = rows.filter(r=>[plotNo(r), r.facing, r.road_facing, r.description]
     .some(x=>String(x||"").toLowerCase().includes(q)));
 
-  const tone = { available:"ok", reserved:"warn", sold:"red", blocked:"grey" };
+  const tone = { available:"ok", reserved:"warn", booked:"red", sold:"red", blocked:"grey", not_released:"grey" };
   const info = paged("plots", rows);
   PAGE["__reload_plots"] = renderPlotManager;
 

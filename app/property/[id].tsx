@@ -40,6 +40,7 @@ import { MiniMap } from "@/components/MiniMap";
 import { BrochureSheet } from "@/components/BrochureSheet";
 import { PlotSheet, mapLinks } from "@/components/PlotSheet";
 import { PlotFilters, applyPlotFilters, EMPTY_FILTERS, type PlotFilterState } from "@/components/PlotFilters";
+import { PlanImageMap, hasPlanImage } from "@/components/PlanImageMap";
 
 type TabKey =
   | "overview" | "photos" | "videos" | "master_plan"
@@ -990,12 +991,53 @@ function MasterPlanTab({ property }: { property: Property }) {
   // Traced site plan, when this property has one. Falls back to the master-plan
   // image below for properties that only have a scan.
   const plan = property.plot_plan as PlotPlanGeometry | null;
-  const interactive = !!plan?.boundary?.length && plots.some((p) => p.poly);
+  /* The published ORIGINAL layout image (0097) leads wherever one exists —
+     the same snapshot the website shows, edited in the admin Layout Mapper.
+     It replaces the traced drawing below; everything else is unchanged. */
+  const planImage = hasPlanImage(property.plan_image) ? property.plan_image : null;
+  const traced = !!plan?.boundary?.length && plots.some((p) => p.poly);
+  const interactive = !planImage && traced;
+  const mapped = !!planImage || interactive;
   const matched = applyPlotFilters(plots, filters);
   const filtering = matched.size !== plots.length;
+  const underReview = !!picked && !!planImage?.review_plots?.map(String).includes(String(picked.plot));
 
   return (
     <View style={{ gap: 14 }}>
+      {planImage ? (
+        <>
+          <PlotTotals plots={plots} />
+          <PlotFilters plots={plots} value={filters} onChange={setFilters} matched={matched.size} />
+          <PlanImageMap
+            image={planImage}
+            plots={plots}
+            visible={filtering ? matched : undefined}
+            onSelect={(p) => { setPicked(p); setSheetOpen(true); }}
+          />
+          {plan ? (
+            <PlotTitleBlock
+              geometry={plan}
+              title={property.title}
+              shareUrl={propertyLink(property.id, profile?.referral_code ?? profile?.partner_code ?? profile?.member_code ?? null)}
+              updatedAt={property.updated_at}
+              reraNumber={property.rera_number}
+              approvalDocUrl={
+                (property.documents ?? []).find((d: any) =>
+                  /dtcp|approv|layout/i.test(String(d?.label ?? "")))?.url ?? null
+              }
+            />
+          ) : null}
+          <WhereItIs property={property} />
+          <PlotSheet
+            visible={sheetOpen}
+            plot={picked}
+            property={property}
+            shareUrl={property.brochure_url ?? undefined}
+            onClose={() => setSheetOpen(false)}
+            underReview={underReview}
+          />
+        </>
+      ) : null}
       {interactive ? (
         <>
           <PlotTotals plots={plots} />
@@ -1065,7 +1107,7 @@ function MasterPlanTab({ property }: { property: Property }) {
             onClose={() => setZoom(false)}
           />
         </>
-      ) : interactive ? null : (
+      ) : mapped ? null : (
         <EmptyNote label="Master plan image not available for this property." />
       )}
       {/* Bug report 22: this used to be a bare green/yellow/grey legend sitting
@@ -1074,7 +1116,7 @@ function MasterPlanTab({ property }: { property: Property }) {
           Layouts without traced geometry now get the schedule itself, one
           colour-coded tile per plot, with a key generated from the same colours.
           Tapping a tile opens the same PlotSheet the interactive plan opens. */}
-      {plots.length > 0 && !interactive ? (
+      {plots.length > 0 && !mapped ? (
         <Card>
           <Text style={{ fontWeight: "600", color: colors.ink }}>Plot availability</Text>
           <Text style={{ color: colors.inkFaint, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
@@ -1090,7 +1132,7 @@ function MasterPlanTab({ property }: { property: Property }) {
       ) : null}
 
       {/* One sheet serves both surfaces; the interactive branch renders its own. */}
-      {plots.length > 0 && !interactive ? (
+      {plots.length > 0 && !mapped ? (
         <PlotSheet
           visible={sheetOpen}
           plot={picked}

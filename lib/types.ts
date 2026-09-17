@@ -200,7 +200,15 @@ export interface Property {
     poly?: [number, number][];
     at?: [number, number];
     clipped?: boolean;
+    /** Stable internal id, assigned by the database (0097). */
+    uid?: string;
   }[];
+  /**
+   * The published original layout image with its plot overlay (0097) — the
+   * same snapshot the website reads. Null until a layout is published from the
+   * admin console's Layout Mapper.
+   */
+  plan_image?: import("@/components/PlanImageMap").PlanImage | null;
   /** Traced site-plan geometry for the interactive plot map (migration 0064). */
   plot_plan: {
     viewBox: [number, number, number, number];
