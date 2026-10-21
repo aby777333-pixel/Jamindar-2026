@@ -2,7 +2,7 @@
 
 Everything the Play Console asks for, answered from the actual code and schema
 rather than from guesswork. Written 5 August 2026 against version **1.3.0
-(versionCode 11)**, package `app.jamindar.mobile`.
+(versionCode 11)**, package `com.jaminbazaar2027.myapp`.
 
 > The readiness report inspected a build labelled 1.2.7 (10). That version came
 > from a hand-edited `build.gradle`, and an `expo prebuild` silently reset it to

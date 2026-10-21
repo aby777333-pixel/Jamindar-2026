@@ -18,10 +18,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.jamindar.mobile"
+      "bundleIdentifier": "com.jaminbazaar2027.myapp"
     },
       "android": {
-      "package": "app.jamindar.mobile",
+      "package": "com.jaminbazaar2027.myapp",
       "versionCode": 18,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
