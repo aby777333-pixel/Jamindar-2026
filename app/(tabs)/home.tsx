@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View, Pressable, ScrollView, Alert, Linking, AppState, Image, useWindowDimensions } from "react-native";
+import { Text, View, Pressable, ScrollView, Alert, Linking, AppState, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +22,7 @@ import { LanguageGate } from "@/components/LanguageGate";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
 import { colors, space, type as T } from "@/lib/theme";
-import { IMG } from "@/lib/img";
+import { SafeImage } from "@/components/SafeImage";
 import { initials, greetingFor, formatINR } from "@/lib/format";
 import { type Property, type PropertyType, type ProjectPhase } from "@/lib/types";
 import { computeSuggestions, checklistText, type Suggestion } from "@/lib/suggestions";
@@ -403,7 +403,7 @@ function HeroSlider({ items, onOpen }: { items: Property[]; onOpen: (p: Property
                 340px card thumbnail stretched across a ~350pt-wide hero, which
                 is ~1050px of real pixels on a 3x phone. */}
             {p.images?.[0] ? (
-              <Image source={{ uri: IMG.hero(p.images[0]) }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+              <SafeImage uri={p.images[0]} variant="hero" style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             ) : null}
             <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.72)"]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 110 }} />
             <View style={{ position: "absolute", left: 14, right: 14, bottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 10 }}>

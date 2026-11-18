@@ -20,6 +20,7 @@ import { ZoomableImage } from "@/components/ZoomableImage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { JamindarFab } from "@/components/Jamindar";
 import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
+import { wavToUri, dropAudioFile, preparePlayback } from "@/lib/audio-play";
 import { supabase } from "@/lib/supabase";
 import {
   DOC_LABEL, documentUrl, fetchMyDocumentRequests, fetchProjectDocuments,
@@ -32,7 +33,7 @@ import { encodeFilters } from "@/lib/property-search";
 import { logActivity } from "@/lib/audit";
 import { propertyShareMessage, brochureLink, propertyLink } from "@/lib/referral";
 import { colors, space, type as T } from "@/lib/theme";
-import { IMG } from "@/lib/img";
+import { SafeImage } from "@/components/SafeImage";
 import { formatINR, formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, NEARBY_DEFAULTS, type Property } from "@/lib/types";
 import { PlotPlan, PlotTotals, PlotLegend as PlanColourKey, PlotStatusKey, PlotStatusGrid, type PlotRow, type PlotPlanGeometry, PlotTitleBlock } from "@/components/PlotPlan";
@@ -189,15 +190,27 @@ export default function PropertyDetail() {
     setVoiceBusy(true);
     try {
       const chunks = await synthesizeSpeech(text.slice(0, 1400), lang);
-      if (listenSeq.current !== mySeq || chunks.length === 0) return; // stopped meanwhile
+      if (listenSeq.current !== mySeq) return; // stopped meanwhile
+      if (chunks.length === 0) throw new Error("no audio returned");
+      await preparePlayback();
       setVoiceBusy(false);
       setListening(true);
       for (const b64 of chunks) {
         if (listenSeq.current !== mySeq) return; // stopped mid-narration
-        await playChunkToEnd(`data:audio/wav;base64,${b64}`);
+        // Play from a real file — Android often rejects data: URIs (report
+        // 2026-11 #4: "Listen" did nothing).
+        const uri = await wavToUri(b64);
+        try {
+          await playChunkToEnd(uri);
+        } finally {
+          dropAudioFile(uri);
+        }
       }
     } catch {
-      /* voice optional */
+      // Say so. A silent failure is what read as "Listen is not working".
+      if (listenSeq.current === mySeq) {
+        Alert.alert("Listen", "Couldn't play the audio right now. Please check your connection and try again.");
+      }
     } finally {
       setVoiceBusy(false);
       if (listenSeq.current === mySeq) setListening(false);
@@ -264,6 +277,21 @@ export default function PropertyDetail() {
         .in("status", ["available", "reserved", "sold"])
         .limit(6);
       return (data as Property[]) ?? [];
+    },
+  });
+
+  // Count of managed legal documents — decides whether the Legal tab shows.
+  // MUST stay above the `if (isLoading) return` below: a hook placed after an
+  // early return runs on the second render only and React throws.
+  const { data: managedDocCount } = useQuery({
+    queryKey: ["project-docs-count", id],
+    enabled: !!id,
+    queryFn: async () => {
+      try {
+        return (await fetchProjectDocuments(String(id))).length;
+      } catch {
+        return 0; // a failed count must never take the screen down
+      }
     },
   });
 
@@ -398,10 +426,9 @@ export default function PropertyDetail() {
   // `project_documents` while having nothing in any of the four fields the
   // Legal tab used to be gated on, so its visibility needs this one extra
   // fact. A count only — the tab fetches the documents themselves.
-  const { data: managedDocCount } = useQuery({
-    queryKey: ["project-docs-count", id],
-    queryFn: async () => (await fetchProjectDocuments(String(id))).length,
-  });
+  // (the query itself lives with the other hooks above the early returns —
+  // calling it down here crashed the screen on first open with "Rendered more
+  // hooks than during the previous render", report 2026-11 #1)
   const hasManagedDocs = (managedDocCount ?? 0) > 0;
 
   const has: Record<TabKey, boolean> = {
@@ -476,7 +503,7 @@ export default function PropertyDetail() {
                     meant for exactly this box. */}
                 {images.map((uri, i) => (
                   <Pressable key={i} onPress={() => setFullscreen(i)} style={{ width: SCREEN_W, height: HERO_H }}>
-                    <Image source={{ uri: IMG.hero(uri) }} style={{ width: "100%", height: "100%" }} />
+                    <SafeImage uri={uri} variant="hero" style={{ width: "100%", height: "100%" }} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -632,8 +659,8 @@ export default function PropertyDetail() {
               const on = k === activeTab;
               return (
                 <Pressable key={k} onPress={() => setTab(k)} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: on ? colors.ink : colors.surface, borderWidth: 1, borderColor: on ? colors.ink : colors.border }}>
-                  <Ionicons name={TAB_META[k].icon as any} size={15} color={on ? "#fff" : colors.inkSoft} />
-                  <Text style={{ color: on ? "#fff" : colors.inkSoft, fontWeight: on ? "600" : "500", fontSize: 13 }}>{TAB_META[k].label}</Text>
+                  <Ionicons name={TAB_META[k].icon as any} size={15} color={on ? colors.onInk : colors.inkSoft} />
+                  <Text style={{ color: on ? colors.onInk : colors.inkSoft, fontWeight: on ? "600" : "500", fontSize: 13 }}>{TAB_META[k].label}</Text>
                 </Pressable>
               );
             })}
@@ -673,7 +700,7 @@ export default function PropertyDetail() {
                 <Pressable key={p.id} onPress={() => router.push(`/property/${p.id}`)}>
                   <Card style={{ marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                      {p.images?.[0] ? <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} /> : <Ionicons name="business" size={20} color={colors.inkFaint} />}
+                      {p.images?.[0] ? <SafeImage uri={p.images[0]} variant="card" style={{ width: "100%", height: "100%" }} /> : <Ionicons name="business" size={20} color={colors.inkFaint} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: "600", color: colors.ink }} numberOfLines={1}>{p.title}</Text>
@@ -868,7 +895,7 @@ function PhotosTab({ images, active, onSelect, onOpen }: { images: string[]; act
             onPress={() => { onSelect(i); onOpen(i); }}
             style={{ width: "48%", height: 120, borderRadius: 14, overflow: "hidden", borderWidth: i === active ? 2 : 0, borderColor: colors.brand }}
           >
-            <Image source={{ uri: IMG.tile(uri) }} style={{ width: "100%", height: "100%" }} />
+            <SafeImage uri={uri} variant="tile" style={{ width: "100%", height: "100%" }} />
           </Pressable>
         ))}
       </View>

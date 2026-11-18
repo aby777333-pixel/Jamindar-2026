@@ -29,6 +29,7 @@ import {
 // SDK 56: readAsStringAsync/EncodingType only exist on the legacy entry — the
 // main entry made every voice recording read throw (silently), so STT never ran.
 import * as FileSystem from "expo-file-system/legacy";
+import { wavToUri, dropAudioFile, preparePlayback } from "@/lib/audio-play";
 import { colors, space } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { useAuth, useEffectiveRole } from "@/lib/store";
@@ -426,10 +427,18 @@ export function JamindarSheet({
     try {
       const chunks = await synthesizeSpeech(text, languageRef.current, { speaker: prefs.speaker, pace: prefs.pace });
       if (speakSeq.current !== mySeq || chunks.length === 0) return; // interrupted meanwhile
+      await preparePlayback();
       setSpeaking(true);
       for (let i = 0; i < chunks.length; i++) {
         if (speakSeq.current !== mySeq) return; // interrupted
-        await playChunkToEnd(`data:audio/wav;base64,${chunks[i]}`);
+        // Real file, not a data: URI — Android often refuses those, which is
+        // why replies stayed silent (report 2026-11 #3).
+        const uri = await wavToUri(chunks[i]);
+        try {
+          await playChunkToEnd(uri);
+        } finally {
+          dropAudioFile(uri);
+        }
       }
     } catch {
       /* voice optional — silent fallback */

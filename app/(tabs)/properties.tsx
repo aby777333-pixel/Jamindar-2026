@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text, View, Pressable, ScrollView, FlatList, Image, TextInput } from "react-native";
+import { Text, View, Pressable, ScrollView, FlatList, TextInput } from "react-native";
+import { SafeImage } from "@/components/SafeImage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, Loading, Empty, SkeletonList } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
-import { IMG } from "@/lib/img";
 import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property, type PropertyType } from "@/lib/types";
 import { decodeFilters, searchProperties, describeFilters, type SearchFilters } from "@/lib/property-search";
@@ -54,9 +54,16 @@ export default function Properties() {
       // type chip. Previously the chip was ignored entirely here, so tapping
       // "Plots" on a project-phase view did nothing.
       if (jamindarFilters) {
+        // "All" means all types. When the view was opened from a single
+        // category (Types of Lands → Apartments) that category is what the
+        // banner/chip preselected, so "All" must DROP it — keeping it made
+        // "All" show the same one category, or nothing at all when that
+        // category had no listings (report 2026-11 #4). A multi-type filter from
+        // Jamindar is a deliberate selection, so it is kept.
+        const keepTypes = jamindarFilters.types && jamindarFilters.types.length > 1 ? jamindarFilters.types : undefined;
         return searchProperties({
           ...jamindarFilters,
-          types: filter !== "all" ? [filter] : jamindarFilters.types,
+          types: filter !== "all" ? [filter] : keepTypes,
         });
       }
       let q = supabase
@@ -110,7 +117,10 @@ export default function Properties() {
           >
             <Ionicons name="sparkles" size={16} color={colors.brand} />
             <Text style={{ flex: 1, color: colors.brand, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>
-              Showing: {describeFilters(jamindarFilters)}
+              Showing: {describeFilters({
+                ...jamindarFilters,
+                types: filter !== "all" ? [filter] : (jamindarFilters.types?.length ?? 0) > 1 ? jamindarFilters.types : undefined,
+              })}
             </Text>
             <Pressable onPress={() => router.replace("/(tabs)/properties")}>
               <Ionicons name="close-circle" size={18} color={colors.brand} />
@@ -210,7 +220,7 @@ export default function Properties() {
               <Card style={{ padding: 0, overflow: "hidden", flexDirection: "row", height: CARD_H }}>
                 <View style={{ width: 110, height: "100%", backgroundColor: colors.surfaceSunken, alignItems: "center", justifyContent: "center" }}>
                   {p.images?.[0] ? (
-                    <Image source={{ uri: IMG.card(p.images[0]) }} style={{ width: "100%", height: "100%" }} />
+                    <SafeImage uri={p.images[0]} variant="card" style={{ width: "100%", height: "100%" }} />
                   ) : (
                     <Ionicons name="image" size={28} color={colors.inkFaint} />
                   )}

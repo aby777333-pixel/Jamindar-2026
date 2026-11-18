@@ -129,7 +129,7 @@ export default function AdminWithdrawals() {
             onPress={() => setStatus(s.key)}
             style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: status === s.key ? colors.ink : colors.surface, borderWidth: 1, borderColor: status === s.key ? colors.ink : colors.border }}
           >
-            <Text style={{ color: status === s.key ? "#fff" : colors.inkSoft, fontWeight: "700", fontSize: T.small.fontSize }}>{s.label}</Text>
+            <Text style={{ color: status === s.key ? colors.onInk : colors.inkSoft, fontWeight: "700", fontSize: T.small.fontSize }}>{s.label}</Text>
           </Pressable>
         ))}
       </ScrollView>

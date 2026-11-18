@@ -179,7 +179,7 @@ export default function ProfileSetup() {
               ) : null}
             </View>
             <View style={{ position: "absolute", right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface }}>
-              <Ionicons name="camera" size={16} color="#fff" />
+              <Ionicons name="camera" size={16} color={colors.onInk} />
             </View>
           </Pressable>
           {avatarUrl ? (

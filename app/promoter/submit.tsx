@@ -324,7 +324,7 @@ export default function SubmitProperty() {
                 style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, paddingVertical: 10, fontSize: 14, color: colors.ink }} />
             </View>
             <Pressable onPress={addDoc} style={{ backgroundColor: colors.ink, borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="add" size={20} color="#fff" />
+              <Ionicons name="add" size={20} color={colors.onInk} />
             </Pressable>
           </View>
           {documents.map((d, i) => (
@@ -383,7 +383,7 @@ function LinkAdder({ placeholder, value, onChange, onAdd, icon }: { placeholder:
         />
       </View>
       <Pressable onPress={onAdd} style={{ backgroundColor: colors.ink, borderRadius: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" }}>
-        <Ionicons name="add" size={20} color="#fff" />
+        <Ionicons name="add" size={20} color={colors.onInk} />
       </Pressable>
     </View>
   );

@@ -110,7 +110,9 @@ export function Card({
     padding: space.sm + 3,
     borderWidth: 1,
     borderColor: colors.border,
-    borderTopColor: "#FFFFFF",
+    // A pure-white top edge reads as a soft highlight on the light theme but is
+    // a bright stripe on every card in dark mode.
+    borderTopColor: colors.surface === "#FFFFFF" ? "#FFFFFF" : colors.border,
   };
   if (onPress) {
     // When pressable, the Pressable — not the inner View — is the flex child

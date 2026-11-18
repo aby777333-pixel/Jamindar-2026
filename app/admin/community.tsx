@@ -100,7 +100,7 @@ export default function AdminCommunity() {
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: space.md, marginBottom: space.xs }}>
         {chips.map((c) => (
           <Pressable key={c.key} onPress={() => setSub(c.key)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: sub === c.key ? colors.ink : colors.surface, borderWidth: 1, borderColor: sub === c.key ? colors.ink : colors.border }}>
-            <Text style={{ color: sub === c.key ? "#fff" : colors.inkSoft, fontWeight: "700", fontSize: 12.5 }}>{c.label}</Text>
+            <Text style={{ color: sub === c.key ? colors.onInk : colors.inkSoft, fontWeight: "700", fontSize: 12.5 }}>{c.label}</Text>
           </Pressable>
         ))}
       </View>

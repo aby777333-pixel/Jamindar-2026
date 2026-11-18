@@ -103,7 +103,7 @@ export default function AdminPartners() {
           const on = filter === s;
           return (
             <Pressable key={s} onPress={() => setFilter(s)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: on ? colors.ink : colors.surface, borderWidth: 1, borderColor: on ? colors.ink : colors.border }}>
-              <Text style={{ color: on ? "#fff" : colors.inkSoft, fontWeight: on ? "600" : "500", fontSize: 13, textTransform: "capitalize" }}>{s}</Text>
+              <Text style={{ color: on ? colors.onInk : colors.inkSoft, fontWeight: on ? "600" : "500", fontSize: 13, textTransform: "capitalize" }}>{s}</Text>
             </Pressable>
           );
         })}

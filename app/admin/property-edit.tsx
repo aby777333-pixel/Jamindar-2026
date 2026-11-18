@@ -198,8 +198,8 @@ export default function PropertyEdit() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {editing ? (
           <Pressable onPress={() => router.push({ pathname: "/admin/property-media", params: { id } } as any)} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.ink, borderRadius: 14, padding: 13, marginBottom: space.md }}>
-            <Ionicons name="images" size={20} color="#fff" />
-            <Text style={{ flex: 1, color: "#fff", fontWeight: "600", fontSize: 13 }}>Manage photos & documents</Text>
+            <Ionicons name="images" size={20} color={colors.onInk} />
+            <Text style={{ flex: 1, color: colors.onInk, fontWeight: "600", fontSize: 13 }}>Manage photos & documents</Text>
             <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
           </Pressable>
         ) : null}

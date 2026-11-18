@@ -86,8 +86,8 @@ export default function AdminRegistrations() {
       onPress={() => toggleSort(k)}
       style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: sort === k ? colors.ink : colors.surface, borderWidth: 1, borderColor: sort === k ? colors.ink : colors.border }}
     >
-      <Text style={{ color: sort === k ? "#fff" : colors.inkSoft, fontWeight: "700", fontSize: 12 }}>{label}</Text>
-      {sort === k ? <Ionicons name={asc ? "arrow-up" : "arrow-down"} size={12} color="#fff" /> : null}
+      <Text style={{ color: sort === k ? colors.onInk : colors.inkSoft, fontWeight: "700", fontSize: 12 }}>{label}</Text>
+      {sort === k ? <Ionicons name={asc ? "arrow-up" : "arrow-down"} size={12} color={colors.onInk} /> : null}
     </Pressable>
   );
 

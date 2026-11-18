@@ -59,7 +59,7 @@ export default function PropertyMediaScreen() {
           <Text style={{ fontSize: 16, fontWeight: "600", color: colors.ink }}>Photos & videos</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable onPress={() => run(() => pickAndAddImages(id!, "image"))} style={addBtn()}><Ionicons name="image" size={14} color="#fff" /><Text style={addBtnT}>Photos</Text></Pressable>
-            <Pressable onPress={() => run(() => pickAndAddVideos(id!))} style={[addBtn(), { backgroundColor: colors.ink }]}><Ionicons name="videocam" size={14} color="#fff" /><Text style={addBtnT}>Videos</Text></Pressable>
+            <Pressable onPress={() => run(() => pickAndAddVideos(id!))} style={[addBtn(), { backgroundColor: colors.ink }]}><Ionicons name="videocam" size={14} color={colors.onInk} /><Text style={addBtnT}>Videos</Text></Pressable>
           </View>
         </View>
         <Text style={{ color: colors.inkFaint, fontSize: 12, marginBottom: 10 }}>The ★ photo is the primary thumbnail. Reorder with the arrows.</Text>
@@ -95,7 +95,7 @@ export default function PropertyMediaScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
             {DOC_KINDS.map((k) => {
               const on = linkKind === k.key;
-              return <Pressable key={k.key} onPress={() => setLinkKind(k.key)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: on ? colors.ink : colors.surface, borderWidth: 1, borderColor: on ? colors.ink : colors.border }}><Text style={{ color: on ? "#fff" : colors.inkSoft, fontSize: 11, fontWeight: "600" }}>{k.label}</Text></Pressable>;
+              return <Pressable key={k.key} onPress={() => setLinkKind(k.key)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: on ? colors.ink : colors.surface, borderWidth: 1, borderColor: on ? colors.ink : colors.border }}><Text style={{ color: on ? colors.onInk : colors.inkSoft, fontSize: 11, fontWeight: "600" }}>{k.label}</Text></Pressable>;
             })}
           </View>
           <Pressable onPress={() => run(() => pickAndAddImages(id!, linkKind))} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: colors.brand, backgroundColor: colors.brandSoft }}>

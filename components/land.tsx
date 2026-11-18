@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, space, type as T } from "@/lib/theme";
 import { IMG } from "@/lib/img";
+import { SafeImage } from "./SafeImage";
 import { elevation } from "./ui";
 import { formatArea, priceLabel } from "@/lib/format";
 import { PROPERTY_TYPE_LABELS, type Property } from "@/lib/types";
@@ -150,7 +151,7 @@ export function SearchRow({
           ...elevation.low,
         }}
       >
-        <Ionicons name="options" size={22} color="#fff" />
+        <Ionicons name="options" size={22} color={colors.onInk} />
       </Pressable>
     </View>
   );
@@ -417,7 +418,7 @@ export function VerifiedListingCard({
       <View style={{ height: 122 }}>
         {imgs.length > 0 ? (
           <>
-            <Image source={{ uri: IMG.card(imgs[Math.min(imgIdx, imgs.length - 1)]) }} style={{ width: "100%", height: "100%" }} />
+            <SafeImage uri={imgs[Math.min(imgIdx, imgs.length - 1)]} variant="card" style={{ width: "100%", height: "100%" }} />
             {imgs.length > 1 ? (
               <View style={{ position: "absolute", bottom: 6, alignSelf: "center", flexDirection: "row", gap: 4 }}>
                 {imgs.slice(0, 6).map((_, i) => (

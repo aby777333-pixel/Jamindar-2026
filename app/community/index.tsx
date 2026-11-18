@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View, FlatList, Pressable, Image, Alert, Linking, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect, type Href } from "expo-router";
@@ -513,32 +513,92 @@ export function CommunityMediaBlock({ media, onOpenVideos }: { media: CommunityM
 /** Voice-note player row (play/pause). */
 function VoiceNoteRow({ url }: { url: string }) {
   const playerRef = useRef<AudioPlayer | null>(null);
+  const subRef = useRef<{ remove: () => void } | null>(null);
   const [playing, setPlaying] = useState(false);
+  // Playback position, in seconds. The bar used to be a static grey line, so a
+  // note that WAS playing looked frozen (report 2026-11 #5).
+  const [pos, setPos] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [barW, setBarW] = useState(0);
+
+  // Release the native player when the row leaves the screen.
+  useEffect(() => {
+    return () => {
+      try { subRef.current?.remove(); } catch { /* ignore */ }
+      try { playerRef.current?.remove(); } catch { /* ignore */ }
+      playerRef.current = null;
+    };
+  }, []);
+
+  function ensurePlayer(): AudioPlayer {
+    if (!playerRef.current) {
+      const p = createAudioPlayer(url);
+      playerRef.current = p;
+      subRef.current = p.addListener("playbackStatusUpdate", (st: any) => {
+        if (typeof st?.currentTime === "number") setPos(st.currentTime);
+        if (typeof st?.duration === "number" && st.duration > 0) setDur(st.duration);
+        if (st?.didJustFinish) {
+          // Rewind so the next tap plays from the start and the bar resets.
+          setPlaying(false);
+          setPos(0);
+          p.seekTo(0).catch(() => {});
+          try { p.pause(); } catch { /* ignore */ }
+        }
+      });
+    }
+    return playerRef.current;
+  }
 
   function toggle() {
     try {
+      const p = ensurePlayer();
       if (playing) {
-        playerRef.current?.pause();
+        p.pause();
         setPlaying(false);
         return;
       }
-      if (!playerRef.current) playerRef.current = createAudioPlayer(url);
-      playerRef.current.seekTo(0);
-      playerRef.current.play();
+      // Resume from where it paused; it only restarts once it has played to the
+      // end (it is rewound then).
+      p.play();
       setPlaying(true);
     } catch {
       setPlaying(false);
     }
   }
 
+  /** Tap the bar to jump to that point in the note. */
+  function seekTo(x: number) {
+    if (!(dur > 0) || !(barW > 0)) return;
+    const f = Math.max(0, Math.min(1, x / barW));
+    try {
+      ensurePlayer().seekTo(f * dur).catch(() => {});
+      setPos(f * dur);
+    } catch { /* ignore */ }
+  }
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const frac = dur > 0 ? Math.max(0, Math.min(1, pos / dur)) : 0;
+
   return (
-    <Pressable onPress={toggle} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSunken, borderRadius: 12, padding: 12 }}>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSunken, borderRadius: 12, padding: 12 }}>
+      <Pressable onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={playing ? "Pause voice note" : "Play voice note"} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
         <Ionicons name={playing ? "pause" : "play"} size={16} color="#fff" />
-      </View>
+      </Pressable>
       <Text style={{ color: colors.ink, fontWeight: "600", fontSize: 13 }}>Voice note</Text>
-      <View style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border }} />
+      <Pressable
+        onPress={(e) => seekTo(e.nativeEvent.locationX)}
+        onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+        hitSlop={{ top: 12, bottom: 12 }}
+        style={{ flex: 1, height: 18, justifyContent: "center" }}
+      >
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+          <View style={{ width: `${frac * 100}%`, height: "100%", backgroundColor: colors.brand }} />
+        </View>
+      </Pressable>
+      <Text style={{ color: colors.inkFaint, fontSize: 11, minWidth: 34, textAlign: "right" }}>
+        {playing || pos > 0 ? fmt(pos) : dur > 0 ? fmt(dur) : ""}
+      </Text>
       <Ionicons name="mic" size={15} color={colors.inkFaint} />
-    </Pressable>
+    </View>
   );
 }

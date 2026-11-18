@@ -41,6 +41,9 @@ const LIGHT = {
   danger: "#E11B22",
   onDark: "#FFFFFF",
   onDarkFaint: "#9AA1B4",
+  // text/icons drawn ON a `ink`-coloured fill (active tab chips, dark buttons).
+  // `ink` flips to near-white in dark mode, so a hard-coded #fff on it vanished.
+  onInk: "#FFFFFF",
 };
 
 /**
@@ -79,6 +82,7 @@ const DARK: typeof LIGHT = {
   danger: "#FF4A4F",
   onDark: "#FFFFFF",
   onDarkFaint: "#9AA1B4",
+  onInk: "#0F1116",
 };
 
 export type ThemeMode = "light" | "dark";
