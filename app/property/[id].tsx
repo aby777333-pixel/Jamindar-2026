@@ -19,7 +19,7 @@ import { ZoomableImageViewer } from "@/components/ImageViewer";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { JamindarFab } from "@/components/Jamindar";
-import { synthesizeSpeech, translate, loadMemory } from "@/lib/jamindar";
+import { synthesizeSpeech, translate, loadMemory, JAMINDAR_LANGUAGES } from "@/lib/jamindar";
 import { wavToUri, dropAudioFile, preparePlayback } from "@/lib/audio-play";
 import { supabase } from "@/lib/supabase";
 import {
@@ -217,15 +217,24 @@ export default function PropertyDetail() {
     }
   }
 
-  async function onTranslate(description: string) {
-    if (translated) {
+  // Report 25-11: Translate on a project showed no language choices (the
+  // Announcements/Community translate does). The button now opens the same
+  // language chip row; picking one translates into it.
+  const [langPickerOpen, setLangPickerOpen] = useState(false);
+  const [translatedLang, setTranslatedLang] = useState<string | null>(null);
+  async function onTranslate(description: string, code?: string) {
+    if (translated && !code) {
       setTranslated(null);
+      setTranslatedLang(null);
+      setLangPickerOpen(false);
       return;
     }
+    setLangPickerOpen(false);
     setVoiceBusy(true);
     try {
-      const out = await translate(description, lang);
+      const out = await translate(description, code ?? lang);
       setTranslated(out);
+      setTranslatedLang(code ?? lang);
       setShowOriginal(false);
     } catch {
       Alert.alert("Translate", "Couldn't translate right now. Please try again.");
@@ -668,7 +677,7 @@ export default function PropertyDetail() {
 
           <View style={{ marginTop: 18 }}>
             {activeTab === "overview" && (
-              <Overview property={property} voiceBusy={voiceBusy} listening={listening} translated={translated} showOriginal={showOriginal} onListen={() => speakText(translated && !showOriginal ? translated : property.description!)} onTranslate={() => onTranslate(property.description!)} onToggleOriginal={() => setShowOriginal((v) => !v)} phaseLabel={phase.label} />
+              <Overview property={property} voiceBusy={voiceBusy} listening={listening} translated={translated} showOriginal={showOriginal} onListen={() => speakText(translated && !showOriginal ? translated : property.description!)} onTranslate={() => (translated ? onTranslate(property.description!) : setLangPickerOpen((v) => !v))} onPickLang={(code) => onTranslate(property.description!, code)} pickerOpen={langPickerOpen} translatedLang={translatedLang} preferredLang={lang} onToggleOriginal={() => setShowOriginal((v) => !v)} phaseLabel={phase.label} />
             )}
             {activeTab === "photos" && <PhotosTab images={images} active={imgIndex} onSelect={selectImage} onOpen={setFullscreen} />}
             {activeTab === "videos" && <VideosTab videos={property.videos ?? []} drone={property.drone_videos ?? []} />}
@@ -830,9 +839,10 @@ export default function PropertyDetail() {
 
 // ─────────────────────────── tab bodies ───────────────────────────
 
-function Overview({ property, voiceBusy, listening, translated, showOriginal, onListen, onTranslate, onToggleOriginal, phaseLabel }: {
+function Overview({ property, voiceBusy, listening, translated, showOriginal, onListen, onTranslate, onToggleOriginal, phaseLabel, onPickLang, pickerOpen, translatedLang, preferredLang }: {
   property: Property; voiceBusy: boolean; listening: boolean; translated: string | null; showOriginal: boolean;
   onListen: () => void; onTranslate: () => void; onToggleOriginal: () => void; phaseLabel: string;
+  onPickLang?: (code: string) => void; pickerOpen?: boolean; translatedLang?: string | null; preferredLang?: string;
 }) {
   return (
     <View>
@@ -866,6 +876,22 @@ function Overview({ property, voiceBusy, listening, translated, showOriginal, on
               </Pressable>
             </View>
           </View>
+          {pickerOpen && onPickLang ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {[
+                ...JAMINDAR_LANGUAGES.filter((l) => l.code === preferredLang),
+                ...JAMINDAR_LANGUAGES.filter((l) => l.code !== preferredLang),
+              ].map((l) => (
+                <Pressable
+                  key={l.code}
+                  onPress={() => onPickLang(l.code)}
+                  style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: translatedLang === l.code ? colors.brand : colors.surfaceSunken, borderWidth: 1, borderColor: translatedLang === l.code ? colors.brand : colors.border }}
+                >
+                  <Text style={{ color: translatedLang === l.code ? "#fff" : colors.inkSoft, fontWeight: "600", fontSize: 12 }}>{l.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <Text style={{ color: colors.inkSoft, lineHeight: 22 }}>{translated && !showOriginal ? translated : property.description}</Text>
           {translated ? (
             <Pressable onPress={onToggleOriginal} style={{ marginTop: 6 }}>

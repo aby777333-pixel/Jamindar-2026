@@ -11,6 +11,9 @@ import { colors, space, type as T } from "@/lib/theme";
 import { timeAgo } from "@/lib/format";
 import type { AppNotification, UserRole } from "@/lib/types";
 
+/** Rollback switch for the 25-11 notification routing fix. */
+const NOTIF_ROUTING_V2 = true;
+
 const ICON: Record<string, string> = {
   kyc: "shield-checkmark", info: "notifications", lead: "call", visit: "calendar",
   partner: "ribbon", submission: "document-text", withdrawal_request: "wallet",
@@ -23,6 +26,19 @@ const ICON: Record<string, string> = {
  *  sensible destination per type when the row carries no specific target. */
 function destinationFor(n: AppNotification, role: UserRole): string | null {
   const meta = (n.meta ?? {}) as Record<string, any>;
+  // Report 25-11 (additive layer, NOTIF_ROUTING_V2 = false restores the old
+  // behaviour): a site-visit notification opens the site-visit list for the
+  // viewer's role, and a submission notification opens the submitter's own
+  // submissions — never the admin console for a non-admin.
+  if (NOTIF_ROUTING_V2) {
+    if (n.type === "visit") {
+      const base = role === "buyer" ? "/visits" : "/manage-visits";
+      return meta.visit_id ? `${base}?visit=${meta.visit_id}` : base;
+    }
+    if (n.type === "submission" && role !== "super_admin") {
+      return meta.submission_id ? `/promoter/submission/${meta.submission_id}` : "/promoter/leads";
+    }
+  }
   if (meta.property_id) return `/property/${meta.property_id}`;
   switch (n.type) {
     case "kyc": return "/buyer/kyc";

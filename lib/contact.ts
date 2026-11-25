@@ -34,8 +34,14 @@ export function openSms(phone?: string | null, body?: string) {
 }
 
 export function openWhatsApp(phone?: string | null, text?: string) {
-  const p = clean(phone).replace(/^\+/, "");
+  let p = clean(phone).replace(/^\+/, "");
   if (!p) return;
+  // Report 25-11: wa.me needs the country code. A bare 10-digit Indian mobile
+  // (stored without +91) opened WhatsApp's "not registered" page; a 0-prefixed
+  // 11-digit number is the same case. Numbers that already carry a code are
+  // untouched.
+  if (/^[6-9]\d{9}$/.test(p)) p = `91${p}`;
+  else if (/^0[6-9]\d{9}$/.test(p)) p = `91${p.slice(1)}`;
   open(`https://wa.me/${p}${text ? `?text=${encodeURIComponent(text)}` : ""}`);
 }
 

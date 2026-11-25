@@ -36,6 +36,17 @@ export default function Properties() {
   const [search, setSearch] = useState("");
   const compareCount = useCompare((s) => s.ids.length);
 
+  // Report 25-11: clearing a filter used router.replace, which overwrote the
+  // tab's history entry — the device Back button then no longer returned to
+  // the screen the member came from (Home tile / Types of Lands). Dropping the
+  // param keeps the history intact. CLEAR_KEEPS_HISTORY = false restores the
+  // previous replace behaviour.
+  const CLEAR_KEEPS_HISTORY = true;
+  function clearFilters() {
+    if (CLEAR_KEEPS_HISTORY) router.setParams({ filters: undefined } as never);
+    else router.replace("/(tabs)/properties");
+  }
+
   // Repaint the list when an admin edits a price, a plot or a listing.
   useLiveProperties();
 
@@ -122,7 +133,7 @@ export default function Properties() {
                 types: filter !== "all" ? [filter] : (jamindarFilters.types?.length ?? 0) > 1 ? jamindarFilters.types : undefined,
               })}
             </Text>
-            <Pressable onPress={() => router.replace("/(tabs)/properties")}>
+            <Pressable onPress={clearFilters}>
               <Ionicons name="close-circle" size={18} color={colors.brand} />
             </Pressable>
           </View>
@@ -198,7 +209,7 @@ export default function Properties() {
             subtitle={jamindarFilters ? "No projects in this view right now — new phases are announced here first." : "Try a different filter or search term."}
           />
           <Pressable
-            onPress={() => { setSearch(""); setFilter("all"); router.replace("/(tabs)/properties"); }}
+            onPress={() => { setSearch(""); setFilter("all"); clearFilters(); }}
             style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.brand, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 }}
           >
             <Ionicons name="business" size={15} color="#fff" />

@@ -271,7 +271,8 @@ export default function PromoterDashboard() {
         <PromoterSection title="My Wishlist" actionLabel={data.saved.length ? "See all" : undefined} onAction={() => router.push("/saved" as Href)}>
           {data.saved.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingRight: space.md }}>
-              {data.saved.map((p) => (
+              {/* report 25-11: an un-hearted project leaves the rail at once */}
+              {data.saved.filter((p) => !favorites.ready || favorites.has(p.id)).map((p) => (
                 <VerifiedListingCard key={p.id} property={p} width={210} saved={favorites.has(p.id)} onSave={() => favorites.toggle(p.id)} onPress={() => router.push(`/property/${p.id}` as Href)} />
               ))}
             </ScrollView>

@@ -33,15 +33,25 @@ export function useFavorites() {
 
   async function toggle(propertyId: string) {
     if (!uid) return;
-    if (ids.has(propertyId)) {
-      await supabase.from("favorites").delete().eq("buyer_id", uid).eq("property_id", propertyId);
-      logActivity("property_unsaved", { property_id: propertyId });
+    // Report 25-11 (wishlist removal not reflected): flip the shared id list
+    // at once so every heart and wishlist rail repaints immediately, and put
+    // it back if the write is refused. The server write and the sync() below
+    // are unchanged.
+    const key = ["favorite-ids", uid];
+    const wasSaved = ids.has(propertyId);
+    qc.setQueryData<string[]>(key, (cur) => {
+      const list = cur ?? [];
+      return wasSaved ? list.filter((x) => x !== propertyId) : list.includes(propertyId) ? list : [...list, propertyId];
+    });
+    if (wasSaved) {
+      const { error } = await supabase.from("favorites").delete().eq("buyer_id", uid).eq("property_id", propertyId);
+      if (!error) logActivity("property_unsaved", { property_id: propertyId });
     } else {
-      await supabase.from("favorites").insert({ buyer_id: uid, property_id: propertyId });
-      logActivity("property_saved", { property_id: propertyId });
+      const { error } = await supabase.from("favorites").insert({ buyer_id: uid, property_id: propertyId });
+      if (!error) logActivity("property_saved", { property_id: propertyId });
     }
-    sync();
+    sync(); // refetch from the server: corrects the optimistic flip if a write failed
   }
 
-  return { has: (id: string) => ids.has(id), toggle, sync };
+  return { has: (id: string) => ids.has(id), toggle, sync, ready: data !== undefined };
 }

@@ -90,6 +90,8 @@ export default function Account() {
   // you"), which never lists the visits they booked themselves — their own
   // bookings were unreachable from anywhere in the app.
   rows.push({ icon: "calendar", label: "My site visits", onPress: () => router.push("/visits" as Href) });
+  // Report 25-11: one place for every plot the member has put on hold.
+  rows.push({ icon: "lock-closed", label: "My held plots", onPress: () => router.push("/holds" as Href) });
 
   // --- shared by everyone ---
   rows.push(

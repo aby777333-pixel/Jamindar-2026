@@ -93,6 +93,29 @@ async function anonGate(admin: any, req: Request): Promise<{ ok: boolean; messag
   }
 }
 
+// 25-11 (tester reports: Listen and Jamindar voice both fail): Sarvam now
+// rejects "bulbul:v2" ("Model 'bulbul:v2' has been deprecated"), so every TTS
+// call returned 502. bulbul:v3 is the supported model; its named speakers
+// differ from v2's, so the app's stored v2 voice choices are mapped to the
+// closest v3 voice here and the app itself needs no change. TTS_MODEL is the
+// one switch to move to another model later.
+const TTS_MODEL = "bulbul:v3";
+const V3_SPEAKERS = new Set([
+  "shubh", "aditya", "ritu", "priya", "neha", "rahul", "pooja", "rohan", "simran", "kavya", "amit", "dev",
+  "ishita", "shreya", "ratan", "varun", "manan", "sumit", "roopa", "kabir", "aayan", "ashutosh", "advait",
+  "anand", "tanya", "tarun", "sunny", "mani", "gokul", "vijay", "shruti", "suhani", "mohit", "kavitha",
+  "rehan", "soham", "rupali",
+]);
+const V2_TO_V3_SPEAKER: Record<string, string> = {
+  anushka: "priya", manisha: "ritu", vidya: "kavya",
+  abhilash: "aditya", karun: "rahul", hitesh: "amit",
+};
+function ttsSpeaker(requested: unknown): string {
+  const s = String(requested ?? "anushka").toLowerCase();
+  if (V3_SPEAKERS.has(s)) return s;
+  return V2_TO_V3_SPEAKER[s] ?? "priya";
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
@@ -505,8 +528,8 @@ Deno.serve(async (req) => {
       const body: Record<string, unknown> = {
         text: speakable(String(payload.text ?? "")).slice(0, 1500),
         target_language_code: payload.language ?? "en-IN",
-        speaker: payload.speaker ?? "anushka",
-        model: "bulbul:v2",
+        speaker: ttsSpeaker(payload.speaker),
+        model: TTS_MODEL,
         enable_preprocessing: true,
         speech_sample_rate: 22050,
         pace: payload.pace != null ? payload.pace : 0.95,

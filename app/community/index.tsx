@@ -98,6 +98,7 @@ export default function Community() {
               onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["community-feed"] });
                 qc.invalidateQueries({ queryKey: ["community-stats"] });
+                qc.invalidateQueries({ queryKey: ["community-latest"] }); // Home "latest post" card (report 25-11)
               }}
             />
           )}

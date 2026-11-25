@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { View, Text, Pressable, Image, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors, space, type as T } from "@/lib/theme";
+import { colors, space, type as T, getThemeMode } from "@/lib/theme";
 import { IMG } from "@/lib/img";
 import { SafeImage } from "./SafeImage";
 import { elevation } from "./ui";
@@ -504,7 +504,9 @@ export function VerifiedListingCard({
         <Text numberOfLines={1} style={{ fontWeight: "600", fontSize: T.small.fontSize + 1, color: colors.ink, letterSpacing: -0.3 }}>
           {property.title}
         </Text>
-        <Text numberOfLines={1} style={{ color: colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
+        {/* Report 25-11: in Dark theme the location line (inkFaint) sank into
+            the card; inkSoft keeps it readable. Light theme is unchanged. */}
+        <Text numberOfLines={1} style={{ color: getThemeMode() === "dark" ? colors.inkSoft : colors.inkFaint, fontSize: T.caption.fontSize + 1, marginTop: 2 }}>
           {loc}
         </Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.surfaceSunken }}>

@@ -3,7 +3,7 @@ import { Text, View, ScrollView, Pressable, Alert, Linking } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Loading, Empty } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { colors, space, type as T } from "@/lib/theme";
@@ -18,6 +18,7 @@ export default function AdminCommunity() {
   const router = useRouter();
   const [sub, setSub] = useState<Sub>("posts");
 
+  const qcAdmin = useQueryClient();
   const posts = useQuery({
     queryKey: ["admin-comm-posts"],
     enabled: sub === "posts",
@@ -65,6 +66,11 @@ export default function AdminCommunity() {
     if (error) Alert.alert("Couldn't update", error.message);
     posts.refetch();
     reports.refetch();
+    // Report 25-11: an admin removal must also refresh the members' feed and
+    // the Home "latest post" card.
+    qcAdmin.invalidateQueries({ queryKey: ["community-feed"] });
+    qcAdmin.invalidateQueries({ queryKey: ["community-stats"] });
+    qcAdmin.invalidateQueries({ queryKey: ["community-latest"] });
   }
 
   async function resolveReport(id: string) {

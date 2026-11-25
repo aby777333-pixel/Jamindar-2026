@@ -55,6 +55,7 @@ export default function CommunityPostScreen() {
     // deleting a comment here has to invalidate them too or Home keeps the
     // number it fetched before the change.
     qc.invalidateQueries({ queryKey: ["community-stats"] });
+    qc.invalidateQueries({ queryKey: ["community-latest"] }); // Home "latest post" card (report 25-11)
   }
 
   async function onSend() {

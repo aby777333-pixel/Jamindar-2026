@@ -145,6 +145,7 @@ export default function NewCommunityPost() {
       await createCommunityPost({ body: body.trim(), media });
       qc.invalidateQueries({ queryKey: ["community-feed"] });
       qc.invalidateQueries({ queryKey: ["community-stats"] });
+      qc.invalidateQueries({ queryKey: ["community-latest"] }); // Home "latest post" card (report 25-11)
       Alert.alert("Posted 🎉", "Your post is live in the Jamin Community.", [{ text: "Done", onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert("Couldn't post", e?.message ?? "Please try again.");
